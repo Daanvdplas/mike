@@ -1,6 +1,6 @@
 # Wat de frontend van de backend kan verwachten
 
-**Status: afgesproken ontwerp, nog geen draaiende backend.** Bouw nu met fixtures. [OpenAPI](openapi.yaml) is het canonieke contract; wijzigingen stemmen frontend- en backend-agent samen af.
+**Status: de volledige Rust/SQLite/BGE-demo is onafhankelijk via echte HTTP en de browser gecontroleerd.** Fixtures blijven beschikbaar voor los frontendwerk. [OpenAPI](openapi.yaml) is het canonieke contract; wijzigingen stemmen frontend- en backend-agent samen af.
 
 ## Zoeken
 
@@ -9,9 +9,11 @@
 | Veld | Waarde |
 |---|---|
 | `document` | Optioneel PDF- of UTF-8-TXT-bestand, maximaal 10 MiB. |
-| `query` | Optionele tekst; omringende witruimte wordt verwijderd. |
+| `query` | Optionele UTF-8-tekst, maximaal 1 MiB vóór trimmen; omringende witruimte wordt verwijderd. |
 
 Document-only, vraag-only en beide zijn ondersteund. Minstens één moet bruikbaar zijn. Een meegestuurd ongeldig bestand geeft een fout, ook wanneer de vraag wel geldig is. Laat de browser bij `FormData` zelf de multipart `Content-Type` met boundary zetten.
+
+De volledige multipartrequest mag maximaal 12 MiB zijn; het document zelf blijft maximaal 10 MiB. Uitgelezen PDF-tekst is begrensd op 20 MiB. De backend weigert overschrijdingen en kapt tekst niet stil af.
 
 Een succesvolle response bevat `mode`, `corpus_version`, `ranking_version` en precies drie `results`. Elk resultaat bevat `case_id`, `title`, `court`, `decision_date`, `citation`, `case_url`, `text_version`, `score` en `passage`.
 
@@ -41,14 +43,14 @@ Fouten gebruiken steeds `{"error":{"code":"...","message":"..."}}`. Toon de lees
 
 | HTTP | Betekenis |
 |---|---|
-| 400 | Geen bruikbare invoer. |
-| 413 | Bestand groter dan 10 MiB. |
+| 400 | Geen bruikbare invoer, ongeldige multipart of vraag groter dan 1 MiB UTF-8. |
+| 413 | Bestand groter dan 10 MiB of volledige multipartrequest groter dan 12 MiB. |
 | 415 | Ander bestandstype dan PDF/TXT. |
-| 422 | Meegegeven bestand onleesbaar, leeg of scan zonder uitleesbare tekst. |
+| 422 | Meegegeven bestand onleesbaar, leeg, versleuteld, scan zonder uitleesbare tekst of PDF-tekst groter dan 20 MiB. |
 | 404 | Gevraagde zaak bestaat niet. |
 | 503 | Volledige zoekindex nog niet beschikbaar. |
 | 500 | Onverwachte backendfout. |
 
-De voorgenomen backend-URL is `http://127.0.0.1:8000`. Maak de frontend-base-URL configureerbaar. De backend zal CORS ondersteunen voor de afgesproken ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`.
+De standaard backend-URL is `http://127.0.0.1:8000`; de gecontroleerde API-frontend draait afzonderlijk op `http://127.0.0.1:5174` met `VITE_API_MODE=api`. De standaardmock op 5173 blijft ongewijzigd. Maak de frontend-base-URL configureerbaar. De backend ondersteunt CORS voor configureerbare ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`. De API-preview voegt beide 5174-origins toe via `ADAMI_CORS_ORIGINS`; de startcommando’s staan in README.
 
-`GET /api/health` geeft pas 200 met `status: ready` als het volledige corpus beschikbaar is; anders 503. De runtime zal het contract aanbieden op `GET /openapi.json`. Geen API-key nodig voor deze lokale demo; er hoort geen Orq-key in de frontend.
+`GET /api/health` geeft pas 200 met `status: ready` als het volledige corpus beschikbaar is; anders 503. De runtime biedt het contract aan op `GET /openapi.json`. Geen API-key nodig voor deze lokale demo; er hoort geen Orq-key in de frontend.

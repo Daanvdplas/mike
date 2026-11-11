@@ -33,3 +33,6 @@ coverage/
 .DS_Store
 *.log
 .idea/
+
+# Local Python resource-check artifacts
+__pycache__/

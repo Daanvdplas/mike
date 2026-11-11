@@ -2,25 +2,35 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SearchClient } from './client';
 import { getPassageParts, validateInput, type CaseDetail, type SearchResponse, type SearchResult } from './search';
 
-interface Turn { id: number; query: string; filename?: string; response?: SearchResponse }
+interface SelectedDocument { result: SearchResult; corpusVersion: string }
 
 export function App({ client, isMock }: { client: SearchClient; isMock: boolean }) {
   const [query, setQuery] = useState('');
   const [document, setDocument] = useState<File>();
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [response, setResponse] = useState<SearchResponse>();
+  const [selected, setSelected] = useState<SelectedDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadButton = useRef<HTMLButtonElement>(null);
   const pending = useRef(false);
-  const nextId = useRef(0);
   const restoreInputFocus = useRef(false);
+  const readerOpener = useRef<HTMLButtonElement | null>(null);
+  const resultsScroll = useRef(0);
+
   useEffect(() => {
     if (busy || !restoreInputFocus.current) return;
     if (window.document.activeElement === window.document.body) textarea.current?.focus();
     restoreInputFocus.current = false;
   }, [busy]);
+  useEffect(() => {
+    if (!selected && readerOpener.current) {
+      readerOpener.current.focus({ preventScroll: true });
+      window.scrollTo(0, resultsScroll.current);
+      readerOpener.current = null;
+    }
+  }, [selected]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -32,17 +42,13 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
     pending.current = true;
     setBusy(true);
     setError('');
-    const id = ++nextId.current;
-    setTurns((previous) => [...previous, { id, query: query.trim(), filename: document?.name }]);
     try {
-      const response = await client.search(input);
-      setTurns((previous) => previous.map((turn) => turn.id === id ? { ...turn, response } : turn));
+      setResponse(await client.search(input));
       setQuery('');
       setDocument(undefined);
       if (fileInput.current) fileInput.current.value = '';
       if (textarea.current) textarea.current.style.height = '';
     } catch (cause) {
-      setTurns((previous) => previous.filter((turn) => turn.id !== id));
       setError(message(cause));
     } finally {
       pending.current = false;
@@ -52,28 +58,12 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
 
   return <>
     <header className="app-header">Mike</header>
-    <main className="workspace">
-      <section className="intro" aria-labelledby="intro-title" hidden={turns.length > 0}>
+    <main className="workspace" hidden={Boolean(selected)}>
+      <section className="intro" aria-labelledby="intro-title">
         <h1 id="intro-title">Welke uitspraken zoek je?</h1>
       </section>
-      <section className="conversation" aria-label="Gesprek">
-        {turns.map((turn) => <article key={turn.id} className="turn">
-          <div className="user-message">
-            <span className="visually-hidden">Jij: </span>
-            {turn.filename ? <p className="user-file">Bijlage: {turn.filename}</p> : null}
-            {turn.query ? <p className="user-text">{turn.query}</p> : null}
-          </div>
-          {turn.response ? <section className="answer">
-            <h2 className="answer-title">{isMock ? 'Drie voorbeeldzaken' : 'Drie uitspraken'}</h2>
-            {isMock ? <p className="answer-note">Vaste, verzonnen resultaten om de interface te proberen.</p> : null}
-            <ol className="case-list">
-              {turn.response.results.map((result) => <CaseResult key={result.case_id} id={`case-${turn.id}-${result.case_id}`} result={result} response={turn.response!} client={client} />)}
-            </ol>
-          </section> : null}
-        </article>)}
-      </section>
       <div className="composer-area">
-        <p className="status" role="status" aria-live="polite">{busy ? (isMock ? 'Voorbeeldzaken ophalen…' : 'Uitspraken zoeken…') : turns.length ? (isMock ? 'Drie voorbeeldzaken beschikbaar.' : 'Drie uitspraken beschikbaar.') : ''}</p>
+        <p className="status" role="status" aria-live="polite">{busy ? (isMock ? 'Voorbeeldzaken ophalen…' : 'Uitspraken zoeken…') : response ? (isMock ? 'Drie voorbeeldzaken beschikbaar.' : 'Drie uitspraken beschikbaar.') : ''}</p>
         <p className="error" role="alert" hidden={!error}>{error}</p>
         <form className="composer" noValidate onSubmit={submit} aria-busy={busy}>
           <label className="visually-hidden" htmlFor="query">Vraag of tekst</label>
@@ -106,43 +96,69 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
           </div>
         </form>
       </div>
+      {response ? <section className="answer" aria-labelledby="results-title">
+        <h2 id="results-title" className="answer-title">Drie uitspraken</h2>
+        {isMock ? <p className="answer-note">Voorbeeldresultaten, geen analyse van je invoer.</p> : null}
+        <ol className="case-list">
+          {response.results.map((result, index) => <li key={result.case_id} className="case-item">
+            <button className="case-button" type="button" aria-label={`${result.title} — volledig document bekijken`} onClick={(event) => {
+              readerOpener.current = event.currentTarget;
+              resultsScroll.current = window.scrollY;
+              setSelected({ result, corpusVersion: response.corpus_version });
+            }}>
+              <span className="page-heading"><DocumentEmblem /><span>Uitspraak {index + 1}</span></span>
+              <span className="case-title">{result.title}</span>
+              <span className="case-meta">{formatDate(result.decision_date)}<br />{result.citation}</span>
+              <span className="preview-label">Gevonden passage</span>
+              <span className="preview-passage">{result.passage.text}</span>
+              <span className="case-open">Volledig document <span aria-hidden="true">↗</span></span>
+            </button>
+          </li>)}
+        </ol>
+      </section> : null}
     </main>
+    {selected ? <DocumentReader key={selected.result.case_id} selected={selected} client={client} isMock={isMock} onClose={() => setSelected(null)} /> : null}
   </>;
 }
 
-function CaseResult({ id, result, response, client }: { id: string; result: SearchResult; response: SearchResponse; client: SearchClient }) {
-  const [open, setOpen] = useState(false);
+function DocumentEmblem() {
+  return <svg className="document-emblem" width="24" height="28" viewBox="0 0 24 28" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true"><path d="M4 1.5h10l6 6v19H4z" /><path d="M14 1.5v6h6M8 13h8M8 17h8M8 21h5" /></svg>;
+}
+
+function DocumentReader({ selected, client, isMock, onClose }: { selected: SelectedDocument; client: SearchClient; isMock: boolean; onClose: () => void }) {
   const [detail, setDetail] = useState<CaseDetail>();
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  async function toggle() {
-    setOpen(!open);
-    if (open || detail || loading) return;
-    setLoading(true); setError('');
-    try {
-      const source = await client.getCase(result.case_url);
-      getPassageParts(response.corpus_version, result, source);
-      setDetail(source);
-    } catch (cause) { setError(message(cause)); }
-    finally { setLoading(false); }
-  }
-  const parts = detail ? getPassageParts(response.corpus_version, result, detail) : undefined;
-  return <li className="case-item">
-    <button className="case-button" type="button" aria-expanded={open} aria-controls={id} onClick={toggle}>
-      <span className="case-summary"><span className="case-title">{result.title}</span><span className="case-meta">{result.citation} · {formatDate(result.decision_date)}</span></span>
-      <span className="case-open">{open ? 'Sluiten ↑' : 'Lezen →'}</span>
-    </button>
-    <section className="case-detail" id={id} hidden={!open}>
-      {loading ? <p role="status">Document ophalen…</p> : null}
-      {error ? <p className="error" role="alert">{error}</p> : null}
-      {detail && parts ? <>
-        <h3>Volledige meerderheidstekst</h3>
-        <p className="source-meta">{detail.court} · {formatDate(detail.decision_date)} · {detail.citation}</p>
-        <p className="source-meta">Overeenkomstscore: {result.score.toLocaleString('nl-NL', { maximumFractionDigits: 3 })} · geen juridische zekerheid</p>
-        <div className="opinion">{parts.before}<mark>{parts.match}</mark>{parts.after}</div>
-      </> : null}
-    </section>
-  </li>;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const { result, corpusVersion } = selected;
+  useEffect(() => {
+    let cancelled = false;
+    heading.current?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+    async function load() {
+      try {
+        const source = await client.getCase(result.case_url);
+        getPassageParts(corpusVersion, result, source);
+        if (!cancelled) setDetail(source);
+      } catch (cause) { if (!cancelled) setError(message(cause)); }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [client, corpusVersion, result]);
+  const parts = detail ? getPassageParts(corpusVersion, result, detail) : undefined;
+  return <main className="reader" aria-labelledby="reader-title">
+    <nav className="reader-nav" aria-label="Document"><button className="reader-back" type="button" onClick={onClose}><span aria-hidden="true">←</span> Terug naar resultaten</button></nav>
+    <div className="reader-heading"><DocumentEmblem /><div><h1 id="reader-title" ref={heading} tabIndex={-1}>{result.title}</h1><p className="source-meta">{result.court} · {formatDate(result.decision_date)} · {result.citation}</p></div></div>
+    {error ? <p className="error" role="alert">{error}</p> : !detail ? <p role="status">Document ophalen…</p> : null}
+    {detail && parts ? <>
+      <section className="document-reason" aria-labelledby="reason-title">
+        <h2 id="reason-title">Waarom dit document?</h2>
+        <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de onderstaande bronpassage.' : 'De zoekmethode vond de beste tekstovereenkomst binnen deze uitspraak in de onderstaande passage.'}</p>
+        <blockquote className="why-passage">{result.passage.text}</blockquote>
+        <p className="source-meta">Overeenkomstscore: {result.score.toLocaleString('nl-NL', { maximumFractionDigits: 3 })}</p>
+      </section>
+      <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{parts.before}<mark>{parts.match}</mark>{parts.after}</div></article>
+    </> : null}
+  </main>;
 }
 
 function message(cause: unknown) { return cause instanceof Error ? cause.message : 'Verbinding mislukt. Probeer het opnieuw.'; }

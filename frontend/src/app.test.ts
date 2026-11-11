@@ -21,10 +21,16 @@ it('verstuurt eigen tekst, toont drie uitspraken en opent de volledige gemarkeer
   });
   await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await new Promise(resolve => setTimeout(resolve, 10)); });
   await vi.waitFor(() => expect(document.querySelectorAll('.case-button')).toHaveLength(3));
-  expect(document.querySelector('.user-message')?.textContent).toContain('Mijn eigen vraag over bewijs');
+  const results = document.querySelector('.answer')!;
+  expect(document.querySelector('form')!.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   await act(async () => { (document.querySelector('.case-button') as HTMLButtonElement).click(); });
   await vi.waitFor(() => expect(document.querySelector('mark')?.textContent).toContain('Witness testimony'));
   expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
+  expect(document.querySelector('.reader')).not.toBeNull();
+  expect(document.querySelector('.why-passage')?.textContent).toContain('Witness testimony');
+  await act(async () => { document.querySelector<HTMLButtonElement>('.reader-back')!.click(); });
+  expect(document.querySelector('.reader')).toBeNull();
+  expect(document.activeElement).toBe(document.querySelector('.case-button'));
   expect(document.querySelector('textarea')?.value).toBe('');
 });
 
@@ -76,4 +82,42 @@ it('steelt na laden geen focus van een andere leesinteractie', async () => {
   readingButton.focus();
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
   expect(document.activeElement).toBe(readingButton);
+});
+
+
+it('vervangt de vorige resultaten bij een nieuwe zoekopdracht', async () => {
+  await mountApp(document.querySelector('#app')!, createMockClient(0), true);
+  for (const query of ['Eerste vraag', 'Tweede vraag']) {
+    await act(async () => {
+      const textarea = document.querySelector('textarea')!;
+      textarea.value = query; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await new Promise(resolve => setTimeout(resolve, 10)); });
+  }
+  expect(document.querySelectorAll('.case-button')).toHaveLength(3);
+  expect(document.querySelectorAll('.answer')).toHaveLength(1);
+});
+
+it('toont de gehele lange brontekst veilig en weigert markeringen bij versieverschillen', async () => {
+  const mock = createMockClient(0);
+  const source = await mock.getCase('/api/cases/fixture-case-001');
+  const fullText = source.text + '\n\n' + 'Volledige extra alinea. '.repeat(500) + '<script>ongewenst()</script>';
+  let stale = true;
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    getCase: async () => ({ ...source, text: fullText, text_version: stale ? 'oude-versie' : source.text_version }),
+  }, true);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Een vraag'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await new Promise(resolve => setTimeout(resolve, 10)); });
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.reader [role="alert"]')?.textContent).toContain('opnieuw');
+  expect(document.querySelector('.opinion')).toBeNull();
+  await act(async () => { document.querySelector<HTMLButtonElement>('.reader-back')!.click(); });
+  stale = false;
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.opinion')?.textContent).toBe(fullText);
+  expect(document.querySelector('.opinion script')).toBeNull();
 });

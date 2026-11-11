@@ -1,5 +1,7 @@
 import copy
 import hashlib
+import contextlib
+import io
 import importlib.util
 import json
 from pathlib import Path
@@ -60,6 +62,17 @@ class OrqProxyTests(unittest.TestCase):
         self.assertNotIn('sensitive-provider-detail', json.dumps(actual))
         self.assertEqual(len(requests), 1)
         self.assertEqual(len(retrievals), 1)
+
+    def test_failures_log_only_fixed_stage_and_validation_codes(self):
+        captured = io.StringIO()
+        with contextlib.redirect_stderr(captured):
+            self.run_search([RuntimeError('PRIVATE-UPLOAD-AND-CREDENTIAL')])
+            self.run_search([tool_call(), final_answer(bad_quote=True)])
+        log = captured.getvalue()
+        self.assertIn('phase=provider_tool reason=RuntimeError', log)
+        self.assertIn('phase=validate_explanation reason=invalid_citation_schema', log)
+        self.assertNotIn('PRIVATE-UPLOAD-AND-CREDENTIAL', log)
+        self.assertNotIn('verzonnen bewijs', log)
 
     def test_model_cannot_rewrite_the_original_query_or_select_new_cases(self):
         actual, requests, retrievals = self.run_search([tool_call('{"query":"other"}')])

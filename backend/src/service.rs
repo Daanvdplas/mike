@@ -1,4 +1,24 @@
+use crate::{
+    api::Backend,
+    engine::{CaseDetail, Engine, EngineError, HealthResponse, SearchResponse},
+};
 use axum::http::HeaderValue;
+
+impl Backend for Engine {
+    fn search(
+        &mut self,
+        query: Option<&str>,
+        document: Option<&str>,
+    ) -> Result<SearchResponse, EngineError> {
+        Engine::search(self, query, document)
+    }
+    fn get_case(&self, case_id: &str) -> Result<CaseDetail, EngineError> {
+        Engine::get_case(self, case_id)
+    }
+    fn health(&self) -> HealthResponse {
+        Engine::health(self)
+    }
+}
 use std::{net::SocketAddr, path::PathBuf};
 
 #[derive(Debug, PartialEq)]

@@ -2,13 +2,13 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de Axum-router en PDF/TXT-extractie zijn met deterministische tests geïmplementeerd. Serverstart, corpusimport en de echte zoekengine worden nog gekoppeld. Er draait nog geen backend.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de Rust-backend, import/zoekengine en HTTP-/CLI-koppeling zijn geïmplementeerd. Deterministische tests en echte TCP-readiness zonder database zijn gecontroleerd; de volledige corpusdoorloop en onafhankelijke eindreview lopen nog.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 
 - [AGENTS.md](AGENTS.md): werkafspraken, eigenaarschap en onderhoud van documentatie.
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
-- [OpenAPI](docs/openapi.yaml): het canonieke, nog te implementeren API-contract.
+- [OpenAPI](docs/openapi.yaml): het canonieke API-contract, ook beschikbaar via `/openapi.json`.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
@@ -46,4 +46,35 @@ De tests gebruiken de echte router, multipartverwerking en PDF/TXT-extractie. Al
 
 ## Nu parallel beginnen
 
-De frontend-agent kan starten met [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. De backend- en database-agent bouwen op dezelfde librarybasis in eigen branches. Een server starten of een corpus importeren kan nog niet; die commando's worden toegevoegd zodra de werking is gecontroleerd.
+De frontend-agent gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. Deze backendwijziging bevat geen frontendcode.
+
+## Backend gebruiken
+
+Voer vanuit de reporoot uit. De onderstaande CLI-ingangen bestaan; de volledige corpusimport en zoekdoorloop worden nog onafhankelijk gecontroleerd.
+
+```sh
+export ADAMI_DB_PATH="$PWD/data/cases.sqlite3"
+export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
+cargo +1.94.1 run --manifest-path backend/Cargo.toml -- import /Users/R0GUE/Downloads/texas-criminal-reports
+cargo +1.94.1 run --manifest-path backend/Cargo.toml -- serve
+```
+
+De eerste import downloadt het lokale embeddingmodel als het ontbreekt. Import bewaart alle 135 zaken, passages en embeddings in SQLite. Herimport vervangt de index in één transactie. Start de server opnieuw na import; de server herindexeert nooit stilzwijgend.
+
+```sh
+curl http://127.0.0.1:8000/api/health
+curl --form-string 'query=trial evidence' http://127.0.0.1:8000/api/search
+curl -F 'document=@/pad/naar/zaak.pdf' --form-string 'query=witness testimony' http://127.0.0.1:8000/api/search
+cargo +1.94.1 run --manifest-path backend/Cargo.toml -- search 'trial evidence'
+```
+
+Gebruik voor zaakdetails de `case_url` uit het zoekresultaat, op dezelfde backendbasis-URL. Een ontbrekende, corrupte of onvolledige database laat de server met 503-readiness draaien; er komen geen fictieve zoekresultaten. `/openapi.json` blijft bereikbaar.
+
+| Instelling | Standaard |
+|---|---|
+| `ADAMI_DB_PATH` | `data/cases.sqlite3`, relatief aan de huidige werkmap |
+| `ADAMI_CACHE_DIR` | `.fastembed_cache`, relatief aan de huidige werkmap |
+| `ADAMI_BIND_ADDR` | `127.0.0.1:8000` |
+| `ADAMI_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
+
+CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Er zijn geen API-sleutels of externe modelaanroepen nodig. De modelcache en SQLite-database horen buiten Git.

@@ -3,14 +3,15 @@ info:
   title: Texas Legal Document Similarity Finder
   version: 1.0.0
   description: |
-    Agreed API design; no runtime implementation exists yet.
+    Canonical API contract for the Rust backend. End-to-end verification status
+    is documented in README and CODEBASE_GUIDE; examples remain synthetic.
     Accept a document and/or query and return exactly three unique cases.
     Scores identify the highest-ranked cases under the documented method
     within the complete indexed corpus, not guaranteed legal relevance.
     Example fixtures are synthetic and do not describe actual court opinions.
 servers:
   - url: http://127.0.0.1:8000
-    description: Planned local backend
+    description: Default local backend
 paths:
   /api/search:
     post:
@@ -126,7 +127,7 @@ paths:
     get:
       operationId: getOpenApi
       summary: Retrieve the runtime OpenAPI contract
-      description: Planned runtime representation of this canonical contract.
+      description: Runtime JSON representation of this canonical YAML contract.
       responses:
         '200':
           description: OpenAPI 3 document.

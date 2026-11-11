@@ -1,6 +1,6 @@
 # Wat de frontend van de backend kan verwachten
 
-**Status: de router en PDF/TXT-extractie zijn getest; de echte engine en serverstart worden nog gekoppeld. Er draait nog geen backend.** Bouw nu met fixtures. [OpenAPI](openapi.yaml) is het canonieke contract; wijzigingen stemmen frontend- en backend-agent samen af.
+**Status: backend, engine en server/CLI zijn geïmplementeerd; volledige corpusverificatie en onafhankelijke eindreview lopen nog.** Fixtures blijven beschikbaar voor los frontendwerk. [OpenAPI](openapi.yaml) is het canonieke contract; wijzigingen stemmen frontend- en backend-agent samen af.
 
 ## Zoeken
 
@@ -51,6 +51,6 @@ Fouten gebruiken steeds `{"error":{"code":"...","message":"..."}}`. Toon de lees
 | 503 | Volledige zoekindex nog niet beschikbaar. |
 | 500 | Onverwachte backendfout. |
 
-De voorgenomen backend-URL is `http://127.0.0.1:8000`. Maak de frontend-base-URL configureerbaar. De backend zal CORS ondersteunen voor de afgesproken ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`.
+De standaard backend-URL is `http://127.0.0.1:8000`. Maak de frontend-base-URL configureerbaar. De backend ondersteunt CORS voor configureerbare ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`.
 
-`GET /api/health` geeft pas 200 met `status: ready` als het volledige corpus beschikbaar is; anders 503. De runtime zal het contract aanbieden op `GET /openapi.json`. Geen API-key nodig voor deze lokale demo; er hoort geen Orq-key in de frontend.
+`GET /api/health` geeft pas 200 met `status: ready` als het volledige corpus beschikbaar is; anders 503. De runtime biedt het contract aan op `GET /openapi.json`. Geen API-key nodig voor deze lokale demo; er hoort geen Orq-key in de frontend.

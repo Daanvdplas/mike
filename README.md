@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Featurestatus:** deze branch voegt een selecteerbare head-matterzoekmethode toe naast de bestaande opinion-chunks. De lokale featurepreview gebruikt poort **5177**, backend **8001** en evaluatiepagina **8799**. De nieuwe index wordt apart opgebouwd; zie de verificatiestatus onderaan. Bestaande databases en binaries blijven behouden.
+**Featurestatus:** deze branch voegt een selecteerbare head-matterzoekmethode toe naast de bestaande opinion-chunks. De aparte dual-index en de API-/browserdoorloop zijn onafhankelijk gecontroleerd; zie de verificatie onderaan. De tijdelijke featurepreview op 5177/8001/8799 is daarna gestopt en de oorspronkelijke demo op 8000 is hersteld. Bestaande databases en binaries zijn behouden.
 
 ## Begin hier
 
@@ -65,7 +65,7 @@ export ADAMI_BIND_ADDR="127.0.0.1:8001"
 export ADAMI_CORS_ORIGINS="http://localhost:5177,http://127.0.0.1:5177"
 ```
 
-Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000. De featurepreview mag pas starten wanneer die andere modeldemo netjes is gestopt of haar guard vanzelf is afgelopen. Momenteel draait die andere demo nog; de live featurecontrole is daarom uitgesteld.
+Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000. De featurepreview mag pas starten wanneer die andere modeldemo netjes is gestopt of haar guard vanzelf is afgelopen. Na de afgeronde featurecontrole is de oorspronkelijke demo hersteld; reserveer opnieuw het exclusieve modelslot voordat je de featurebackend herstart.
 
 ```sh
 python3 backend/scripts/resource_guard.py \
@@ -104,7 +104,7 @@ curl --form-string 'query=trial evidence' --form-string 'retrieval_method=head_m
 
 CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Modelcache, database, uploads en runverslagen blijven buiten Git. `/openapi.json` blijft bij een onbruikbare index bereikbaar.
 
-### Bestaande demo later herstellen
+### Bestaande demo herstellen
 
 Stop eerst de featureguard; laat nooit twee modelservers tegelijk draaien. Vanuit de oorspronkelijke repomap herstart deze opdracht de behouden demo op 8000 met de oude binary en database:
 
@@ -115,9 +115,9 @@ ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed" \
 ADAMI_BIND_ADDR="127.0.0.1:8000" \
 ADAMI_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174" \
 python3 backend/scripts/resource_guard.py \
-  --label adami-restored-preview --serve-preview --timeout-seconds 7200 \
-  --report "$HOME/Library/Caches/adami-case/final-q-review/restored-guard.json" \
-  --log "$HOME/Library/Caches/adami-case/final-q-review/restored.log" \
+  --label adami-orq-document-preview --serve-preview --timeout-seconds 7200 \
+  --report "$HOME/Library/Caches/adami-case/head-matter-search/restored-original-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/head-matter-search/restored-original.log" \
   -- "$HOME/Library/Caches/adami-case/cargo-final-review/debug/texas-case-finder" serve
 ```
 
@@ -284,4 +284,8 @@ Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 
-**Nog niet afgerond:** de volledige live dual-indeximport, echte API-/browserdoorloop en vergelijking van behouden B-vectoren. De eerste import van 1368 passages is veilig door de bestaande RSS-guard gestopt (1573,34 MiB groepspiek na 140,48 seconden; geen database gepubliceerd). De daarop toegevoegde sequentiële workerimport is modelvrij getest, maar moet nog onder dezelfde guard live worden uitgevoerd. Een andere actieve modeldemo houdt het gedeelde lokale modelslot bezet; start geen tweede native modeljob. Er is geen nieuwe juridische kwaliteitswinst geclaimd.
+**Daadwerkelijk uitgevoerd:** de bewaakte sequentiële import publiceerde 135 zaken en 1368 passages (578 majority, 790 head matter) in 273,8 seconden, met 1196,9 MiB groepspiek, normale geheugendruk en geen swapgroei. De eerste import in één proces was eerder veilig gestopt bij 1573,34 MiB zonder databasepublicatie; de guardlimieten zijn niet verhoogd. Onafhankelijke vergelijking bevestigt alle 578 bestaande B-vectoren bytegelijk, alle majorityteksten en posities ongewijzigd, alle 135 ruwe bronJSONs exact en alle 25 scenariobronbindingen geldig.
+
+De onafhankelijke echte API-/browsercontrole doorliep A en B met vraag, TXT-document en PDF plus vraag; zes volledige readers met exacte sectiehashes en UTF-16-markeringen; fout/herstel en mobiele weergave. E01 (document), E06 (vraag) en E11 (beide) zijn via de webinterface gepaard uitgevoerd met dezelfde invoer, manifesten en bronuitsluiting vóór top drie. Een afzonderlijke bewaakte CLI-run van E06 met A bevestigde artefactversie 2, 134 kandidaten na bronuitsluiting en `not_scored`/lege kwaliteitsmetrics. Er zijn geen Orq-/providercalls uitgevoerd en geen nieuwe juridische kwaliteitswinst geclaimd.
+
+De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. De feature kan later met bovenstaande commando’s opnieuw starten wanneer het exclusieve modelslot beschikbaar is.

@@ -14,6 +14,10 @@ De pagina toont de drie gevonden zaken per methode naast elkaar, met rangpositie
 
 De Rust-CLI biedt daarnaast de technische runner voor alle 25 ontwerpen en een modelvrije metriekberekening. Zonder labels zijn de kwaliteitsmetrics null en is de status not_scored.
 
+**Daadwerkelijk gecontroleerd op 2026-11-11:** alle 25 bron-/hashbindingen zijn onafhankelijk tegen de nieuwe index gecontroleerd. De webpagina heeft **E01 (document)**, **E06 (query)** en **E11 (combined)** daadwerkelijk met A en B op dezelfde invoer en index uitgevoerd, met bronuitsluiting en opgeslagen resultaten naast elkaar. De bijbehorende run-ID’s zijn respectievelijk `1794410066-bc01577f`, `1794410066-8dc92025` en `1794410066-0fee0e7b`; hun bestanden staan buiten Git onder `~/Library/Caches/adami-case/head-matter-search/web-evals/<run_id>/result.json`. De echte CLI-run van E06 met A is technisch gecontroleerd en blijft zonder labels `not_scored`. Dit waren geen Orq-aanroepen of menselijke relevantiebeoordelingen; voor de overige 22 scenario’s wordt hiermee geen daadwerkelijke A/B-run geclaimd. Het onafhankelijke technische bewijs staat onder `~/Library/Caches/adami-case/head-matter-search/independent-review/`.
+
+De voorbereide index bevat 135 zaken, 578 meerderheidspassages (B) en 790 head-matterpassages (A). Na deze controle zijn de featurepreviews op 8001, 5177 en 8799 gestopt en is de oorspronkelijke backend op 8000 hersteld. Een nieuwe run vereist een expliciete lokale herstart volgens README; openen van dit opgeslagen overzicht start niets.
+
 | Invoervorm | Modus | Wat krijgt de zoekfunctie? | Waarop beoordelen we matches? |
 |---|---|---|---|
 | Alleen een document | `document` | De volledige majority opinion van de gekozen bronzaak. Geen vraag. | De centrale juridische onderwerpen, redenering en relevante feiten van het document. |

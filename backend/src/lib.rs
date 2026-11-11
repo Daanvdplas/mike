@@ -6,3 +6,4 @@ pub mod api;
 pub mod api_error;
 pub mod engine;
 pub mod extraction;
+pub mod service;

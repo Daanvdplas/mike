@@ -2,17 +2,31 @@
 
 ## Huidige stand
 
-De repo bevat het [API-contract](openapi.yaml), synthetische [fixtures](examples/search-response.json) en een compileerbare Rust-librarybasis in [backend/](../backend/Cargo.toml). De HTTP-service, corpusimport en databasewerking zijn nog niet geïmplementeerd; er zijn geen werkende endpoints. De architectuurroute hieronder is **voorgenomen ontwerp**; uitsluitend de bouwbasis in de volgende paragraaf bestaat nu.
+De repo bevat het [API-contract](openapi.yaml), synthetische [fixtures](examples/search-response.json), een Rust-librarybasis en de data-/zoekengine in [backend/](../backend/Cargo.toml). Corpusimport, SQLite-opslag en zoekgedrag zijn als library geïmplementeerd; er zijn op deze branch nog geen HTTP-service, CLI of werkende endpoints. De diagramroute bevat daardoor zowel bestaande engineonderdelen als de nog te integreren HTTP-/frontendstappen.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
 
 ## Geverifieerde bouwbasis
 
 - [backend/Cargo.toml](../backend/Cargo.toml) en de lockfile vormen een zelfstandige Rust 2024-crate; er is geen rootworkspace. De directe COA-patronen zijn Axum 0.8, fastembed exact 7.1.2 met dezelfde native-TLS/ONNX-downloadfeatures, serde, Tokio en SHA-256.
-- [backend/src/lib.rs](../backend/src/lib.rs) is het library-startpunt zonder productgedrag. Corpus/zoekmodules en de HTTP-service worden door aparte agents toegevoegd. Er is nog geen CLI of serverbinary.
-- SQLite gebruikt de gebundelde SQLite-build via rusqlite. PDF-extractie, CORS en YAML-naar-JSON-conversie hebben dependencies klaarstaan, maar worden pas bij hun implementatietaken aangesloten.
+- [backend/src/lib.rs](../backend/src/lib.rs) exporteert de engine. De HTTP-service wordt door een aparte agent toegevoegd; er is op deze branch nog geen CLI of serverbinary.
+- SQLite gebruikt de gebundelde SQLite-build via rusqlite. PDF-extractie, CORS en YAML-naar-JSON-conversie hebben dependencies klaarstaan, maar zijn geen onderdeel van de data-engine.
 - [.github/workflows/backend-checks.yml](../.github/workflows/backend-checks.yml) volgt de COA-checkvolgorde: expliciete Rust-toolchain, fmt, clippy, deterministische tests en build. De standaardchecks laden geen embeddingmodel.
-- De gecontroleerde commando's staan in de [README](../README.md). De lege library bevat nog nul gedragstests; een succesvolle basistest is geen bewijs dat de zoekfunctie werkt.
+- De basiscommando's staan in de [README](../README.md). De engine heeft elf geslaagde deterministische tests; echte modelchecks staan afzonderlijk op `#[ignore]`. De lokale modelcheck is uitgevoerd; de volledige echte corpusimport volgt apart en is nog geen juridische kwaliteitsbeoordeling.
+
+## Geïmplementeerde data-/zoekengine
+
+[engine/mod.rs](../backend/src/engine/mod.rs) verbindt import, opslag en zoeken. `import_corpus` leest de JSON-map; [corpus.rs](../backend/src/engine/corpus.rs) selecteert precies één majority opinion, gebruikt `decision_date` en bewaart het volledige oorspronkelijke JSON-record inclusief aanvullende opinions. Canonieke tekst normaliseert CRLF/CR naar LF en verwijdert uitsluitend omringende witruimte. `text_version` is SHA-256 van de UTF-8-bytes van die exacte tekst.
+
+[chunk.rs](../backend/src/engine/chunk.rs) maakt overlappende passages met oorspronkelijke byte- en UTF-16-grenzen. Een kandidaat beslaat maximaal 1600 Unicode-tekens en wordt kleiner zolang de echte tokenizer meer dan 480 tokens telt, inclusief speciale tokens. De normale overlap is 160 tekens; bij korte passages blijft voorwaartse voortgang gegarandeerd. Er wordt geen tekst stil afgekapt. Zowel lange vragen als documenten worden volledig verdeeld; hun passagevectoren krijgen een opnieuw genormaliseerd gemiddelde.
+
+[embedding.rs](../backend/src/engine/embedding.rs) hergebruikt de fastembed-instellingen en het gekwantiseerde meertalige MiniLM-model uit COA. Modeltruncatie staat uit; iedere embeddinginvoer wordt vooraf tegen het tokenbudget gecontroleerd. De configuratie registreert SDK, model, dimensies, limiet en SHA-256 van de daadwerkelijk gebruikte model-/tokenizerbestanden en cacherevisie. De modelcache is een instelbaar pad buiten Git. Juridische geschiktheid van dit model is nog niet inhoudelijk beoordeeld.
+
+[storage.rs](../backend/src/engine/storage.rs) bewaart bronrecords, passages, vectorbytes en manifest in SQLite. Een herimport vervangt de index in één transactie. `Engine::load` leest uitsluitend een bestaande database en accepteert pas een snapshot na controle van alle 135 afgesproken case-identiteiten, volledige passagebedekking, tekstversies, UTF-16-grenzen, vectoraantallen/-dimensies, eindige niet-nulvectoren en integriteit van het volledige manifest. De vaste identiteitenhash is afgeleid van de lexicografisch gesorteerde case-ID's uit het aangeleverde corpus. De huidige modelconfiguratie moet exact overeenkomen; gewijzigde bestanden of configuratie vereisen herimport. De engine doet bij laden geen impliciete herindexering.
+
+[ranking.rs](../backend/src/engine/ranking.rs) bevat de overgenomen COA-cosinusfunctie en haar numerieke regressietest, met bronverwijzing in het bestand. De nieuwe casegroepering volgt `cosine-max-v1`: alle passages vergelijken, maximum per zaak, vaste passage-/case-ID-ties en exact drie unieke zaken. [types.rs](../backend/src/engine/types.rs) beschrijft de contractresponses. De engine levert de oorspronkelijke beste passage en volledige canonieke majority-tekst; hij genereert geen antwoord.
+
+De deterministische tests controleren onder meer Unicode/overlap, drie invoermodi, lange vragen, casegroepering, beide tie-breaks, bronidentiteit, duplicaten, herimport, corrupte opslag en een partiële index met nog drie resterende zaken. Ze gebruiken bekende embeddingvectoren aan de modelgrens. De echte modeltest controleert daarnaast onverkorte tokenaantallen en vectorvorm. De afzonderlijke echte-corpuscheck importeert alle zaken en herlaadt de index, maar vervangt geen inhoudelijke beoordeling van zoekkwaliteit.
 
 ## Gebruik en geplande hoofdroute
 
@@ -40,15 +54,15 @@ De mapverdeling is `backend/` voor de Rust-service en de voorgenomen `frontend/`
 
 Het lokale corpus staat in `/Users/R0GUE/Downloads/texas-criminal-reports`. De eerdere data-inspectie vond 135 historische uitspraken van het Texas Court of Criminal Appeals uit 1892–1893, volledige JSON-teksten en bijbehorende HTML. De volumemetadata vermeldt foutief 1992–1993; import gebruikt `decision_date` per zaak.
 
-De import moet zaak-ID, metadata, bronidentificatie en oorspronkelijke opinion-typen bewaren. De eerste zoekindex gebruikt de majority opinion, het oordeel van de meerderheid. Concurrence en dissent blijven herkenbaar en worden niet ongemerkt met het meerderheidsoordeel vermengd.
+De import bewaart zaak-ID, metadata, bronidentificatie en oorspronkelijke opinion-typen. De eerste zoekindex gebruikt de majority opinion, het oordeel van de meerderheid. Concurrence en dissent blijven herkenbaar en worden niet ongemerkt met het meerderheidsoordeel vermengd.
 
-SQLite zal zaken, canonieke tekst, passages en embeddings bewaren. Per zaak bepaalt `text_version` de versie van de canonieke tekst; `corpus_version` identificeert de complete geïmporteerde dataset en verwerking. Model, modelversie en passageverdeling worden bij de index vastgelegd. Herimport is herhaalbaar en mag geen dubbele zaken maken. Uploads worden alleen voor de zoekopdracht verwerkt en hoeven niet duurzaam te worden opgeslagen.
+SQLite bewaart zaken, canonieke tekst, passages en embeddings. Per zaak bepaalt `text_version` de versie van de canonieke tekst; `corpus_version` identificeert de complete geïmporteerde dataset en verwerking. Model, modelversie en passageverdeling worden bij de index vastgelegd. Herimport is herhaalbaar en mag geen dubbele zaken maken. Uploads worden alleen voor de zoekopdracht verwerkt en hoeven niet duurzaam te worden opgeslagen.
 
 De hele index wordt bij serverstart in geheugen geladen. Readiness volgt pas nadat alle 135 afgesproken zaken en hun geldige passages aanwezig zijn. Een partiële of kapotte index geeft een fout; die mag niet als volledige top-driezoekfunctie worden gepresenteerd.
 
 ## Embeddings en zoekmethode
 
-Corpus en invoer gebruiken hetzelfde lokale embeddingmodel via fastembed. De COA-kern is technisch herbruikbaar; de precieze modelkeuze en geschiktheid voor juridisch Engels moeten bij implementatie en kwaliteitsevaluatie worden vastgelegd. Een modeldownload en compilatie kunnen nodig zijn; er zijn nog geen doorlooptijden gemeten.
+Corpus en invoer gebruiken hetzelfde lokale embeddingmodel via fastembed: het gekwantiseerde meertalige MiniLM uit COA, met dezelfde modelinstellingen als vertrekpunt. De model- en tokenizerbestanden worden bij de index vastgelegd. Geschiktheid voor juridisch Engels wordt afzonderlijk beoordeeld. Een modeldownload en compilatie kunnen nodig zijn; er is nog geen doorlooptijdbelofte.
 
 Uitspraken en uploads worden in korte, deels overlappende passages verdeeld, binnen de invoerlimiet van het gekozen model. Tekstposities moeten naar de opgeslagen canonieke tekst blijven verwijzen. Niet stilzwijgend lange teksten afkappen.
 
@@ -93,7 +107,7 @@ Deze paden liggen buiten deze repo en zijn daarom oriëntatiepunten, geen beschi
 
 ## Verificatie bij implementatie
 
-De bouwchecks staan in README en CI; er zijn in de basis nog geen productgedragstests. De verdere implementatie moet aantoonbaar maken:
+De bouwchecks staan in README en CI. De elf deterministische enginetests en afzonderlijke lokale modelcheck staan hierboven beschreven. Onafhankelijke review en HTTP-integratie moeten de volledige oplevering aantoonbaar maken:
 
 - alle drie invoermodi, PDF/TXT en duidelijke fouten bij onbruikbare invoer;
 - precies drie unieke zaken, volledige scoring en deterministische gelijke scores;
@@ -105,6 +119,8 @@ De bouwchecks staan in README en CI; er zijn in de basis nog geen productgedrags
 Contract- en fixturechecks moeten bij implementatie aansluiten op deze backend-CI. De documentatiebootstrap is handmatig gecontroleerd en onafhankelijk gereviewd; de canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: zelfstandige data-/zoekengine toegevoegd met gerichte COA-hergebruikverwijzingen, SQLite-snapshot, volledige corpusidentiteitscontrole, tokenbewuste Unicodepassages en exacte top drie. Elf deterministische tests en de lokale modelgrenscheck uitgevoerd; HTTP-service en inhoudelijke kwaliteitsvalidatie volgen afzonderlijk.
 
 - 2026-11-11: zelfstandige Rust-library, vaste dependency-lockfile en backend-CI toegevoegd op een featurebranch. Nog geen productgedrag of draaiende server; API-contract ongewijzigd.
 - 2026-11-11: repo-overdracht en API-ontwerp toegevoegd. Scope vastgelegd als document en/of vraag, exact drie unieke zaken en volledige majority-opinionteksten met UTF-16-markeerposities. Nog geen runtime-implementatie.

@@ -4,6 +4,7 @@ Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante
 
 - **Frontend:** begin bij [de backendafspraak](docs/FRONTEND_BACKEND.md), het [API-contract](docs/openapi.yaml) en de bijbehorende fixtures. Werk in de toekomstige map `frontend/`.
 - **Backend/database:** werk in de toekomstige map `backend/`. Het API-contract ligt vast voor parallel frontendwerk; stem wijzigingen eerst af met de coördinator.
+- **Evaluaties:** begin bij het [klikbare overzicht](docs/evals/index.html). Wijzig de inhoud in de [canonieke evaluatieopdracht](docs/EVALUATIEOPDRACHT.md); de HTML is een gegenereerde leesweergave.
 - **Taakverdeling en voortgang:** gebruik de hoofdissues en gekoppelde subissues op GitHub. Claim een subissue vóór je begint; houd wijzigingen beperkt tot die taak.
 
 ## Rollen en werkwijze
@@ -29,4 +30,11 @@ Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante
 - Werk bij veranderd gedrag of architectuur de betrokken hoofdstukken in dezelfde taak, pull request en changeset bij. Houd diagrammen, codeverwijzingen, ontwerpafwegingen, beperkingen en recente architectuurwijzigingen actueel; integreer wijzigingen in de bestaande uitleg.
 - Onderscheid geverifieerde implementatie, voorgenomen ontwerp en onbekenden. Claim geen werkende endpoints, setup of tests zolang die niet bestaan.
 - Rapporteer bij afronding of de gids is bijgewerkt en waarom. Laat de gids bij wijzigingen zonder documentatie-impact ongemoeid en leg dat kort uit.
-- Laat een onafhankelijke agent relevante checks uitvoeren. Testcommando's en CI worden toegevoegd zodra de daadwerkelijke backend/frontend bestaan; verzin ze niet bij deze bootstrap.
+- Laat een onafhankelijke agent relevante checks uitvoeren. Documenteer alleen testcommando's en CI die daadwerkelijk bestaan.
+
+## Evaluatiedocumentatie onderhouden
+
+- Houd invoermodi, verwacht gedrag, beoordelingsregels, metrics en status actueel in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md). Werk bij toekomstige wijzigingen ook betrokken dataset-, label- en runverwijzingen in dezelfde changeset bij.
+- Wijzig de gegenereerde HTML niet met de hand. Genereer opnieuw met `python3 docs/evals/build.py` en controleer synchronisatie met `python3 docs/evals/build.py --check`.
+- De [documentatie-CI](.github/workflows/eval-docs-checks.yml) controleert bron-/HTML-synchronisatie en de generator bij wijzigingen aan de evaluatiedocumentatie. Dit zijn geen benchmarkruns.
+- Onderscheid gepland, gebouwd en daadwerkelijk uitgevoerd. Een beschikbare viewer bewijst geen beschikbare evalset, runner of meetresultaten; toon uitsluitend bestaande resultaten met hun herkomst.

@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de React-frontend werkt lokaal met een gesimuleerde backend. Er is nog geen uitvoerbare backend, database of CI.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de React-frontend werkt lokaal met een gesimuleerde backend. Er is nog geen uitvoerbare backend of database.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 
@@ -10,6 +10,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](docs/openapi.yaml): het canonieke, nog te implementeren API-contract.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
+- [Evaluatieoverzicht](docs/evals/index.html): klikbare uitleg van de geplande evals; [de opdracht](docs/EVALUATIEOPDRACHT.md) is de canonieke inhoud.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -53,3 +54,17 @@ npm run build
 `npm test` controleert invoermodi en grenzen, mock/API-uitwisseling, React-interacties en UTF-16-markeringen met versiecontrole. De build voert TypeScript-controle uit en schrijft `frontend/dist/` (genegeerd door Git).
 
 Voor de latere echte API-koppeling: kopieer `frontend/.env.example` naar `frontend/.env.local`, zet `VITE_API_MODE=api`, configureer `VITE_API_BASE_URL` en herstart Vite. Deze modus verstuurt uploads naar die ingestelde backend; er is nog geen backend om deze koppeling end-to-end te proberen. De standaard blijft `mock`. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
+
+## Evals bekijken en bijhouden
+
+Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. Het beschrijft geplande tests en hun verwachte gedrag. De concrete benchmarkdataset, geverifieerde labels, evaluatierunner en meetresultaten zijn nog niet gebouwd; de viewer voert geen evals uit.
+
+Onderhoud de inhoud in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
+
+```sh
+python3 docs/evals/build.py
+python3 docs/evals/build.py --check
+python3 -m unittest discover -s docs/evals -p 'test_*.py'
+```
+
+De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronisatiecheck en generatortests automatisch uit bij wijzigingen aan deze evaldocumentatie. Een verouderde HTML-weergave laat de check falen. Dit valideert de documentatie, niet de kwaliteit of uitvoering van de toekomstige evals. Zie de [onderhoudsafspraken](AGENTS.md#evaluatiedocumentatie-onderhouden).

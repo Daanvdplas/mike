@@ -2,7 +2,7 @@
 
 ## Huidige stand
 
-De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen. Er zijn nog geen Rust-bronbestanden, SQLite-database, CI of werkende backendendpoints. De backendroute hieronder is **voorgenomen ontwerp**; alleen het frontendhoofdstuk beschrijft bestaande uitvoering.
+De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen. De [evaluatieviewer](evals/index.html) toont de geplande evaluaties; de benchmarkset en runner ontbreken nog. Er zijn nog geen Rust-bronbestanden, SQLite-database of werkende backendendpoints. De backendroute hieronder is **voorgenomen ontwerp**; de frontend- en viewerhoofdstukken beschrijven bestaande uitvoering.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
 
@@ -57,6 +57,16 @@ De voorbeelden gebruiken een sober pagina-icoon, zaakmetadata en een excerpt uit
 De HTTP-client gebruikt `FormData` zonder een eigen multipart-Content-Type, volgt de aangeboden `case_url` en toont backendfoutberichten. Deze code is met een onderschepte HTTP-grens getest; een echte backendintegratie is nog niet uitgevoerd. De API-schemas blijven vastgelegd in [OpenAPI](openapi.yaml).
 
 Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend is hiermee uitvoerbaar; backendimport en backendtests ontbreken nog.
+
+## Evaluatiedocumentatie en viewer
+
+[EVALUATIEOPDRACHT.md](EVALUATIEOPDRACHT.md) is de canonieke specificatie van de geplande evals. [evals/index.html](evals/index.html) is de gegenereerde, klikbare leesweergave voor mensen. De viewer hoort bij de projectdocumentatie en staat los van de React-productinterface en de synthetische productfixtures.
+
+[evals/build.py](evals/build.py) maakt de HTML uit de canonieke bron. Voer vanuit de reporoot `python3 docs/evals/build.py` uit na inhoudswijzigingen; `python3 docs/evals/build.py --check` controleert of de opgeslagen weergave nog overeenkomt. Generatorchecks draaien met `python3 -m unittest discover -s docs/evals -p 'test_*.py'`. Onderhoud bron en afgeleide HTML in dezelfde changeset. De [AGENTS-afspraken](../AGENTS.md#evaluatiedocumentatie-onderhouden) bepalen hoe toekomstige wijzigingen aan invoermodi, beoordelingsregels, status, labels en runs worden verwerkt.
+
+[De documentatieworkflow](../.github/workflows/eval-docs-checks.yml) voert synchronisatie- en generatorchecks uit op pull requests en pushes naar `main` die de bron, viewerbestanden of workflow veranderen. De check genereert niet eerst opnieuw: verouderde opgeslagen HTML faalt dus zichtbaar. Er worden geen corpusdata, modellen of benchmarkruns geladen.
+
+De viewer presenteert de opdracht, geen verzameling gebouwde scenario's of gemeten scores. Concrete evaldata, gecontroleerde relevantielabels, een metriekberekening en een uitvoerbare evaluatierunner moeten nog worden gebouwd. Een statische HTML-pagina start geen lokaal backendproces. De generatiecheck controleert alleen documentatiesynchronisatie; daadwerkelijke retrievalkwaliteit vraagt later onafhankelijke labels en echte runs volgens de opdracht.
 
 ## Corpus, opslag en index
 
@@ -124,9 +134,11 @@ Frontendtestcommando's staan hierboven; voor de backend is er nog geen projectte
 - onafhankelijke controle van ranking met bekende vectoren én aparte inhoudelijke beoordeling;
 - een echte HTTP-upload, zoeken en ophalen van volledige documenten.
 
-De frontendchecks draaien lokaal; CI bestaat nog niet. Backendcontract- en fixturechecks moeten later op de gekozen backendtools aansluiten. De canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
+De frontendchecks draaien lokaal. De evaluatiedocumentatie heeft een automatische synchronisatiecheck; backendcontract- en fixturechecks moeten later op de gekozen backendtools aansluiten. Een geslaagde documentatiecheck bewijst geen correcte backend of juridische zoekkwaliteit.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: centrale evaluatiedocumentatie toegevoegd met canonieke Markdownbron, gegenereerde HTML-viewer en synchronisatiecheck in CI. De evaluatieset en runner blijven gepland; er zijn geen benchmarkresultaten toegevoegd.
 
 - 2026-11-11: documentpresentatie herzien: laatste zoekresultaten onder de invoerbox, drie pagina-voorbeelden en een aparte volledige reader met terugkeerfocus. Bronpassage en score vormen de onderbouwing; de simulatie voegt geen juridische vergelijkredenen toe.
 

@@ -26,6 +26,23 @@ pub enum Command {
     Serve,
     Import(PathBuf),
     Search(String),
+    Evaluate(EvalOptions),
+    Score {
+        run: PathBuf,
+        labels: PathBuf,
+        scenarios: PathBuf,
+        corpus: PathBuf,
+        output: PathBuf,
+    },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EvalOptions {
+    pub scenarios: PathBuf,
+    pub corpus: PathBuf,
+    pub output: PathBuf,
+    pub scenario_ids: Vec<String>,
+    pub labels: Option<PathBuf>,
 }
 
 impl Command {
@@ -36,6 +53,20 @@ impl Command {
             [command, path] if command == "import" && !path.is_empty() => {
                 Ok(Self::Import(PathBuf::from(path)))
             }
+            [command, scenarios, corpus, output, options @ ..] if command == "eval" => {
+                let mut parsed = EvalOptions {scenarios: scenarios.into(), corpus: corpus.into(), output: output.into(), scenario_ids:Vec::new(), labels:None};
+                let mut options = options.iter();
+                while let Some(option) = options.next() {
+                    let value = options.next().filter(|value| !value.trim().is_empty()).ok_or("Eval options require a value.")?;
+                    match option.as_str() {
+                        "--scenario-id" => parsed.scenario_ids.push(value.clone()),
+                        "--labels" if parsed.labels.is_none() => parsed.labels = Some(value.into()),
+                        _ => return Err("Unknown or duplicate eval option.".into()),
+                    }
+                }
+                Ok(Self::Evaluate(parsed))
+            }
+            [command, run, labels, scenarios, corpus, output] if command == "score" => Ok(Self::Score {run:run.into(), labels:labels.into(), scenarios:scenarios.into(), corpus:corpus.into(), output:output.into()}),
             [command, words @ ..] if command == "search" => {
                 let query = words.join(" ").trim().to_owned();
                 if query.is_empty() {
@@ -45,7 +76,7 @@ impl Command {
                 }
             }
             _ => {
-                Err("Usage: texas-case-finder [serve | import CORPUS_DIR | search QUESTION]".into())
+                Err("Usage: texas-case-finder [serve | import CORPUS_DIR | search QUESTION | eval SCENARIOS CORPUS_DIR OUTPUT_DIR [--scenario-id ID] [--labels FILE] | score RUN_JSON LABELS_JSON SCENARIOS CORPUS_DIR OUTPUT_DIR]".into())
             }
         }
     }
@@ -132,6 +163,38 @@ mod tests {
             &["search"],
             &["search", "  "],
             &["unknown"],
+        ] {
+            assert!(Command::parse(&args(values)).is_err());
+        }
+    }
+
+    #[test]
+    fn evaluation_cli_requires_paths_and_validates_repeatable_selection_options() {
+        assert_eq!(
+            Command::parse(&args(&[
+                "eval",
+                "scenarios.json",
+                "corpus",
+                "out",
+                "--scenario-id",
+                "E01",
+                "--labels",
+                "labels.json"
+            ]))
+            .unwrap(),
+            Command::Evaluate(EvalOptions {
+                scenarios: "scenarios.json".into(),
+                corpus: "corpus".into(),
+                output: "out".into(),
+                scenario_ids: vec!["E01".into()],
+                labels: Some("labels.json".into())
+            })
+        );
+        for values in [
+            &["eval"][..],
+            &["eval", "a", "b", "c", "--unknown", "x"],
+            &["eval", "a", "b", "c", "--scenario-id"],
+            &["eval", "a", "b", "c", "--labels", "x", "--labels", "y"],
         ] {
             assert!(Command::parse(&args(values)).is_err());
         }

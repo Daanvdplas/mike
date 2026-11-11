@@ -4,7 +4,7 @@
 
 De Rust-backend en gemergde React-frontend zijn beschikbaar in deze repository. De statisch gequantiseerde BGE-index is onder de resourceguard berekend: 135 zaken en 578 passages. De gezamenlijke live UI/API-controle is onafhankelijk afgerond: de API-preview draait op 5174, de bewaakte backend op 8000 en de standaardmock op 5173 blijft ongewijzigd. De oorspronkelijke MiniLM-meting van 0/15 blijft bewaard als indicatieve AI-evaluatie; zij is geen menselijke juridische referentie. Er is geen A/B/C-uitbreiding of top-vijfcontract ingevoerd.
 
-De [evaluatieviewer](evals/index.html) toont 25 concrete ontwerpbeschrijvingen. Gecontroleerde kandidaatlabels, een benchmarkrunner en bijbehorende meetresultaten ontbreken nog.
+De [evaluatieviewer](evals/index.html) toont 25 concrete ontwerpbeschrijvingen. De technische Rustrunner en metricsscorer zijn beschikbaar; kandidaatlabels en gemeten juridische kwaliteit ontbreken nog.
 
 ## Resourcecheckpoint vóór nieuwe modelmetingen
 
@@ -120,7 +120,33 @@ Het startoverzicht toont alle 25 ontwerp-evals als compacte rijen met ID, titel 
 
 [De documentatieworkflow](../.github/workflows/eval-docs-checks.yml) voert synchronisatie- en generatorchecks uit op pull requests en pushes naar `main` die de bron, viewerbestanden of workflow veranderen. De check genereert niet eerst opnieuw: verouderde opgeslagen HTML faalt dus zichtbaar. Er worden geen corpusdata, modellen of benchmarkruns geladen.
 
-De viewer presenteert concrete ontwerpbeschrijvingen, geen beoordeelde retrievalbenchmark of gemeten scores. Kandidaten met gecontroleerde relevantielabels, een metriekberekening en een uitvoerbare evaluatierunner moeten nog worden gebouwd. De zichtbare ontwerpen zijn ontwikkelmateriaal en kunnen niet als verborgen testset worden gepresenteerd. Een statische HTML-pagina start geen lokaal backendproces. De generatiecheck controleert alleen documentatiesynchronisatie; daadwerkelijke retrievalkwaliteit vraagt later onafhankelijke labels en echte runs volgens de opdracht.
+De viewer presenteert concrete ontwerpbeschrijvingen, geen beoordeelde retrievalbenchmark of gemeten scores. Kandidaatlabels ontbreken nog. De zichtbare ontwerpen zijn ontwikkelmateriaal en kunnen niet als verborgen testset worden gepresenteerd. Een statische HTML-pagina start geen lokaal backendproces. De generatiecheck controleert alleen documentatiesynchronisatie. Zonder labels toont de technische runner uitsluitend uitvoer, ontbrekende beoordelingen en tijd; hij claimt geen juridische kwaliteit.
+
+
+### Technische Rustrunner en metricsscorer
+
+[`evaluation.rs`](../backend/src/engine/evaluation.rs) is een interne enginemodule, zodat corpusnormalisatie, opgeslagen metadata en het indexmanifest rechtstreeks worden hergebruikt. `EvaluationPlan::load` valideert de versie-1-catalogus, unieke scenario-ID’s, bron-ID/titel/datum, het volledige lokale corpus en exacte majorityhashes. Document-/combined-invoer gebruikt de volledige majority; query-only gebruikt uitsluitend `query.en`. Nederlandse leesvertalingen, voorbeeldcitaten en het bronanker worden nooit extra zoekinvoer. Bij een verschil tussen exact gedecodeerde majority en canonieke LF-/trimtekst weigert deze catalogusversie de documentinvoer.
+
+`EvaluationPlan::execute` controleert alle bronrecords tegen de geladen snapshot vóór het meten. [`Engine::search_excluding`](../backend/src/engine/mod.rs) valideert uitsluitings-ID’s en gebruikt dezelfde embeddings en scorer als `Engine::search`. [`rank_cases_excluding`](../backend/src/engine/ranking.rs) filtert de bronzaak vóór maximumgroepering en selectie van drie zaken. Daardoor vult de vierde kandidaat een uitgesloten zelfmatch aan; de normale HTTP-zoekroute blijft ongewijzigd en voegt geen uitsluitingsveld toe.
+
+```mermaid
+flowchart LR
+    C[Catalogus en bronhashes] --> P[Gevalideerd invoerplan]
+    P --> E[Bestaande engine met bronuitsluiting]
+    E --> R[Versioned raw run en passages]
+    R --> M[Scorer met optionele labels]
+    M --> O[JSON en Markdownrapport]
+```
+
+De CLI in [`service.rs`](../backend/src/service.rs) en [`main.rs`](../backend/src/main.rs) biedt `eval SCENARIOS CORPUS_DIR OUTPUT_DIR [--scenario-id ID] [--labels FILE]`. Optionele selecties houden catalogusvolgorde; de volledige catalogus wordt nog steeds gecontroleerd. `run.json` bewaart scenario-/ruwe-bronhashes, canonieke tekstversies, het volledige indexmanifest met model-/pipelineconfiguratie, binary-SHA256, uitsluitingen, kandidaatdekking en de volledige `SearchResponse` met originele passages/UTF-16-posities. `rankings.json` geeft daarnaast de eenvoudige geordende ID-weergave. Bestaande uitvoermappen worden geweigerd. Dit zijn lokale artefacten buiten Git, geen nieuwe productendpoint of frontendwijziging.
+
+Zoektijd is opeenvolgende wall-clocktijd van de echte `search_excluding`-aanroep, inclusief tekstverwerking, embeddings en volledige ranking. Bron-, catalogus-, index- en modelladen, versiecontrole en serialisatie vallen erbuiten. De eerste runpositie gebruikt de eerste inferentie na laden; er is geen verborgen warm-up. Eén meting per scenario bewijst geen stabiele latencyverdeling of gelijktijdige capaciteit.
+
+[`eval_metrics.rs`](../backend/src/eval_metrics.rs) rekent modelvrij Recall@3, nDCG@3 en RR/MRR@3 uit en valideert scenario-/labelbinding, kandidaat-ID’s, modus, uitsluitingen en duplicaten. Grade ≥ 2 is positief; nDCG gebruikt `2^grade − 1`. Zonder labels blijven kwaliteitsscores leeg (`not_scored`); onbekende top3-kandidaten worden nooit als grade 0 ingevuld. Volledig beoordeelde en voorlopige pooled gemiddelden blijven gescheiden, met expliciete noemers en onbeoordeelde kandidaten. AI- en synthetische labels zijn geen menselijke juridische referentie. De runner verifieert optioneel labelbewijs ook tegen werkelijke majoritytekst en versie.
+
+`score RUN_JSON LABELS_JSON SCENARIOS CORPUS_DIR OUTPUT_DIR` herberekent een opgeslagen run zonder embeddingmodel. De scorer laadt en valideert daarvoor de bestaande SQLite-snapshot en originele catalogus/corpus; scenario-/invoer-/bron-/indexbinding, resultaatvolgorde, originele passages en metadata moeten nog kloppen. Een gewijzigde ranking die niet overeenkomt met de opgeslagen `SearchResponse` wordt geweigerd. De log is controleerbaar, geen cryptografisch ondertekende attestatie.
+
+De deterministische tests dekken bronuitsluiting vóór top3, alle invoermodi, bron-/teksthashes, query-only zonder verborgen document, artefactconsistentie, labelbewijs, ongeldige CLI-invoer en overschrijfbeveiliging. De metricstests gebruiken uitdrukkelijk synthetische grades met handberekende uitkomsten; ze beoordelen geen echte zaken. Echte modelruns blijven buiten de standaardchecks en moeten met de bestaande resourceguard afzonderlijk plaatsvinden. Zie de [README](../README.md#technische-evals-uitvoeren) voor commando’s en de [evaluatieopdracht](EVALUATIEOPDRACHT.md) voor interpretatie.
 
 ## Corpus, opslag en index
 
@@ -191,6 +217,7 @@ De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige docum
 
 ## Recente architectuurwijzigingen
 
+- 2026-11-11: technische Rustevalrunner en modelvrije metricsscorer toegevoegd; bronuitsluiting vindt vóór top3 plaats, raw runs binden exacte invoer aan corpus/model/passages, optionele labels worden met echte bronquotes gecontroleerd. Geen kandidaatlabels gegenereerd of nieuwe zoekstrategie ingevoerd; ontbrekende labels blijven zichtbaar als `not_scored`.
 - 2026-11-11: centrale evaluatiedocumentatie toegevoegd met canonieke Markdownbron, gegenereerde HTML-viewer en synchronisatiecheck in CI. De scenariocatalogus toont 25 concrete brononderbouwde ontwerpen; kandidaatlabels en runner blijven gepland. Er zijn geen benchmarkresultaten toegevoegd.
 
 - 2026-11-11: volledige Rust/SQLite/BGE-demo en browserkoppeling gecontroleerd; afzonderlijke API-preview op 5174 en bewaakte backend op 8000. Oude AI-baseline bewaard en nieuwe indicatie zonder juridische-accuracyclaim gerapporteerd.

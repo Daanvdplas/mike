@@ -143,7 +143,7 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Onafhankelijk beoordeelde kandidaatmatches, vaste relevantielabels, evaluatierunner en meetresultaten ontbreken nog; de viewer voert geen evals uit.
+Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Kandidaatlabels en gemeten juridische kwaliteit ontbreken nog. De Rustrunner hieronder kan de ontwerpen technisch uitvoeren; de viewer zelf voert geen evals uit.
 
 Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
@@ -154,3 +154,40 @@ python3 -m unittest discover -s docs/evals -p 'test_*.py'
 ```
 
 De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronisatiecheck en generatortests automatisch uit bij wijzigingen aan deze evaldocumentatie. Een verouderde HTML-weergave laat de check falen. Dit valideert de documentatie, niet de kwaliteit of uitvoering van de toekomstige evals. Zie de [onderhoudsafspraken](AGENTS.md#evaluatiedocumentatie-onderhouden).
+
+## Technische evals uitvoeren
+
+De nieuwe Rust-CLI hergebruikt dezelfde engine als de app en sluit de bronzaak uit **vóór** de top drie. De 25 zichtbare ontwerpen worden in catalogusvolgorde uitgevoerd: vijf documentvragen, vijf losse vragen en vijftien combinaties. Alleen de exacte Engelse vraag en/of volledige meerderheidstekst gaan naar de zoekengine. Een query-only bronanker wordt uitsluitend voor herkomst en uitsluiting gebruikt.
+
+Gebruik een bestaande, passende index en modelcache. Stop eerst de bestaande modelserver; voer één bewaakte modeljob tegelijk uit. Bouw vooraf met de gewone backendchecks. Het onderstaande binarypad geldt voor de standaard Cargo-targetmap; pas het aan wanneer `CARGO_TARGET_DIR` is ingesteld.
+
+```sh
+export ADAMI_EVAL_BINARY="$PWD/backend/target/debug/texas-case-finder"
+export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/bge-static-q-safe/cases.sqlite"
+export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
+python3 backend/scripts/resource_guard.py \
+  --label adami-eval --timeout-seconds 600 \
+  --report "$HOME/Library/Caches/adami-case/eval-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/eval.log" \
+  -- "$ADAMI_EVAL_BINARY" eval docs/evals/scenarios.json \
+  /Users/R0GUE/Downloads/texas-criminal-reports \
+  "$HOME/Library/Caches/adami-case/eval-run-01"
+```
+
+De uitvoermap moet nog niet bestaan. Voor een kleine controle voeg je bijvoorbeeld `--scenario-id E01 --scenario-id E06 --scenario-id E11` toe. De runner valideert ook dan de volledige catalogus en bronnen. Uitvoer blijft buiten Git:
+
+- `run.json`: invoerherkomst, scenario-/bronhashes, indexmanifest met modelconfiguratie, passages, uitsluitingen en zoektijd per scenario.
+- `rankings.json`: geordende resultaat-ID’s per scenario, zonder verzonnen labels.
+- `report.json` en `report.md`: labeldekking, ontbrekende beoordelingen, metrics en tijd per invoermodus.
+
+Zonder kandidaatlabels zijn alle kwaliteitsmetrics `null` en is de status `not_scored`. Onbeoordeeld betekent nooit niet-relevant. De tijd omvat embedding en volledige zoekactie, zonder bron-/index-/modelladen. De eerste scenario-inferentie is apart herkenbaar aan de runvolgorde; latere scenario’s delen het geladen model. Dit zijn losse, beschrijvende metingen, geen belastingsbenchmark.
+
+Optionele labels kunnen mee met `--labels /pad/labels.json`. De scorer controleert invoerbinding en bronbewijs tegen exacte canonieke tekst en UTF-16-posities. AI-labels blijven voorlopig; deze versie maakt geen labels. Een bestaande run kan later zonder modelladen opnieuw worden beoordeeld, met dezelfde index, catalogus en corpus:
+
+```sh
+"$ADAMI_EVAL_BINARY" score /pad/run.json /pad/labels.json \
+  docs/evals/scenarios.json /Users/R0GUE/Downloads/texas-criminal-reports \
+  "$HOME/Library/Caches/adami-case/eval-rescore-01"
+```
+
+De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de canonieke LF-/trimtekst. Bij een toekomstige normalisatieafwijking stopt de runner; hashes en aangeboden tekst mogen niet stil van elkaar verschillen. Nieuwe zoekstrategieën, menselijke controle en AI-labelgeneratie horen niet bij deze technische basis.

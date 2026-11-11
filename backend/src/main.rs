@@ -1,6 +1,6 @@
 use texas_case_finder::{
     api::{self, ApiState, Backend},
-    engine::{self, Engine},
+    engine::{self, Engine, evaluation},
     service::{Command, Settings},
 };
 
@@ -23,6 +23,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .await??;
             println!("{}", serde_json::to_string(&response)?);
+        }
+        Command::Evaluate(options) => {
+            if options.output.exists() {
+                return Err(
+                    "Evaluation output directory already exists; choose a new run directory."
+                        .into(),
+                );
+            }
+            let plan = evaluation::EvaluationPlan::load(
+                &options.scenarios,
+                &options.corpus,
+                &options.scenario_ids,
+            )?;
+            let labels = options
+                .labels
+                .as_ref()
+                .map(
+                    |path| -> Result<
+                        texas_case_finder::eval_metrics::LabelSet,
+                        Box<dyn std::error::Error>,
+                    > { Ok(serde_json::from_slice(&std::fs::read(path)?)?) },
+                )
+                .transpose()?;
+            let mut engine = Engine::load(&settings.database, &settings.cache)?;
+            let mut artifact = plan.execute(&mut engine)?;
+            artifact.executable_sha256 = Some(evaluation::executable_sha256()?);
+            let report = evaluation::score_labels(&artifact, labels.as_ref(), &options.corpus)?;
+            evaluation::write_outputs(&options.output, &artifact, &report)?;
+            println!("{}", options.output.join("report.md").display());
+        }
+        Command::Score {
+            run,
+            labels,
+            scenarios,
+            corpus,
+            output,
+        } => {
+            if output.exists() {
+                return Err(
+                    "Evaluation output directory already exists; choose a new report directory."
+                        .into(),
+                );
+            }
+            let artifact =
+                evaluation::read_validated_run(&run, &scenarios, &corpus, &settings.database)?;
+            let labels = serde_json::from_slice(&std::fs::read(labels)?)?;
+            let report = evaluation::score_labels(&artifact, Some(&labels), &corpus)?;
+            evaluation::write_outputs(&output, &artifact, &report)?;
+            println!("{}", output.join("report.md").display());
         }
         Command::Serve => {
             let database = settings.database.clone();

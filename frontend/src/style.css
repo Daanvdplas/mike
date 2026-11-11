@@ -70,10 +70,7 @@ textarea:focus-visible { outline: none; }
 .document-reason { padding-bottom: var(--space-md); border-bottom: 1px solid var(--border); }
 .document-reason h2 { margin: 0 0 var(--space-sm); }
 .document-reason > p:not(.source-meta) { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
-.why-passage { margin: 16px 0; max-width: 65ch; font-size: 15px; line-height: 1.7; }
 .model-explanation { white-space: pre-wrap; }
-.evidence-link { color: #2558a0; font-size: 12px; text-underline-offset: 3px; }
-.explanation-limitations { color: var(--muted); font-size: 13px; line-height: 1.7; padding-left: 20px; }
 .document-text { margin-top: var(--space-lg); }
 .document-text h2 { margin: 0 0 var(--space-md); }
 .opinion { white-space: pre-wrap; overflow-wrap: anywhere; font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.9; max-width: 68ch; }

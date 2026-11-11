@@ -27,7 +27,7 @@ it('verstuurt eigen tekst, toont drie uitspraken en opent de volledige gemarkeer
   await vi.waitFor(() => expect(document.querySelector('mark')?.textContent).toContain('Witness testimony'));
   expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
   expect(document.querySelector('.reader')).not.toBeNull();
-  expect(document.querySelector('.why-passage')?.textContent).toContain('Witness testimony');
+  expect(document.querySelector('.why-passage')).toBeNull();
   await act(async () => { document.querySelector<HTMLButtonElement>('.reader-back')!.click(); });
   expect(document.querySelector('.reader')).toBeNull();
   expect(document.activeElement).toBe(document.querySelector('.case-button'));
@@ -122,7 +122,7 @@ it('toont de gehele lange brontekst veilig en weigert markeringen bij versievers
   expect(document.querySelector('.opinion script')).toBeNull();
 });
 
-it('toont brongebonden modeluitleg met een verwijzing naar de exacte gemarkeerde passage', async () => {
+it('toont één compacte uitleg boven de volledige bron zonder dubbele quote of spronglink', async () => {
   const mock = createMockClient(0);
   await mountApp(document.querySelector('#app')!, {
     ...mock,
@@ -136,7 +136,7 @@ it('toont brongebonden modeluitleg met een verwijzing naar de exacte gemarkeerde
           explanation: {
             text: 'Deze uitspraak bespreekt getuigenbewijs. <script>ongewenst()</script>',
             citations: [{ passage_id: result.passage.passage_id, quote: result.passage.text }],
-            limitations: ['De passage bewijst niet dat de feiten van beide zaken gelijk zijn.'],
+            limitations: ['De passage bewijst niet dat de feiten van beide zaken gelijk zijn.', 'De inhoud van je upload is niet aan het taalmodel getoond.'],
           },
         })),
       };
@@ -153,10 +153,19 @@ it('toont brongebonden modeluitleg met een verwijzing naar de exacte gemarkeerde
   });
   await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
   expect(document.querySelector('.model-explanation')?.textContent).toContain('Deze uitspraak bespreekt getuigenbewijs.');
-  expect(document.querySelector('.why-passage')?.textContent).toContain('Witness testimony');
-  expect(document.querySelector('a[href="#source-passage"]')).not.toBeNull();
+  expect(document.querySelector('.why-passage')).toBeNull();
+  expect(document.querySelector('a[href="#source-passage"]')).toBeNull();
   expect(document.querySelector('#source-passage')?.textContent).toContain('Witness testimony');
-  expect(document.querySelector('.explanation-limitations')?.textContent).toContain('De passage bewijst niet');
+  const reason = document.querySelector('.document-reason')!;
+  expect(reason.querySelectorAll('p')).toHaveLength(1);
+  expect(reason.querySelector('ul')).toBeNull();
+  expect(reason.textContent).toContain('De passage bewijst niet');
+  expect(reason.textContent).toContain('De inhoud van je upload is niet aan het taalmodel getoond.');
+  expect(reason.textContent).not.toContain('Witness testimony');
+  expect(reason.textContent).not.toContain('Overeenkomstscore');
+  const source = await mock.getCase('/api/cases/fixture-case-001');
+  expect(document.querySelector('.opinion')?.textContent).toBe(source.text);
+  expect(reason.compareDocumentPosition(document.querySelector('.opinion')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(document.querySelector('.document-reason script')).toBeNull();
 });
 

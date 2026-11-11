@@ -163,7 +163,7 @@ cd frontend
 VITE_API_BASE_URL=http://127.0.0.1:18000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5175 --strictPort
 ```
 
-Open `http://127.0.0.1:5175/`. De bestaande hoofdmapdemo op 5173 en extra preview op 5174 blijven afzonderlijk werken. De Orq-reader toont een korte modeltoelichting, bronlinks en beperkingen. Het model retourneert alleen bestaande passage-ID’s; de server vult de citaten uit de oorspronkelijke passage in. Onbekende zaken, verkeerde passage-ID’s of ongeldige modeluitvoer maken de uitleg `unavailable`; er worden nooit zaken of citaten verzonnen als terugval.
+Open `http://127.0.0.1:5175/`. De bestaande hoofdmapdemo op 5173 en extra preview op 5174 blijven afzonderlijk werken. De Orq-reader toont één compacte modeltoelichting met noodzakelijke beperkingen boven de volledige tekst; de gevonden passage blijft daarin gemarkeerd, zonder extra quote of spronglink. Het model retourneert alleen bestaande passage-ID’s; de server vult de citaten uit de oorspronkelijke passage in. Onbekende zaken, verkeerde passage-ID’s of ongeldige modeluitvoer maken de uitleg `unavailable`; er worden nooit zaken of citaten verzonnen als terugval.
 
 Alleen de vraag en gevonden bronpassages gaan naar Orq. Uploadinhoud wordt niet aan het taalmodel gegeven; bij uploads meldt iedere uitleg dit expliciet. Deze toelichting bewijst geen juridische relevantie of juistheid. De bestaande UTF-16- en versiecontrole beschermt de volledige bronweergave. Sleutels, uploads en providerresponses worden niet naar Git of de frontend geschreven. `store: false` wordt meegestuurd; dit is geen garantie over logs of bewaarbeleid van de modelgateway/provider.
 

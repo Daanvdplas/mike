@@ -2,17 +2,23 @@
 
 ## Huidige stand
 
-De repo bevat het [API-contract](openapi.yaml), synthetische [fixtures](examples/search-response.json) en een compileerbare Rust-librarybasis in [backend/](../backend/Cargo.toml). De HTTP-service, corpusimport en databasewerking zijn nog niet geïmplementeerd; er zijn geen werkende endpoints. De architectuurroute hieronder is **voorgenomen ontwerp**; uitsluitend de bouwbasis in de volgende paragraaf bestaat nu.
+De repo bevat het [API-contract](openapi.yaml), synthetische [fixtures](examples/search-response.json), een compileerbare Rust-librarybasis, een geteste Axum-router en PDF/TXT-extractie. Serverstart, corpusimport en de echte zoekengine worden nog gekoppeld. Er is nog geen draaiende server; de complete architectuurroute hieronder is gedeeltelijk **voorgenomen ontwerp**.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
 
 ## Geverifieerde bouwbasis
 
 - [backend/Cargo.toml](../backend/Cargo.toml) en de lockfile vormen een zelfstandige Rust 2024-crate; er is geen rootworkspace. De directe COA-patronen zijn Axum 0.8, fastembed exact 7.1.2 met dezelfde native-TLS/ONNX-downloadfeatures, serde, Tokio en SHA-256.
-- [backend/src/lib.rs](../backend/src/lib.rs) is het library-startpunt zonder productgedrag. Corpus/zoekmodules en de HTTP-service worden door aparte agents toegevoegd. Er is nog geen CLI of serverbinary.
-- SQLite gebruikt de gebundelde SQLite-build via rusqlite. PDF-extractie, CORS en YAML-naar-JSON-conversie hebben dependencies klaarstaan, maar worden pas bij hun implementatietaken aangesloten.
+- [backend/src/lib.rs](../backend/src/lib.rs) exporteert de HTTP-router, extractie en de afgesproken engine-responsetypen. Er is nog geen CLI of serverbinary.
+- SQLite gebruikt de gebundelde SQLite-build via rusqlite. De HTTP-router gebruikt CORS en YAML-naar-JSON voor het canonieke OpenAPI-contract. PDF-extractie gebruikt pdf-extract; scans vereisen OCR en worden geweigerd.
 - [.github/workflows/backend-checks.yml](../.github/workflows/backend-checks.yml) volgt de COA-checkvolgorde: expliciete Rust-toolchain, fmt, clippy, deterministische tests en build. De standaardchecks laden geen embeddingmodel.
-- De gecontroleerde commando's staan in de [README](../README.md). De lege library bevat nog nul gedragstests; een succesvolle basistest is geen bewijs dat de zoekfunctie werkt.
+- De gecontroleerde commando's staan in de [README](../README.md). Routertests gebruiken het COA-patroon met `tower::ServiceExt::oneshot` en echte responsebytes. Alleen de enginegrens wordt vervangen door de contractfixtures; deze tests bewijzen nog geen echte retrieval of TCP-doorloop.
+
+## HTTP-invoer en tekstextractie
+
+[api::router](../backend/src/api.rs) biedt de vier contractroutes en configureerbare CORS. `POST /api/search` leest de velden `query` en `document`, weigert dubbele/onbekende velden en behandelt een lege vraag als afwezig. Een ongeldig meegestuurd document wordt ook naast een geldige vraag geweigerd. Er is geen overgenomen COA-limiet van 1000 vraagtekens of 8192 requestbytes.
+
+[extract_document](../backend/src/extraction.rs) behoudt UTF-8-TXT en extraheert tekst uit PDF. De bestandsgrootte wordt tijdens het lezen per document geteld: precies 10 MiB blijft geldig, los van multipartheaders. PDF-parsing en enginewerk draaien via `spawn_blocking`; een mutex bewaakt de engine. Zonder geladen engine geven health, zoeken en zaakdetails 503; er is geen fictieve terugval. [ApiError](../backend/src/api_error.rs) levert het afgesproken JSON-foutformaat zonder interne enginediagnostiek.
 
 ## Gebruik en geplande hoofdroute
 
@@ -105,6 +111,8 @@ De bouwchecks staan in README en CI; er zijn in de basis nog geen productgedrags
 Contract- en fixturechecks moeten bij implementatie aansluiten op deze backend-CI. De documentatiebootstrap is handmatig gecontroleerd en onafhankelijk gereviewd; de canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: geteste HTTP-router, CORS, OpenAPI-response en PDF/TXT-extractie toegevoegd. Echte engine/serverkoppeling volgt; geen modelkwaliteit of TCP-doorloop geclaimd.
 
 - 2026-11-11: zelfstandige Rust-library, vaste dependency-lockfile en backend-CI toegevoegd op een featurebranch. Nog geen productgedrag of draaiende server; API-contract ongewijzigd.
 - 2026-11-11: repo-overdracht en API-ontwerp toegevoegd. Scope vastgelegd als document en/of vraag, exact drie unieke zaken en volledige majority-opinionteksten met UTF-16-markeerposities. Nog geen runtime-implementatie.

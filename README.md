@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de Rust-librarybasis en backendchecks zijn toegevoegd; de HTTP-service, corpusimport en databasewerking worden nog geïmplementeerd. Er draait nog geen backend.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de Axum-router en PDF/TXT-extractie zijn met deterministische tests geïmplementeerd. Serverstart, corpusimport en de echte zoekengine worden nog gekoppeld. Er draait nog geen backend.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 
@@ -41,7 +41,7 @@ cargo +1.94.1 test --manifest-path backend/Cargo.toml --locked
 cargo +1.94.1 build --manifest-path backend/Cargo.toml --locked
 ```
 
-De basis bevat nog geen productgedrag of tests: `cargo test` bouwt nu alleen de lege testharness. De [backendworkflow](.github/workflows/backend-checks.yml) voert formattering, clippy, deterministische tests en build uit zonder embeddingmodel te laden. Tests met echte modellen worden later apart gehouden van deze standaardchecks.
+De tests gebruiken de echte router, multipartverwerking en PDF/TXT-extractie. Alleen de zoekengine wordt bij de HTTP-tests vervangen door de synthetische contractfixtures; deze tests bewijzen geen modelkwaliteit. De [backendworkflow](.github/workflows/backend-checks.yml) voert formattering, clippy, deterministische tests en build uit zonder embeddingmodel te laden.
 
 ## Nu parallel beginnen
 

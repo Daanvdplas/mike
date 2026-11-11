@@ -1,6 +1,6 @@
 # Wat de frontend van de backend kan verwachten
 
-**Status: afgesproken ontwerp, nog geen draaiende backend.** Bouw nu met fixtures. [OpenAPI](openapi.yaml) is het canonieke contract; wijzigingen stemmen frontend- en backend-agent samen af.
+**Status: de router en PDF/TXT-extractie zijn getest; de echte engine en serverstart worden nog gekoppeld. Er draait nog geen backend.** Bouw nu met fixtures. [OpenAPI](openapi.yaml) is het canonieke contract; wijzigingen stemmen frontend- en backend-agent samen af.
 
 ## Zoeken
 

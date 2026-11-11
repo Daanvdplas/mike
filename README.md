@@ -10,7 +10,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](docs/openapi.yaml): het canonieke API-contract, ook beschikbaar via `/openapi.json`.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
-- [Evaluatieoverzicht](docs/evals/index.html): alle 25 concrete ontwerp-evals, met input en verwacht gedrag na aanklikken; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
+- [Evaluatieoverzicht](docs/evals/index.html): compacte referentiecontroles en lokale methodevergelijking voor 25 scenario’s; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -212,7 +212,7 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Vaste benchmarklabels en algemene meetresultaten ontbreken nog. De lokale evalserver hieronder voert ieder van de 25 zichtbare ontwerpen afzonderlijk uit, plus de losse relevantie-invoer. Een gezamenlijke webbatch over de hele set is geen onderdeel van deze pagina. De Rust-CLI kan daarnaast alle 25 ontwerpen technisch uitvoeren; zonder labels zijn er geen juridische kwaliteitsmetrics.
+Open het [evaluatieoverzicht](docs/evals/index.html) via de lokale evalserver hieronder. De compacte pagina behoudt de vaste B1-referentiecontrole en E06; kaarten beginnen ingeklapt en bewaren een bestaande uitslag wanneer je ze sluit. Een aparte compacte kiezer voert elk van de 25 scenario’s lokaal uit met A, B of beide. De volledige ontwerpbeschrijvingen en onderhoudsinstructies blijven in de canonieke bronnen, buiten de zichtbare kaarten. Zonder kandidaatlabels leveren de scenario’s geen juridische kwaliteitsmetrics.
 
 Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
@@ -226,7 +226,11 @@ De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronis
 
 ## Zoekmethoden vergelijken op de evaluatiepagina
 
-De lokale evalpagina biedt de vaste relevantie-invoer en **alle 25 zichtbare ontwerpscenario’s** afzonderlijk. Kies een scenario en voer opinion-chunks, head matter of beide uit. De standaardvergelijking voert uitsluitend lokale retrieval uit, zonder Orq-key of modelgeneratie. Beide methoden krijgen exact dezelfde invoer en uitsluitingen; de manifesten moeten gelijk zijn. Elk ontwerpscenario sluit zijn eigen bronzaak vóór de top drie uit. De exacte Engelse vraag en/of volledige meerderheidstekst met gecontroleerde hash vormen de invoer; er wordt geen verborgen vraaganker meegestuurd. De algemene relevantie-invoer heeft geen bronuitsluiting en wordt expliciet als productdiagnostiek getoond.
+De lokale vergelijkingskiezer biedt alle 25 canonieke scenario’s afzonderlijk. Kies een scenario en voer opinion-chunks, head matter of beide uit. De standaardvergelijking voert uitsluitend lokale retrieval uit, zonder Orq-key of modelgeneratie. Beide methoden krijgen exact dezelfde invoer en uitsluitingen; de manifesten moeten gelijk zijn. Elk scenario sluit zijn bronzaak vóór de top drie uit. De exacte Engelse vraag en/of volledige meerderheidstekst met gecontroleerde hash vormen de invoer; er wordt geen verborgen vraaganker meegestuurd.
+
+De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Een eventuele AI-beoordeling staat uit totdat je die expliciet aanvinkt.
+
+De vaste **B1**-kaart bewaart haar vooraf geregistreerde protocol uit commit `f3d80b6`: één beroepsborgstellingsvraag, zonder document of bronuitsluiting, met Cummings (156040) en Neubauer (156042) als ongeordende verwachte zaken. De afzonderlijke referentieknop behoudt dit protocol zonder A/B-keuze. Haar oorspronkelijke corpus-/pipeline-/modelcontext blijft strikt gebonden aan de oude baseline. De nieuwe dual-index heeft een andere context en levert daarom expliciet een contextfout, geen stil aangepaste referentie of geslaagde B1-run. Andere gevonden zaken blijven onbeoordeeld; dit is geen volledige juridische goldset of precisieclaim. Dezelfde kaart biedt daarnaast A/B/beide voor `B1-compare`: een afzonderlijke lokale vergelijking met exact de fixturevraag en fixturehash, geen upload of uitsluiting en het actuele indexmanifest. Deze variant krijgt een eigen run-ID en `not_scored`; zij claimt geen vooraf geregistreerd B1-oordeel en verandert de referentie niet.
 
 ```sh
 python3 backend/scripts/evals_web.py \
@@ -243,13 +247,13 @@ Een AI-beoordeling is afzonderlijk opt-in, vereist bestaande servercredentials e
 
 ## Technische evals uitvoeren
 
-De nieuwe Rust-CLI hergebruikt dezelfde engine als de app en sluit de bronzaak uit **vóór** de top drie. De 25 zichtbare ontwerpen worden in catalogusvolgorde uitgevoerd: vijf documentvragen, vijf losse vragen en vijftien combinaties. Alleen de exacte Engelse vraag en/of volledige meerderheidstekst gaan naar de zoekengine. Een query-only bronanker wordt uitsluitend voor herkomst en uitsluiting gebruikt.
+De nieuwe Rust-CLI hergebruikt dezelfde engine als de app en sluit de bronzaak uit **vóór** de top drie. De 25 canonieke scenario’s worden in catalogusvolgorde uitgevoerd: vijf documentvragen, vijf losse vragen en vijftien combinaties. Alleen de exacte Engelse vraag en/of volledige meerderheidstekst gaan naar de zoekengine. Een query-only bronanker wordt uitsluitend voor herkomst en uitsluiting gebruikt.
 
 Gebruik een bestaande, passende index en modelcache. Stop eerst de bestaande modelserver; voer één bewaakte modeljob tegelijk uit. Bouw vooraf met de gewone backendchecks. Het onderstaande binarypad geldt voor de standaard Cargo-targetmap; pas het aan wanneer `CARGO_TARGET_DIR` is ingesteld.
 
 ```sh
 export ADAMI_EVAL_BINARY="$PWD/backend/target/debug/texas-case-finder"
-export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/bge-static-q-safe/cases.sqlite"
+export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite"
 export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
 python3 backend/scripts/resource_guard.py \
   --label adami-eval --timeout-seconds 600 \
@@ -280,7 +284,7 @@ De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de
 
 ## Verificatie van de selecteerbare zoekmethoden
 
-Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **25 Pythonchecks**, **27 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **30 Pythonchecks**, **27 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 
@@ -288,4 +292,4 @@ De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties e
 
 De onafhankelijke echte API-/browsercontrole doorliep A en B met vraag, TXT-document en PDF plus vraag; zes volledige readers met exacte sectiehashes en UTF-16-markeringen; fout/herstel en mobiele weergave. E01 (document), E06 (vraag) en E11 (beide) zijn via de webinterface gepaard uitgevoerd met dezelfde invoer, manifesten en bronuitsluiting vóór top drie. Een afzonderlijke bewaakte CLI-run van E06 met A bevestigde artefactversie 2, 134 kandidaten na bronuitsluiting en `not_scored`/lege kwaliteitsmetrics. Er zijn geen Orq-/providercalls uitgevoerd en geen nieuwe juridische kwaliteitswinst geclaimd.
 
-De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. De feature kan later met bovenstaande commando’s opnieuw starten wanneer het exclusieve modelslot beschikbaar is.
+De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; latere integratie van de evaluatiepagina verandert die Rust-engine en productfrontend niet. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. De feature kan later met bovenstaande commando’s opnieuw starten wanneer het exclusieve modelslot beschikbaar is.

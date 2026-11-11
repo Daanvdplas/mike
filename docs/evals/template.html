@@ -4,30 +4,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Vergelijk twee lokale zoekmethodes op de 25 bestaande juridische ontwerpscenario’s.">
+  <meta name="description" content="Start de vaste B1-referentiecontrole of vergelijk lokale zoekmethodes op B1, E06 en 25 scenario’s.">
+  <meta name="eval-assignment-sha256" content="{{HASH}}">
+  <meta name="eval-catalog-sha256" content="{{CATALOG_HASH}}">
   <link rel="icon" href="data:,">
-  <title>Evaluaties · Adami</title>
+  <title>Mike / Evaluaties</title>
   <style>{{STYLE}}</style>
 </head>
 <body>
   <a class="skip-link" href="#runbare-evals">Ga naar de evaluaties</a>
-  <div class="app-bar"><a class="brand" href="#overzicht">ADAMI <span>/</span> <span>Evaluaties</span></a><nav aria-label="Project"><a href="#ontwerpen">Scenario’s</a><a href="#afspraken">Afspraken</a></nav></div>
+  <header class="app-bar"><a class="brand" href="#overzicht" aria-label="Mike / Evaluaties"><svg xmlns="http://www.w3.org/2000/svg" class="brand-logo" viewBox="52.05 129.85 157.5 55.25" aria-hidden="true"><g transform="matrix(74,0,0,-74,46.79999,183.58139)" fill="#1b3775"><path d="M.21386719 0H.07373047V.71972659H.29248048L.42333985 .1538086 .55322268 .71972659H.76953127V0H.62939456V.4868164C.62939456 .5008138 .6295573 .52042648 .6298828 .5456543 .6302083 .57088217 .6303711 .59033206 .6303711 .6040039L.49414063 0H.34814454L.21289063 .6040039C.21289063 .59033206 .21305339 .57088217 .2133789 .5456543 .21370442 .52042648 .21386719 .5008138 .21386719 .4868164V0Z" />
+</g><g transform="matrix(74,0,0,-74,108.442,183.58139)" fill="#1b3775"><path d="M.20800781 .53222659V0H.06689453V.53222659H.20800781M.20800781 .7246094V.5957031H.06689453V.7246094H.20800781Z" />
+</g><g transform="matrix(74,0,0,-74,128.99919,183.58139)" fill="#1b3775"><path d="M.55322268 0H.3852539L.2578125 .22753906 .20019531 .16748047V0H.06347656V.71728518H.20019531V.32958985L.37353517 .52978518H.54589846L.35986329 .32617188 .55322268 0Z" />
+</g><g transform="matrix(74,0,0,-74,170.158,183.58139)" fill="#1b3775"><path d="M.5205078 .15673828C.51692709 .12516277 .5004883 .093048099 .4711914 .060394288 .4256185 .008412679 .3618164-.017578125 .27978517-.017578125 .21207683-.017578125 .15234375 .00424703 .10058594 .04789734 .048828126 .09155782 .022949219 .16258748 .022949219 .26098634 .022949219 .3531901 .04630534 .42388917 .09301758 .4730835 .13972982 .52227786 .20035808 .546875 .27490235 .546875 .3191732 .546875 .35904948 .53855898 .39453126 .5219269 .43001304 .505305 .4593099 .47906495 .48242188 .4432068 .5032552 .4115804 .51676437 .37490336 .5229492 .33317567 .52652999 .30872093 .5279948 .2735087 .52734377 .22753906H.16308594C.16503906 .17434693 .18180339 .13704936 .2133789 .11564636 .23258464 .10235087 .25569663 .095703128 .28271485 .095703128 .3113607 .095703128 .3346354 .10384115 .35253907 .12011719 .3623047 .12890625 .370931 .14111328 .37841798 .15673828H.5205078M.3828125 .31933595C.38053385 .35611979 .36938478 .3840332 .34936524 .40307618 .3293457 .42211915 .30452476 .43164063 .27490235 .43164063 .24267578 .43164063 .21769206 .42154948 .19995117 .4013672 .18221028 .3811849 .1710612 .35384117 .1665039 .31933595H.3828125Z" />
+</g></svg><span aria-hidden="true">/</span><span>Evaluaties</span></a></header>
   <main id="overzicht">
-    <header class="page-header"><div><h1>Evaluaties</h1><p>{{SCENARIO_COUNT}} scenario’s om lokaal met twee zoekmethodes te vergelijken.</p></div></header>
+    <header class="page-header"><h1>Evaluaties</h1></header>
     <section id="runbare-evals" class="runnable-section" aria-labelledby="runnable-heading">
-      <h2 id="runnable-heading">Runbare evals</h2>
-      <p class="run-intro">Kies oordeelpassages (B), redactioneel voorwerk (A) of vergelijk beide op dezelfde invoer. AI-beoordeling via Orq is optioneel en staat standaard uit.</p>
+      <h2 id="runnable-heading" class="visually-hidden">Runbare evals</h2>
       <p id="catalog-status" role="status">Evalinvoer laden…</p>
       <button id="catalog-retry" type="button" hidden>Opnieuw verbinden</button>
       <div id="runnable-list"></div>
-      <noscript><p>Schakel JavaScript in om een scenario te kiezen en uit te voeren. De scenario’s hieronder blijven leesbaar.</p></noscript>
+      <noscript><p>Schakel JavaScript in om de evals te bekijken.</p></noscript>
     </section>
-    <h2 id="ontwerpen" class="catalog-heading">{{SCENARIO_COUNT}} scenario-ontwerpen</h2>
-    <div class="overview-label"><span>Eval</span><span>Invoer</span></div>
-    <section class="eval-list" aria-label="Alle ontwerpscenario’s">{{SCENARIO_ITEMS}}</section>
-    <p class="overview-note">Ontwerpbeschrijvingen op basis van echte zaken. Kies hierboven een scenario om lokale zoekresultaten te vergelijken. Vaste kandidaatlabels en juridische benchmarkmetingen ontbreken.</p>
-    <details id="afspraken" class="full-spec"><summary>Afspraken en volledige opdracht <span aria-hidden="true">↗</span></summary><div class="spec-layout"><nav aria-label="Hoofdstukken van de opdracht"><ul>{{SOURCE_NAVIGATION}}</ul></nav><div class="specification">{{SPECIFICATION}}</div></div></details>
-    <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht en <a href="scenarios.json">scenarios.json</a>. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>Opdracht SHA-256 <code class="source-hash">{{HASH}}</code></p><p>Scenario’s SHA-256 <code class="source-hash">{{CATALOG_HASH}}</code></p></details></footer>
+    <section class="diagnostic-section" aria-labelledby="diagnostic-heading">
+      <h2 id="diagnostic-heading">Andere scenario’s vergelijken</h2>
+      <div id="diagnostic-list"></div>
+    </section>
   </main>
   <script>{{SCRIPT}}</script>
 </body>

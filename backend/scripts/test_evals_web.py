@@ -15,10 +15,54 @@ import evals_web
 
 
 class EvalsWebTest(unittest.TestCase):
+    def test_b1_comparison_uses_only_fixed_query_and_reports_no_baseline_score(self):
+        fixture, fixture_hash = evals_web.b1.load_fixture(evals_web.REPO)
+        with tempfile.TemporaryDirectory() as temporary:
+            config = {'repo': evals_web.REPO, 'outputs': Path(temporary), 'backend': 'http://unused',
+                      'retrieval_methods': ['opinion_chunks', 'head_matter'], 'judge_enabled': False, 'key': ''}
+            calls = []
+            def search(_url, query, document, method, excluded):
+                calls.append((query, document, method, excluded))
+                return {'response': {'mode': 'query', 'retrieval_method': method, 'corpus_version': 'new-index', 'ranking_version': 'cosine-max-v1',
+                                     'results': [{'case_id': str(i), 'title': f'Case {i}', 'score': .9 - i / 10,
+                                                  'passage': {'text': f'Exact source passage {i}.', 'source_section': 'head_matter' if method == 'head_matter' else 'majority'}} for i in range(3)]},
+                        'index_manifest': {'corpus_version': 'new-index', 'embedding': {'model': 'same-local-model'}},
+                        'excluded_case_ids': [], 'eligible_case_count': 135}
+            with patch.object(evals_web.relevance, 'search', side_effect=search), patch.object(evals_web.relevance, 'judge') as judge:
+                result = evals_web.run_eval(config, 'B1-compare')
+            self.assertEqual(calls, [(fixture['query'], None, method, []) for method in ['opinion_chunks', 'head_matter']])
+            self.assertEqual(result['status'], 'not_scored')
+            self.assertEqual(result['reference_fixture_sha256'], fixture_hash)
+            self.assertNotIn('passed', result)
+            self.assertNotIn('hit_count', result)
+            self.assertTrue(all(run['reference_fixture_sha256'] == fixture_hash and run['judgments'] == [] for run in result['runs']))
+            judge.assert_not_called()
+            with self.assertRaises(evals_web.RunError):
+                evals_web.run_eval({**config, 'judge_enabled': True}, 'B1-compare')
+
+    def test_b1_context_mismatch_stops_before_search_without_rebinding_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = {'repo': evals_web.REPO, 'outputs': Path(temporary), 'database': Path('/unused.sqlite'), 'corpus': Path('/unused'), 'backend': 'http://unused'}
+            with patch.object(evals_web.b1, 'verified_index', side_effect=ValueError('De index wijkt af van de vooraf vastgelegde corpusversie.')), \
+                    patch.object(evals_web.relevance, 'search') as search:
+                with self.assertRaisesRegex(evals_web.RunError, 'vooraf vastgelegde corpusversie'):
+                    evals_web.run_eval(config, 'B1')
+                search.assert_not_called()
+
+    def test_baseline_search_keeps_the_original_query_only_multipart_contract(self):
+        with patch.object(evals_web.relevance, 'fetch_json', return_value={}) as fetch:
+            evals_web.relevance.search('http://unused', 'Fixed baseline question', None)
+        body = fetch.call_args.args[0].data.decode()
+        self.assertIn('name="query"', body)
+        self.assertNotIn('name="retrieval_method"', body)
+        self.assertNotIn('name="excluded_case_ids"', body)
+
     def test_all_catalog_scenarios_accept_local_method_selection(self):
         config = {"repo": evals_web.REPO, "demo_document": Path('demo.txt'), "key": ''}
-        expected = ['relevance'] + [f'E{i:02}' for i in range(1, 26)]
-        self.assertEqual([row['id'] for row in evals_web.catalog(config)['evals']], expected)
+        expected = [f'E{i:02}' for i in range(1, 26)]
+        catalog = evals_web.catalog(config)
+        self.assertEqual([row['id'] for row in catalog['evals']], ['B1', 'E06'])
+        self.assertEqual([row['id'] for row in catalog['diagnostic_evals']], expected)
         calls = []
         def run(actual_config, eval_id):
             calls.append(eval_id)
@@ -99,9 +143,7 @@ class EvalsWebTest(unittest.TestCase):
     def test_compares_both_methods_without_a_model_call_and_preserves_run_inputs(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            document = root / 'document.txt'
-            document.write_text('The same legal issue for both retrieval methods.')
-            config = {"repo": evals_web.REPO, "demo_document": document, "outputs": root / 'runs',
+            config = {"repo": evals_web.REPO, "outputs": root / 'runs',
                       "backend": 'http://127.0.0.1:18081', "model": 'not-requested', "key": '',
                       "orq_base": 'http://unused', "retrieval_methods": ['opinion_chunks', 'head_matter'],
                       "judge_enabled": False}
@@ -110,17 +152,18 @@ class EvalsWebTest(unittest.TestCase):
                 body = req.data.decode()
                 method = 'head_matter' if '\r\n\r\nhead_matter\r\n' in body else 'opinion_chunks'
                 requests.append((req.full_url, body, method))
-                response = {"mode": 'combined', "corpus_version": 'same-corpus', "ranking_version": 'cosine-max-v1',
+                response = {"mode": 'query', "corpus_version": 'same-corpus', "ranking_version": 'cosine-max-v1',
                             "retrieval_method": method, "results": [
                     {"case_id": str(i), "title": f'Case {i}', "score": .8 - i / 10, "case_url": f'/api/cases/{i}',
                      "passage": {"text": f'Verbatim source passage for case {i}.', "source_section": 'head_matter' if method == 'head_matter' else 'majority'}}
                     for i in range(3)
                 ]}
-                return {"response": response, "excluded_case_ids": [], "eligible_case_count": 135,
+                return {"response": response, "excluded_case_ids": ['156133'], "eligible_case_count": 134,
                         "index_manifest": {"corpus_version": 'same-corpus', "model": {"model": 'same-model'}}} if req.full_url.endswith('/api/evals/search') else response
             with patch.object(evals_web.relevance, 'fetch_json', side_effect=fetch), \
-                    patch.object(evals_web.relevance, 'judge', side_effect=AssertionError('Paid judge must stay off.')):
-                result = evals_web.run_eval(config, 'relevance')
+                    patch.object(evals_web.relevance, 'judge', side_effect=AssertionError('Paid judge must stay off.')), \
+                    patch.object(evals_web, 'indexed_source', return_value=({'corpus_version': 'same-corpus', 'model': {'model': 'same-model'}}, {'case_id': '156133', 'file': 'source.json'}, 'Not sent for query-only')):
+                result = evals_web.run_eval(config, 'E06')
             self.assertEqual([run['retrieval_method'] for run in result['runs']], ['opinion_chunks', 'head_matter'])
             self.assertEqual(len(requests), 2)
             self.assertTrue(all(url.endswith('/api/evals/search') for url, _, _ in requests))
@@ -145,6 +188,15 @@ class EvalsWebTest(unittest.TestCase):
             with request.urlopen(req) as response:
                 self.assertEqual(json.load(response)['status'], 'completed')
             self.assertEqual(calls, [('E06', ['opinion_chunks', 'head_matter'], False)])
+            variant = request.Request(base + '/api/evals/B1-compare/run', data=body, headers={'Origin': base, 'Content-Type': 'application/json'})
+            with request.urlopen(variant) as response:
+                self.assertEqual(json.load(response)['status'], 'completed')
+            self.assertEqual(calls[-1], ('B1-compare', ['opinion_chunks', 'head_matter'], False))
+            variant = request.Request(base + '/api/evals/B1-compare/run', data=b'{"judge":true}', headers={'Origin': base, 'Content-Type': 'application/json'})
+            with self.assertRaises(error.HTTPError) as rejected:
+                request.urlopen(variant)
+            self.assertEqual(rejected.exception.code, 400)
+            rejected.exception.close()
             req = request.Request(base + '/api/evals/E06/run', data=b'{"retrieval_methods":["unknown"]}', headers={'Origin': base, 'Content-Type': 'application/json'})
             with self.assertRaises(error.HTTPError) as rejected:
                 request.urlopen(req)
@@ -168,7 +220,8 @@ class EvalsWebTest(unittest.TestCase):
         try:
             with request.urlopen(base + "/api/evals") as response:
                 data = json.load(response)
-            self.assertEqual(len(data['evals']), 26)
+            self.assertEqual([row['id'] for row in data['evals']], ['B1', 'E06'])
+            self.assertEqual(len(data['diagnostic_evals']), 25)
             e06 = next(row for row in data['evals'] if row['id'] == 'E06')
             self.assertEqual(e06['input_mode'], 'query')
             self.assertIsNone(e06['document_label'])
@@ -177,6 +230,20 @@ class EvalsWebTest(unittest.TestCase):
             with request.urlopen(req) as response:
                 self.assertEqual(json.load(response)["status"], "completed")
             self.assertEqual(calls, ["E06"])
+            for options in ({'retrieval_methods': ['head_matter']}, {'judge': False}):
+                fixed = request.Request(base + '/api/evals/B1/run', data=json.dumps(options).encode(), headers={'Origin': base, 'Content-Type': 'application/json'})
+                with self.assertRaises(error.HTTPError) as rejected:
+                    request.urlopen(fixed)
+                self.assertEqual(rejected.exception.code, 400)
+                rejected.exception.close()
+            fixed = request.Request(base + '/api/evals/B1/run', data=b'{}', headers={'Origin': base, 'Content-Type': 'application/json'})
+            with request.urlopen(fixed) as response:
+                self.assertEqual(json.load(response)['status'], 'completed')
+            removed = request.Request(base + '/api/evals/relevance/run', data=b'{}', headers={'Origin': base, 'Content-Type': 'application/json'})
+            with self.assertRaises(error.HTTPError) as rejected:
+                request.urlopen(removed)
+            self.assertEqual(rejected.exception.code, 404)
+            rejected.exception.close()
             with self.assertRaises(error.HTTPError) as rejected:
                 request.urlopen(base + "/.git/config")
             self.assertEqual(rejected.exception.code, 404)

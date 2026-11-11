@@ -60,7 +60,7 @@ def fetch_json(req):
     return value
 
 
-def search(api_url, query, document, retrieval_method="opinion_chunks", excluded_case_ids=None):
+def search(api_url, query, document, retrieval_method=None, excluded_case_ids=None):
     boundary = f"adami-eval-{uuid.uuid4().hex}"
     parts = []
     fields = [("query", query), ("document", document), ("retrieval_method", retrieval_method)]

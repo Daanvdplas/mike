@@ -2,6 +2,7 @@
 """Local A/B retrieval runs for the canonical development scenarios."""
 import argparse
 from contextlib import closing
+import getpass
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -15,9 +16,9 @@ from urllib.parse import urlsplit
 import uuid
 
 import retrieval_relevance as relevance
+import deterministic_b1 as b1
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO_QUERY = "Find cases about a confession induced by an officer claiming family friendship and promising help if the suspect admits the crime."
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
 
 
@@ -53,19 +54,19 @@ def scenario_catalog(repo):
 
 def catalog(config):
     rows, _ = scenario_catalog(config["repo"])
-    records = [{"id": "relevance", "title": "Relevantie van de drie gevonden uitspraken",
-                "input_mode": "combined", "query": DEMO_QUERY, "query_nl": None,
-                "document_label": config["demo_document"].name,
-                "source_case": {"id": "156130", "name": "Clayton v. State"}, "source_excluded": False,
-                "expected_behavior": "Vind drie uitspraken die aansluiten bij de bekentenisvraag; beoordeel ze desgewenst met AI.",
-                "why": "De bestaande demo-invoer. De bronzaak kan zichzelf terugvinden.", "runnable": True}]
-    records.extend({"id": row["id"], "title": row["title"], "input_mode": row["input_mode"],
-                    "query": row["query"]["en"] if row["query"] else None,
-                    "query_nl": row["query"].get("nl") if row["query"] else None,
-                    "document_label": "Volledige meerderheidstekst" if row["document"] else None,
-                    "source_case": row["source_case"], "source_excluded": True,
-                    "expected_behavior": row["expected_behavior"], "why": row["why"], "runnable": True} for row in rows)
-    return {"retrieval_methods": ["opinion_chunks", "head_matter"], "judge_available": bool(config.get("key")), "evals": records}
+    fixture, _ = b1.load_fixture(config["repo"])
+    records = [{"id": row["id"], "title": row["title"], "input_mode": row["input_mode"],
+                "query": row["query"]["en"] if row["query"] else None,
+                "query_nl": row["query"].get("nl") if row["query"] else None,
+                "document_label": "Volledige meerderheidstekst" if row["document"] else None,
+                "source_case": row["source_case"], "source_excluded": True,
+                "expected_behavior": row["expected_behavior"], "why": row["why"], "runnable": True} for row in rows]
+    fixed = [{"id": "B1", "title": fixture["title"], "input_mode": "query", "query": fixture["query"],
+              "document_label": None, "expected_cases": [{"case_id": item["case_id"], "title": item["title"]} for item in fixture["expected_cases"]],
+              "comparison_variant": {"id": "B1-compare", "title": "Zoekmethodes vergelijken op de B1-vraag", "input_mode": "query", "query": fixture["query"],
+                                     "document_label": None, "expected_behavior": "Lokale zoekresultaten naast elkaar; geen score op de vooraf vastgelegde B1-referentie.", "runnable": True}, "runnable": True},
+             next(row for row in records if row["id"] == "E06")]
+    return {"retrieval_methods": ["opinion_chunks", "head_matter"], "judge_available": bool(config.get("key")), "evals": fixed, "diagnostic_evals": records}
 
 
 def indexed_source(config, row):
@@ -119,15 +120,53 @@ def local_search(config, query, document, mode, method, excluded_case_ids):
     return response, manifest, passages
 
 
+def run_b1(config, run_id, run_dir, started):
+    fixture, fixture_hash = b1.load_fixture(config["repo"])
+    try:
+        manifest, cases = b1.verified_index(fixture, config["database"], config["corpus"])
+        response = relevance.search(config["backend"], fixture["query"], None)
+        (run_dir / "search.json").write_text(json.dumps(response, ensure_ascii=False, indent=2))
+        scored = b1.score(fixture, response, cases)
+    except ValueError as failure:
+        raise RunError(str(failure)) from None
+    result = {
+        "run_id": run_id, "eval_id": "B1", "status": "completed", **scored,
+        "input": {"mode": "query", "query": fixture["query"], "document_label": None},
+        "fixture_version": fixture["fixture_version"], "fixture_sha256": fixture_hash,
+        "reference_status": fixture["reference_status"],
+        "corpus_version": response["corpus_version"], "ranking_version": response["ranking_version"],
+        "retrieval_manifest": manifest, "search_response": response,
+        "excluded_case_ids": [], "structural_checks": {"three_unique_results": True, "valid_corpus_ids": True},
+        "duration_seconds": round(time.monotonic() - started, 3),
+        "limitations": ["Vooraf vastgelegde, door agents voorgestelde referenties; geen menselijke juridische goldset.",
+                        "Alleen aanwezigheid van deze twee verwachte zaken wordt getoetst; andere matches zijn onbeoordeeld.",
+                        "Geen AI-beoordelaar, geen precisie- of algemene juridische kwaliteitsmeting."],
+        "artifact_name": run_id + "/result.json",
+    }
+    (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    return result
+
+
+
 def run_eval(config, eval_id):
     run_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
     run_dir = config["outputs"] / run_id
     run_dir.mkdir(parents=True)
     started = time.monotonic()
+    if eval_id == "B1":
+        return run_b1(config, run_id, run_dir, started)
     methods = config.get("retrieval_methods", ["opinion_chunks"])
     judge_enabled = config.get("judge_enabled", False)
     rubric = source = source_manifest = scenario_hash = None
-    if eval_id != "relevance":
+    reference = {}
+    if eval_id == "B1-compare":
+        if judge_enabled:
+            raise RunError("De B1-vergelijkingsvariant gebruikt geen AI-beoordelaar.")
+        fixture, fixture_hash = b1.load_fixture(config["repo"])
+        query, document, mode = fixture["query"], None, "query"
+        reference = {"reference_fixture_sha256": fixture_hash, "reference_fixture_version": fixture["fixture_version"],
+                     "evaluation_kind": "diagnostic_variant", "scoring_status": "not_scored"}
+    else:
         rows, scenario_hash = scenario_catalog(config["repo"])
         row = next((item for item in rows if item["id"] == eval_id), None)
         if row is None:
@@ -137,16 +176,10 @@ def run_eval(config, eval_id):
         query = row["query"]["en"] if row["query"] else None
         document = source_text if row["document"] else None
         rubric = {"expected_behavior": row["expected_behavior"], "why": row["why"]}
-    else:
-        query = DEMO_QUERY
-        document = config["demo_document"].read_text(encoding="utf-8")
-        if not document.strip() or len(document) > relevance.MAX_DOCUMENT_CHARS:
-            raise RunError("Het demodocument ontbreekt of overschrijdt de invoergrens.")
-        mode = "combined"
     if judge_enabled and not config.get("key"):
         raise RunError("AI-beoordeling is niet beschikbaar zonder modelcredential.")
     inputs = {"mode": mode, "query": query,
-              "document_label": (source["file"] if source else config["demo_document"].name) if document else None,
+              "document_label": source["file"] if document else None,
               "document_sha256": sha256(document.encode()) if document else None}
     input_hash = sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False).encode())
     excluded = [source["case_id"]] if source else []
@@ -175,9 +208,9 @@ def run_eval(config, eval_id):
                       "Gelijke invoer en index maken methodes vergelijkbaar; overlap is geen kwaliteitsmeting."]
         if judge_enabled:
             limitations.append("AI-beoordeling, geen menselijke juridische referentie of Recall/nDCG-meting.")
-        if source is None:
-            limitations.append("Het demodocument komt uit het corpus en kan zichzelf terugvinden.")
-        runs.append({"run_id": f"{run_id}-{method}", "eval_id": eval_id, "status": "completed",
+        if eval_id == "B1-compare":
+            limitations.append("Nieuwe variant op de B1-vraag en actuele index; geen uitvoering of score van de vooraf vastgelegde B1-referentie.")
+        runs.append({"run_id": f"{run_id}-{method}", "eval_id": eval_id, "status": "completed", **reference,
                      "retrieval_method": method, "input": inputs, "input_sha256": input_hash,
                      "structural_checks": {"three_unique_results": True, "source_excluded": bool(source)},
                      "judge_status": "completed" if judge_enabled else "not_requested",
@@ -189,7 +222,8 @@ def run_eval(config, eval_id):
                      "search_response": response, "duration_seconds": round(time.monotonic() - method_started, 3),
                      "limitations": limitations, "artifact_name": f"{run_id}/result.json"})
     shared = sorted(set.intersection(*(set(hit["case_id"] for hit in run["search_response"]["results"]) for run in runs)))
-    result = {"run_id": run_id, "eval_id": eval_id, "status": "completed", "input": inputs,
+    result = {"run_id": run_id, "eval_id": eval_id, "status": "not_scored" if reference else "completed",
+              "execution_status": "completed", **reference, "input": inputs,
               "input_sha256": input_hash, "runs": runs,
               "comparison": {"shared_case_ids": shared, "overlap_count": len(shared)} if len(runs) > 1 else None,
               "duration_seconds": round(time.monotonic() - started, 3), "artifact_name": f"{run_id}/result.json"}
@@ -247,7 +281,7 @@ def handler_class(config, runner=run_eval):
             path = urlsplit(self.path).path
             try:
                 rows, _ = scenario_catalog(config["repo"])
-                ids = {f"/api/evals/{eval_id}/run": eval_id for eval_id in ["relevance", *(row["id"] for row in rows)]}
+                ids = {f"/api/evals/{eval_id}/run": eval_id for eval_id in ["B1", "B1-compare", *(row["id"] for row in rows)]}
             except (OSError, ValueError, KeyError, TypeError, RunError):
                 self.send_json(503, {"error": {"code": "catalog_unavailable", "message": "De evalcatalogus kon niet worden geladen."}})
                 return
@@ -261,8 +295,12 @@ def handler_class(config, runner=run_eval):
                 options = json.loads(self.rfile.read(length))
                 if not isinstance(options, dict) or set(options) - {"retrieval_methods", "judge"}:
                     raise ValueError()
+                if ids[path] == "B1" and options:
+                    raise ValueError()
                 methods = options.get("retrieval_methods", ["opinion_chunks"])
                 judge_enabled = options.get("judge", False)
+                if ids[path] == "B1-compare" and judge_enabled:
+                    raise ValueError()
                 if (not isinstance(methods, list) or not 1 <= len(methods) <= 2
                         or any(method not in {"opinion_chunks", "head_matter"} for method in methods)
                         or len(set(methods)) != len(methods) or type(judge_enabled) is not bool):
@@ -297,15 +335,17 @@ def main():
     parser.add_argument("--database", type=Path, default=Path(os.environ.get("ADAMI_DB_PATH", "data/cases.sqlite3")))
     parser.add_argument("--model-cache", type=Path, default=Path(os.environ.get("ADAMI_CACHE_DIR", ".fastembed_cache")))
     parser.add_argument("--corpus", type=Path, default=Path.home() / "Downloads/texas-criminal-reports")
-    parser.add_argument("--demo-document", type=Path, default=Path.home() / "Downloads/adami-demo-test/texas-confession-example.txt")
     parser.add_argument("--outputs", type=Path, default=Path.home() / "Library/Caches/adami-case/web-evals")
+    parser.add_argument("--ask-key", action="store_true", help="Ask for an optional key to enable an explicitly selected AI judgment")
     args = parser.parse_args()
     key = os.environ.get("ORQ_API_KEY", "")
+    if args.ask_key and not key:
+        key = getpass.getpass("Orq API key (not echoed): ") or ""
     config = {"repo": REPO, "backend": args.backend.rstrip('/'), "model": args.model, "key": key,
               "orq_base": os.environ.get("ORQ_BASE_URL", relevance.ORQ_BASE_URL),
               "database": args.database.resolve(),
               "model_cache": args.model_cache.resolve(), "corpus": args.corpus.resolve(),
-              "demo_document": args.demo_document.resolve(), "outputs": args.outputs.resolve()}
+              "outputs": args.outputs.resolve()}
     server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_class(config))
     print(f"Eval page: http://127.0.0.1:{server.server_port}/", flush=True)
     try:

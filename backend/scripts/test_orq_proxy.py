@@ -24,6 +24,45 @@ def final_answer(bad_quote=False, input_ids=None):
     return {'status': 'completed', 'output': [{'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': json.dumps({'explanations': rows})}]}]}
 
 class OrqProxyTests(unittest.TestCase):
+    def test_head_matter_method_is_validated_and_forwarded_without_losing_source_identity(self):
+        body = BODY.replace(b'--bound--', b'--bound\r\nContent-Disposition: form-data; name="retrieval_method"\r\n\r\nhead_matter\r\n--bound--')
+        search = copy.deepcopy(FIXTURE)
+        search['retrieval_method'] = 'head_matter'
+        for result in search['results']:
+            result['passage']['source_section'] = 'head_matter'
+            result['passage']['text_version'] = 'sha256:' + 'b' * 64
+        retrieved = []
+        responses = [tool_call(), final_answer()]
+        def retrieve(raw, kind):
+            retrieved.append((raw, kind))
+            return copy.deepcopy(search)
+        actual = proxy.explain_search(body, CONTENT_TYPE, lambda _: responses.pop(0), retrieve, 'test-model')
+        self.assertEqual(retrieved, [(body, CONTENT_TYPE)])
+        self.assertEqual(actual['retrieval_method'], 'head_matter')
+        self.assertTrue(all('redactionele' in ' '.join(row['explanation']['limitations']).lower() for row in actual['results']))
+
+    def test_head_matter_selection_preserves_upload_context_and_verified_input_evidence(self):
+        body = BODY.replace(b'--bound--', b'--bound\r\nContent-Disposition: form-data; name="retrieval_method"\r\n\r\nhead_matter\r\n--bound\r\nContent-Disposition: form-data; name="document"; filename="input.txt"\r\n\r\nWitness input.\r\n--bound--')
+        search = copy.deepcopy(FIXTURE)
+        search['retrieval_method'] = 'head_matter'
+        for row in search['results']:
+            row['passage']['source_section'] = 'head_matter'
+            row['passage']['text_version'] = 'sha256:' + 'b' * 64
+        responses = [tool_call(), final_answer(input_ids=['input-0001'])]
+        received = []
+        def retrieve(raw, kind):
+            received.append((raw, kind))
+            return copy.deepcopy(search)
+        actual = proxy.explain_search(body, CONTENT_TYPE, lambda _: responses.pop(0), retrieve, 'test-model', extractor=lambda *_: 'Witness input.')
+        self.assertEqual(actual['explanation_status'], 'available')
+        self.assertEqual(actual['retrieval_method'], 'head_matter')
+        self.assertEqual(received, [(body, CONTENT_TYPE)])
+        self.assertIn('input_context', actual)
+        for row in actual['results']:
+            self.assertEqual(row['explanation']['input_citations'][0]['quote'], 'Witness input.')
+            self.assertTrue(any('redactionele' in text for text in row['explanation']['limitations']))
+            self.assertFalse(any('niet aan het taalmodel' in text for text in row['explanation']['limitations']))
+
     def run_search(self, responses, body=BODY, extractor=None):
         requests, retrievals = [], []
         def provider(body):

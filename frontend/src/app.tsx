@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SearchClient } from './client';
-import { getPassageParts, validateInput, type CaseDetail, type ModelCatalog, type SearchResponse, type SearchResult } from './search';
+import { getPassageParts, validateInput, type CaseDetail, type ModelCatalog, type RetrievalMethod, type SearchResponse, type SearchResult } from './search';
 
 interface SelectedDocument {
   result: SearchResult;
@@ -12,6 +12,7 @@ interface SelectedDocument {
 export function App({ client, isMock }: { client: SearchClient; isMock: boolean }) {
   const [query, setQuery] = useState('');
   const [document, setDocument] = useState<File>();
+  const [retrievalMethod, setRetrievalMethod] = useState<RetrievalMethod>('opinion_chunks');
   const [response, setResponse] = useState<SearchResponse>();
   const [selected, setSelected] = useState<SelectedDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -58,7 +59,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (pending.current) return;
-    const input = { query, document, ...(model ? { model } : {}) };
+    const input = { query, document, retrieval_method: retrievalMethod, ...(model ? { model } : {}) };
     try { validateInput(input); }
     catch (cause) { setError(message(cause)); textarea.current?.focus(); return; }
     restoreInputFocus.current = event.currentTarget.contains(window.document.activeElement);
@@ -88,6 +89,12 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
       <div className="composer-area">
         <p className="status" role="status" aria-live="polite">{busy ? (isMock ? 'Voorbeeldzaken ophalen…' : 'Uitspraken zoeken…') : response ? (isMock ? 'Drie voorbeeldzaken beschikbaar.' : 'Drie uitspraken beschikbaar.') : ''}</p>
         <p className="error" role="alert" hidden={!error}>{error}</p>
+        <label className="method-choice">Zoekmethode
+          <select aria-label="Zoekmethode" value={retrievalMethod} disabled={busy} onChange={event => setRetrievalMethod(event.currentTarget.value as RetrievalMethod)}>
+            <option value="opinion_chunks">Oordeelpassages (B)</option>
+            <option value="head_matter" disabled={isMock}>Head matter · redactioneel voorwerk (A)</option>
+          </select>
+        </label>
         <form className="composer" noValidate onSubmit={submit} aria-busy={busy}>
           <label className="visually-hidden" htmlFor="query">Vraag of tekst</label>
           <textarea id="query" ref={textarea} rows={3} value={query} disabled={busy} placeholder="Typ je vraag of plak hier tekst…" aria-invalid={Boolean(error)}
@@ -129,7 +136,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
       </div>
       {response ? <section className="answer" aria-labelledby="results-title">
         <h2 id="results-title" className="answer-title">Drie uitspraken</h2>
-        {isMock ? <p className="answer-note">Voorbeeldresultaten, geen analyse van je invoer.</p> : null}
+        <p className="answer-note">{response.retrieval_method === 'head_matter' ? 'Head matter (A) · match in het redactionele voorwerk.' : 'Oordeelpassages (B) · match in het meerderheidsoordeel.'}{isMock ? ' Voorbeeldresultaten, geen analyse van je invoer.' : ''}</p>
         {response.explanation_model || response.explanation_requested_model ? <p className="answer-note answer-model">{response.explanation_model ? `Toelichting via ${response.explanation_model}` : `Gebruikt model niet gemeld · aangevraagd: ${response.explanation_requested_model}`}</p> : null}
         <ol className="case-list">
           {response.results.map((result, index) => <li key={result.case_id} className="case-item">
@@ -162,6 +169,7 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
   const [error, setError] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
   const { result, corpusVersion } = selected;
+  const isHeadMatter = result.passage.source_section === 'head_matter';
   const explanation = selected.explanationStatus !== 'unavailable' ? result.explanation : undefined;
   const explanationText = explanation ? [explanation.text, ...new Set(explanation.limitations.filter((limitation) => !explanation.text.includes(limitation)))].join(' ') : undefined;
   const inputCitations = selected.inputContext ? explanation?.input_citations ?? [] : [];
@@ -189,13 +197,14 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
         <h2 id="reason-title">Waarom dit document?</h2>
         {explanation ? <p className="model-explanation">{explanationText}</p> : selected.explanationStatus ?
           <p className="explanation-status" role="status">De toelichting is tijdelijk niet beschikbaar.</p> :
-          <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de gemarkeerde bronpassage.' : 'De gemarkeerde passage bevat de beste tekstovereenkomst die de zoekmethode in deze uitspraak vond.'}</p>}
+          <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de gemarkeerde bronpassage.' : isHeadMatter ? 'De match komt uit het redactionele voorwerk. Het volledige meerderheidsoordeel staat daaronder.' : 'De gemarkeerde passage bevat de beste tekstovereenkomst die de zoekmethode in deze uitspraak vond.'}</p>}
         {inputCitations.length ? <details className="input-evidence">
           <summary>Uit je document</summary>
           {inputCitations.map((citation, index) => <blockquote key={index}>{citation.quote}</blockquote>)}
         </details> : null}
       </section>
-      <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{parts.before}<mark id="source-passage" tabIndex={-1}>{parts.match}</mark>{parts.after}</div></article>
+      {isHeadMatter ? <section className="head-matter" aria-labelledby="head-matter-title"><h2 id="head-matter-title">Redactioneel voorwerk · head matter</h2><div className="opinion">{parts.before}<mark id="source-passage" tabIndex={-1}>{parts.match}</mark>{parts.after}</div></section> : null}
+      <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{isHeadMatter ? detail.text : <>{parts.before}<mark id="source-passage" tabIndex={-1}>{parts.match}</mark>{parts.after}</>}</div></article>
     </> : null}
   </main>;
 }

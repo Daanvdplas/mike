@@ -1,7 +1,7 @@
 //! Source identity, date validation and hash helpers follow tested COA code:
 //! https://github.com/Daanvdplas/meedoenbalie-rag-learning/blob/cada34fbb4d22bde46d31c3cdbcda495e6d93e9b/src/source.rs
 //! https://github.com/Daanvdplas/meedoenbalie-rag-learning/blob/cada34fbb4d22bde46d31c3cdbcda495e6d93e9b/src/manifest.rs
-use super::{CaseMetadata, EngineError, ErrorKind};
+use super::{CaseMetadata, EngineError, ErrorKind, SourceSection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -9,7 +9,18 @@ use serde_json::Value;
 pub(super) struct CaseRecord {
     pub metadata: CaseMetadata,
     pub text: String,
+    pub head_matter: String,
+    pub head_matter_text_version: String,
     pub source_json: String,
+}
+
+impl CaseRecord {
+    pub(super) fn section(&self, section: SourceSection) -> (&str, &str) {
+        match section {
+            SourceSection::Majority => (&self.text, &self.metadata.text_version),
+            SourceSection::HeadMatter => (&self.head_matter, &self.head_matter_text_version),
+        }
+    }
 }
 
 pub(super) fn read_cases(
@@ -37,7 +48,8 @@ pub(super) fn read_cases(
         .filter(|p| p.extension().is_some_and(|e| e == "json"))
     {
         let raw = std::fs::read_to_string(file).map_err(|_| invalid())?;
-        let case = parse_case(serde_json::from_str(&raw).map_err(|_| invalid())?)?;
+        let mut case = parse_case(serde_json::from_str(&raw).map_err(|_| invalid())?)?;
+        case.source_json = raw;
         if result.insert(case.metadata.case_id.clone(), case).is_some() {
             return Err(invalid());
         }
@@ -85,6 +97,10 @@ pub(super) fn parse_case(value: Value) -> Result<CaseRecord, EngineError> {
         return Err(invalid());
     }
     let text = canonicalize(&string(&majority[0]["text"])?);
+    let head_matter = value["casebody"]["head_matter"]
+        .as_str()
+        .map(canonicalize)
+        .unwrap_or_default();
     if text.is_empty() {
         return Err(invalid());
     }
@@ -104,6 +120,8 @@ pub(super) fn parse_case(value: Value) -> Result<CaseRecord, EngineError> {
             text_version: format!("sha256:{}", hash(text.as_bytes())),
         },
         text,
+        head_matter_text_version: format!("sha256:{}", hash(head_matter.as_bytes())),
+        head_matter,
         source_json: serde_json::to_string(&value).map_err(|_| invalid())?,
     })
 }
@@ -158,8 +176,29 @@ mod tests {
             "casebody": {"opinions": [
                 {"type": "majority", "text": text, "author": "Judge"},
                 {"type": "dissent", "text": "Dissent must stay separate."}
-            ]}
+            ], "head_matter": "Editorial headnote about the dispute."}
         })
+    }
+
+    #[test]
+    fn preserves_head_matter_as_a_separate_canonical_source_with_its_own_version() {
+        let mut raw = source(42, "The court's majority reasoning.");
+        raw["casebody"]["head_matter"] = json!("\r\nEditorial headnote 😀\r\nSecond line.\r\n");
+        let case = parse_case(raw.clone()).unwrap();
+        let stored = serde_json::to_value(&case).unwrap();
+        assert_eq!(stored["head_matter"], "Editorial headnote 😀\nSecond line.");
+        assert_eq!(
+            stored["head_matter_text_version"],
+            format!(
+                "sha256:{}",
+                hash("Editorial headnote 😀\nSecond line.".as_bytes())
+            )
+        );
+        assert_eq!(case.text, "The court's majority reasoning.");
+        assert_eq!(
+            serde_json::from_str::<Value>(&case.source_json).unwrap(),
+            raw
+        );
     }
 
     #[test]
@@ -181,6 +220,17 @@ mod tests {
         let mut invalid = source(42, "Text");
         invalid["casebody"]["opinions"][0]["type"] = json!("dissent");
         assert!(parse_case(invalid).is_err());
+    }
+
+    #[test]
+    fn corpus_archive_preserves_exact_utf8_json_bytes_including_floats_and_whitespace() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut value = source(1, "Majority reasoning");
+        value["analysis"] = json!({"pagerank":{"raw": 0.00000025961689552170427}});
+        let raw = format!(" \n{}\n ", serde_json::to_string_pretty(&value).unwrap());
+        std::fs::write(directory.path().join("case.json"), &raw).unwrap();
+        let cases = read_cases(directory.path()).unwrap();
+        assert_eq!(cases["1"].source_json.as_bytes(), raw.as_bytes());
     }
 
     #[test]

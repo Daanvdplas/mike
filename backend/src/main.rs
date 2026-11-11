@@ -1,6 +1,6 @@
 use texas_case_finder::{
     api::{self, ApiState, Backend},
-    engine::{self, Engine},
+    engine::{self, Engine, evaluation},
     service::{Command, Settings},
 };
 
@@ -15,6 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .await??;
             println!("{}", serde_json::to_string(&report)?);
+        }
+        Command::ImportBatch { corpus, offset } => {
+            let batch = engine::import_batch(&corpus, &settings.cache, offset)?;
+            println!("{}", serde_json::to_string(&batch)?);
         }
         Command::Search(query) => {
             let response = tokio::task::spawn_blocking(move || {
@@ -37,6 +41,85 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .await??;
             println!("{}", serde_json::to_string(&response)?);
+        }
+        Command::SearchWithOptions {
+            query,
+            retrieval_method,
+            excluded_case_ids,
+        } => {
+            let response = tokio::task::spawn_blocking(move || {
+                let mut engine = Engine::load(&settings.database, &settings.cache)?;
+                if excluded_case_ids.is_empty() {
+                    let response =
+                        engine.search_with_method(Some(&query), None, retrieval_method)?;
+                    serde_json::to_value(response).map_err(|_| engine::EngineError {
+                        kind: engine::ErrorKind::Internal,
+                        message: "Cannot serialize search.".into(),
+                    })
+                } else {
+                    let response = engine.evaluate_search(
+                        Some(&query),
+                        None,
+                        retrieval_method,
+                        &excluded_case_ids,
+                    )?;
+                    serde_json::to_value(response).map_err(|_| engine::EngineError {
+                        kind: engine::ErrorKind::Internal,
+                        message: "Cannot serialize evaluation search.".into(),
+                    })
+                }
+            })
+            .await??;
+            println!("{}", serde_json::to_string(&response)?);
+        }
+        Command::Evaluate(options) => {
+            if options.output.exists() {
+                return Err(
+                    "Evaluation output directory already exists; choose a new run directory."
+                        .into(),
+                );
+            }
+            let plan = evaluation::EvaluationPlan::load(
+                &options.scenarios,
+                &options.corpus,
+                &options.scenario_ids,
+            )?;
+            let labels = options
+                .labels
+                .as_ref()
+                .map(
+                    |path| -> Result<
+                        texas_case_finder::eval_metrics::LabelSet,
+                        Box<dyn std::error::Error>,
+                    > { Ok(serde_json::from_slice(&std::fs::read(path)?)?) },
+                )
+                .transpose()?;
+            let mut engine = Engine::load(&settings.database, &settings.cache)?;
+            let mut artifact = plan.execute_with_method(&mut engine, options.retrieval_method)?;
+            artifact.executable_sha256 = Some(evaluation::executable_sha256()?);
+            let report = evaluation::score_labels(&artifact, labels.as_ref(), &options.corpus)?;
+            evaluation::write_outputs(&options.output, &artifact, &report)?;
+            println!("{}", options.output.join("report.md").display());
+        }
+        Command::Score {
+            run,
+            labels,
+            scenarios,
+            corpus,
+            output,
+        } => {
+            if output.exists() {
+                return Err(
+                    "Evaluation output directory already exists; choose a new report directory."
+                        .into(),
+                );
+            }
+            let artifact =
+                evaluation::read_validated_run(&run, &scenarios, &corpus, &settings.database)?;
+            let labels = serde_json::from_slice(&std::fs::read(labels)?)?;
+            let report = evaluation::score_labels(&artifact, Some(&labels), &corpus)?;
+            evaluation::write_outputs(&output, &artifact, &report)?;
+            println!("{}", output.join("report.md").display());
         }
         Command::Serve => {
             let database = settings.database.clone();

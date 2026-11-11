@@ -1,6 +1,9 @@
 use crate::{
     api::Backend,
-    engine::{CaseDetail, Engine, EngineError, HealthResponse, SearchResponse},
+    engine::{
+        CaseDetail, Engine, EngineError, EvaluationSearchResponse, HealthResponse, RetrievalMethod,
+        SearchResponse,
+    },
 };
 use axum::http::HeaderValue;
 
@@ -9,8 +12,18 @@ impl Backend for Engine {
         &mut self,
         query: Option<&str>,
         document: Option<&str>,
+        method: RetrievalMethod,
     ) -> Result<SearchResponse, EngineError> {
-        Engine::search(self, query, document)
+        Engine::search_with_method(self, query, document, method)
+    }
+    fn evaluate_search(
+        &mut self,
+        query: Option<&str>,
+        document: Option<&str>,
+        method: RetrievalMethod,
+        excluded_case_ids: &[String],
+    ) -> Result<EvaluationSearchResponse, EngineError> {
+        Engine::evaluate_search(self, query, document, method, excluded_case_ids)
     }
     fn get_case(&self, case_id: &str) -> Result<CaseDetail, EngineError> {
         Engine::get_case(self, case_id)
@@ -25,8 +38,38 @@ use std::{net::SocketAddr, path::PathBuf};
 pub enum Command {
     Serve,
     Import(PathBuf),
+    ImportBatch {
+        corpus: PathBuf,
+        offset: usize,
+    },
     Search(String),
-    SearchExcluding { query: String, case_id: String },
+    SearchExcluding {
+        query: String,
+        case_id: String,
+    },
+    SearchWithOptions {
+        query: String,
+        retrieval_method: RetrievalMethod,
+        excluded_case_ids: Vec<String>,
+    },
+    Evaluate(EvalOptions),
+    Score {
+        run: PathBuf,
+        labels: PathBuf,
+        scenarios: PathBuf,
+        corpus: PathBuf,
+        output: PathBuf,
+    },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EvalOptions {
+    pub scenarios: PathBuf,
+    pub corpus: PathBuf,
+    pub output: PathBuf,
+    pub scenario_ids: Vec<String>,
+    pub labels: Option<PathBuf>,
+    pub retrieval_method: RetrievalMethod,
 }
 
 impl Command {
@@ -37,27 +80,77 @@ impl Command {
             [command, path] if command == "import" && !path.is_empty() => {
                 Ok(Self::Import(PathBuf::from(path)))
             }
-            [command, flag, case_id, words @ ..]
-                if command == "search" && flag == "--exclude-case-id" =>
-            {
-                let query = words.join(" ").trim().to_owned();
-                if case_id.trim().is_empty() || query.is_empty() {
-                    Err("Excluded search needs a case ID and question.".into())
-                } else {
-                    Ok(Self::SearchExcluding {query, case_id:case_id.clone()})
-                }
+            [command, path, offset] if command == "import-batch" && !path.is_empty() => {
+                Ok(Self::ImportBatch {corpus:path.into(), offset:offset.parse().map_err(|_| "Import offset must be numeric.")?})
             }
-            [command, words @ ..] if command == "search" => {
-                let query = words.join(" ").trim().to_owned();
-                if query.is_empty() {
-                    Err("Search needs a question.".into())
-                } else {
-                    Ok(Self::Search(query))
+            [command, scenarios, corpus, output, options @ ..] if command == "eval" => {
+                let mut parsed = EvalOptions {scenarios: scenarios.into(), corpus: corpus.into(), output: output.into(), scenario_ids:Vec::new(), labels:None, retrieval_method:RetrievalMethod::default()};
+                let mut method_seen = false;
+                let mut options = options.iter();
+                while let Some(option) = options.next() {
+                    let value = options.next().filter(|value| !value.trim().is_empty()).ok_or("Eval options require a value.")?;
+                    match option.as_str() {
+                        "--scenario-id" => parsed.scenario_ids.push(value.clone()),
+                        "--labels" if parsed.labels.is_none() => parsed.labels = Some(value.into()),
+                        "--retrieval-method" if !method_seen => {
+                            parsed.retrieval_method = RetrievalMethod::parse(value).map_err(|_| "Unknown retrieval method.")?;
+                            method_seen = true;
+                        }
+                        _ => return Err("Unknown or duplicate eval option.".into()),
+                    }
                 }
+                Ok(Self::Evaluate(parsed))
+            }
+            [command, run, labels, scenarios, corpus, output] if command == "score" => Ok(Self::Score {run:run.into(), labels:labels.into(), scenarios:scenarios.into(), corpus:corpus.into(), output:output.into()}),
+            [command, words @ ..] if command == "search" => {
+                Self::parse_search(words)
             }
             _ => {
-                Err("Usage: texas-case-finder [serve | import CORPUS_DIR | search QUESTION | search --exclude-case-id ID QUESTION]".into())
+                Err("Usage: texas-case-finder [serve | import CORPUS_DIR | search QUESTION | eval SCENARIOS CORPUS_DIR OUTPUT_DIR [--scenario-id ID] [--labels FILE] | score RUN_JSON LABELS_JSON SCENARIOS CORPUS_DIR OUTPUT_DIR]".into())
             }
+        }
+    }
+
+    fn parse_search(words: &[String]) -> Result<Self, String> {
+        let mut position = 0;
+        let mut retrieval_method = None;
+        let mut excluded_case_ids = Vec::new();
+        while position < words.len() && words[position].starts_with("--") {
+            let option = &words[position];
+            position += 1;
+            if option == "--" {
+                break;
+            }
+            let value = words
+                .get(position)
+                .filter(|s| !s.trim().is_empty())
+                .ok_or("Search options need a value.")?;
+            match option.as_str() {
+                "--retrieval-method" if retrieval_method.is_none() => {
+                    retrieval_method = Some(
+                        RetrievalMethod::parse(value).map_err(|_| "Unknown retrieval method.")?,
+                    );
+                }
+                "--exclude-case-id" => excluded_case_ids.push(value.clone()),
+                _ => return Err("Unknown or duplicate search option.".into()),
+            }
+            position += 1;
+        }
+        let query = words[position..].join(" ").trim().to_owned();
+        if query.is_empty() {
+            return Err("Search needs a question.".into());
+        }
+        match (retrieval_method, excluded_case_ids.len()) {
+            (None, 0) => Ok(Self::Search(query)),
+            (None, 1) => Ok(Self::SearchExcluding {
+                query,
+                case_id: excluded_case_ids.remove(0),
+            }),
+            (method, _) => Ok(Self::SearchWithOptions {
+                query,
+                retrieval_method: method.unwrap_or_default(),
+                excluded_case_ids,
+            }),
         }
     }
 }
@@ -126,6 +219,36 @@ mod tests {
     }
 
     #[test]
+    fn bounded_import_worker_cli_requires_a_corpus_and_numeric_offset() {
+        assert!(Command::parse(&args(&["import-batch", "corpus", "0"])).is_ok());
+        assert!(Command::parse(&args(&["import-batch", "corpus", "not-a-number"])).is_err());
+    }
+
+    #[test]
+    fn search_method_options_are_parsed_as_options_and_unknown_methods_are_errors() {
+        let parsed = Command::parse(&args(&[
+            "search",
+            "--retrieval-method",
+            "head_matter",
+            "witness",
+        ]))
+        .unwrap();
+        assert!(
+            !format!("{parsed:?}").contains("--retrieval-method"),
+            "Options must not become query text: {parsed:?}"
+        );
+        assert!(
+            Command::parse(&args(&[
+                "search",
+                "--retrieval-method",
+                "unknown",
+                "witness"
+            ]))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn cli_has_explicit_import_serve_and_query_search_commands() {
         assert_eq!(Command::parse(&[]).unwrap(), Command::Serve);
         assert_eq!(Command::parse(&args(&["serve"])).unwrap(), Command::Serve);
@@ -158,6 +281,39 @@ mod tests {
             &["search"],
             &["search", "  "],
             &["unknown"],
+        ] {
+            assert!(Command::parse(&args(values)).is_err());
+        }
+    }
+
+    #[test]
+    fn evaluation_cli_requires_paths_and_validates_repeatable_selection_options() {
+        assert_eq!(
+            Command::parse(&args(&[
+                "eval",
+                "scenarios.json",
+                "corpus",
+                "out",
+                "--scenario-id",
+                "E01",
+                "--labels",
+                "labels.json"
+            ]))
+            .unwrap(),
+            Command::Evaluate(EvalOptions {
+                scenarios: "scenarios.json".into(),
+                corpus: "corpus".into(),
+                output: "out".into(),
+                scenario_ids: vec!["E01".into()],
+                labels: Some("labels.json".into()),
+                retrieval_method: RetrievalMethod::OpinionChunks,
+            })
+        );
+        for values in [
+            &["eval"][..],
+            &["eval", "a", "b", "c", "--unknown", "x"],
+            &["eval", "a", "b", "c", "--scenario-id"],
+            &["eval", "a", "b", "c", "--labels", "x", "--labels", "y"],
         ] {
             assert!(Command::parse(&args(values)).is_err());
         }

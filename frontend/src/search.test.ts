@@ -25,6 +25,17 @@ describe('invoer', () => {
 });
 
 describe('bronmarkering', () => {
+  it('markeert head matter met zijn eigen tekstversie en laat de meerderheidstekst apart', () => {
+    const text = 'Redactioneel voorwerk: getuigenverklaring.';
+    const result = { ...response.results[0], passage: {
+      passage_id: 'head-1', text, start_utf16: 0, end_utf16: text.length,
+      source_section: 'head_matter' as const, text_version: 'head-version',
+    } };
+    const detail = { ...cases[0], head_matter: text, head_matter_text_version: 'head-version' };
+    expect(getPassageParts(response.corpus_version, result, detail)).toEqual({ before: '', match: text, after: '' });
+    expect(() => getPassageParts(response.corpus_version, result, { ...detail, head_matter_text_version: 'oud' })).toThrow('opnieuw');
+    expect(() => getPassageParts(response.corpus_version, result, cases[0])).toThrow('opnieuw');
+  });
   it('markeert de exacte UTF-16-passage na Unicode in alle drie documenten', () => {
     for (const result of response.results) {
       const detail = cases.find((item) => item.case_id === result.case_id)!;
@@ -55,9 +66,30 @@ describe('lokale simulatie en API-grens', () => {
     });
     await client.search({ query: 'vraag', document: txt, model: 'catalog/test-model' });
     expect(request?.headers).toEqual({ 'X-Orq-Model': 'catalog/test-model' });
-    expect([...(request?.body as FormData).keys()]).toEqual(['query', 'document']);
+    expect([...(request?.body as FormData).keys()]).toEqual(['query', 'document', 'retrieval_method']);
   });
 
+  it('stuurt de gekozen zoekmethode mee en weigert een stille terugval naar oordeelpassages', async () => {
+    const bodies: FormData[] = [];
+    const headers: (HeadersInit | undefined)[] = [];
+    let returnedMethod = 'head_matter';
+    const client = createApiClient('http://127.0.0.1:8000', async (_url, init) => {
+      bodies.push(init!.body as FormData);
+      headers.push(init!.headers);
+      return new Response(JSON.stringify({ ...response, retrieval_method: returnedMethod }));
+    });
+    const actual = await client.search({ query: 'vraag', retrieval_method: 'head_matter', model: 'catalog/selected-model' });
+    expect(bodies[0].get('retrieval_method')).toBe('head_matter');
+    expect(actual.retrieval_method).toBe('head_matter');
+    expect(headers[0]).toEqual({ 'X-Orq-Model': 'catalog/selected-model' });
+    expect(bodies[0].get('model')).toBeNull();
+    returnedMethod = 'opinion_chunks';
+    await expect(client.search({ query: 'vraag', retrieval_method: 'head_matter' })).rejects.toThrow('zoekmethode');
+  });
+
+  it('doet in de expliciete mockmodus geen alsof-headmatterzoekactie', async () => {
+    await expect(createMockClient(0).search({ query: 'vraag', retrieval_method: 'head_matter' })).rejects.toThrow('voorbeeldmodus');
+  });
   it('geeft in elke invoermodus exact drie unieke fixturezaken en passende details', async () => {
     const client = createMockClient(0);
     for (const input of [{ query: 'vraag' }, { document: txt }, { query: 'vraag', document: txt }]) {

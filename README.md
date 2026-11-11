@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de volledige Rust/SQLite/BGE-demo is onafhankelijk via echte HTTP en de browser gecontroleerd en klaar voor de gebruiker om te testen.** Open de [demo op 5173](http://127.0.0.1:5173/); de frontend gebruikt standaard de echte lokale API. De backend draait op `127.0.0.1:8000` onder de resourceguard, maximaal twee uur. De afzonderlijke API-preview op 5174 kan daarnaast beschikbaar zijn. Fictieve resultaten zijn uitsluitend beschikbaar via een expliciete mockstart. JSON-fixtures zijn synthetisch; de API-preview gebruikt de 135 echte corpuszaken.
+**Status:** selecteerbare head-matterzoekmethode naast de bestaande opinion-chunks, met een gecontroleerde dual-index en API-/browserdoorloop. Het lokale main-startprofiel hieronder gebruikt Mike op 5176, één bewaakte Rustbackend op 8000 en evaluaties op 8798. Bestaande databases en binaries blijven behouden; zie de verificatie onderaan.
 
 ## Begin hier
 
@@ -10,7 +10,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](docs/openapi.yaml): het canonieke API-contract, ook beschikbaar via `/openapi.json`.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
-- [Evaluatieoverzicht](docs/evals/index.html): de bestaande uitvoerbare evaluatiekaarten. De 25 volledige ontwerpen blijven voor later bewaard in [scenarios.json](docs/evals/scenarios.json); [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
+- [Evaluatieoverzicht](docs/evals/index.html): compacte referentiecontroles en lokale methodevergelijking voor 25 scenario’s; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -53,55 +53,73 @@ De frontend gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md); fixtu
 
 ## Backend gebruiken
 
-De normale frontend gebruikt 5173/8000; de aparte API-preview op 5174 kan daarnaast draaien. De onderstaande commando’s zijn voor een latere herstart: stop eerst de bestaande guard en voer nooit twee modeljobs tegelijk uit. Binary, index en model zijn op deze Mac vooraf voorbereid; er wordt niet binnen het modelbudget gecompileerd.
+Deze featurebranch vereist indexformaat 3 met zowel majority opinions als afzonderlijke head matter. Gebruik een nieuw databasepad; overschrijf de bestaande majority-only demo-index niet. Een oude of onvolledige index geeft 503 vóór modelladen en wordt nooit stil herbouwd.
+
+Bouw eerst buiten het modelbudget met de backendchecks hierboven. Gebruik voor deze Mac vervolgens:
 
 ```sh
-export ADAMI_BINARY="$HOME/Library/Caches/adami-case/cargo-final-review/debug/texas-case-finder"
-export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/final-q-review/cases.sqlite"
+export ADAMI_BINARY="$HOME/Library/Caches/adami-case/cargo-head-matter/debug/texas-case-finder"
+export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite"
 export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
-export ADAMI_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+export ADAMI_BIND_ADDR="127.0.0.1:8000"
+export ADAMI_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5176,http://127.0.0.1:5176"
 ```
 
-Op deze Mac is de nieuwe index vooraf berekend: 135 zaken en 578 passages. Een eerste import downloadt het model als het ontbreekt. Voor een verse index voer je de volgende import afzonderlijk uit, zonder draaiende modelserver; bij hergebruik van de bestaande index is dit niet nodig.
+Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000. De nieuwe mainserver vervangt die oude demo wanneer haar guard netjes is gestopt; reserveer eerst het exclusieve modelslot. De nieuwe server hergebruikt de schema-3-index en bouwt bij starten geen nieuwe index.
 
 ```sh
 python3 backend/scripts/resource_guard.py \
-  --label adami-import --timeout-seconds 600 \
-  --report "$HOME/Library/Caches/adami-case/import-guard.json" \
-  --log "$HOME/Library/Caches/adami-case/import.log" \
+  --label head-matter-import --timeout-seconds 600 \
+  --report "$HOME/Library/Caches/adami-case/head-matter-search/import-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/head-matter-search/import.log" \
   -- "$ADAMI_BINARY" import /Users/R0GUE/Downloads/texas-criminal-reports
 ```
 
-Import vervangt de index in één transactie. Start de server opnieuw na import; de server herindexeert nooit stilzwijgend. De demo gebruikt alleen de bestaande database en lokale modelcache. Start de server voor maximaal twee uur met dezelfde geheugenbewaking:
+Import gebruikt opeenvolgende subprocessen van maximaal 256 passages. Alleen de huidige worker laadt het model; de ouder houdt bronrecords en ontvangen vectoren bij zonder eigen ONNX-sessie. Elke worker sluit voordat de volgende start. De volledige procesboom valt onder dezelfde guard en het bestaande budget. Bronhash, offsets, batchgrootte, modelconfiguratie en uiteindelijke index worden gecontroleerd; pas daarna vervangt één transactie de nieuwe database. Een mislukte worker publiceert geen gedeeltelijke index. Hetzelfde lokale BGE-model wordt hergebruikt; ontbrekende modelbestanden kunnen worden gedownload. Er zijn geen sleutels of externe modelaanroepen nodig. Herimport vraagt een serverherstart.
 
 ```sh
 python3 backend/scripts/resource_guard.py \
-  --label adami-preview --serve-preview --timeout-seconds 7200 \
-  --report "$HOME/Library/Caches/adami-case/preview-guard.json" \
-  --log "$HOME/Library/Caches/adami-case/preview.log" \
+  --label head-matter-preview --serve-preview --timeout-seconds 7200 \
+  --report "$HOME/Library/Caches/adami-case/head-matter-search/preview-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/head-matter-search/preview.log" \
   -- "$ADAMI_BINARY" serve
 ```
 
-Stop de preview met **Ctrl+C in die terminal**. De guard ruimt uitsluitend zijn eigen procesgroep op. Zonder `--serve-preview` blijven tests en imports begrensd op maximaal 600 seconden. De langere modus accepteert alleen een concreet backendpad gevolgd door `serve`; geen shell, Cargo of losse PATH-alias. De RSS-grens blijft 1536 MiB, geheugendruk moet normaal blijven en swap mag niet met 128 MiB groeien. De guard stopt ook bij meetfouten of de deadline. Dit is geen procesisolatie of absolute garantie dat een korte geheugenpiek onmogelijk is.
-
-In een tweede terminal kun je de HTTP-API gebruiken:
+Stop met Ctrl+C in de guardterminal. De guard ruimt uitsluitend zijn eigen procesgroep op. Import/CLIjobs blijven maximaal 600 seconden begrensd; de preview maximaal twee uur. De RSS-grens blijft 1536 MiB, geheugendruk moet normaal blijven en swap mag niet met 128 MiB groeien. De guard stopt ook bij meetfouten of deadline; dit is geen procesisolatie of absolute piekgarantie.
 
 ```sh
 curl http://127.0.0.1:8000/api/health
 curl --form-string 'query=trial evidence' http://127.0.0.1:8000/api/search
-curl -F 'document=@/pad/naar/zaak.pdf' --form-string 'query=witness testimony' http://127.0.0.1:8000/api/search
+curl --form-string 'query=trial evidence' --form-string 'retrieval_method=head_matter' http://127.0.0.1:8000/api/search
 ```
 
-Gebruik voor zaakdetails de `case_url` uit het zoekresultaat, op dezelfde backendbasis-URL. Een ontbrekende, corrupte of onvolledige database geeft 503-readiness en geen fictieve zoekresultaten; `/openapi.json` blijft bereikbaar. Het CLI-commando `search QUESTION` gebruikt dezelfde engine en hoort, net als import, uitsluitend in een aparte bewaakte job wanneer de server niet draait.
+`retrieval_method` is `opinion_chunks` (standaard, B) of `head_matter` (A). Beide leveren precies drie unieke zaken. Head matter is redactionele context en krijgt eigen markeringen; de volledige majority opinion blijft beschikbaar. De CLI ondersteunt `search --retrieval-method head_matter QUESTION`; voer dit uitsluitend als aparte bewaakte job uit wanneer de server niet draait.
 
-| Instelling | Standaard |
+| Instelling | Standaard zonder feature-overrides |
 |---|---|
-| `ADAMI_DB_PATH` | `data/cases.sqlite3`, relatief aan de huidige werkmap |
-| `ADAMI_CACHE_DIR` | `.fastembed_cache`, relatief aan de huidige werkmap |
+| `ADAMI_DB_PATH` | `data/cases.sqlite3`, relatief aan de werkmap |
+| `ADAMI_CACHE_DIR` | `.fastembed_cache`, relatief aan de werkmap |
 | `ADAMI_BIND_ADDR` | `127.0.0.1:8000` |
 | `ADAMI_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
 
-CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Er zijn geen API-sleutels of externe modelaanroepen nodig. De modelcache, database en guardverslagen horen buiten Git.
+CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Modelcache, database, uploads en runverslagen blijven buiten Git. `/openapi.json` blijft bij een onbruikbare index bereikbaar.
+
+### Bestaande demo herstellen
+
+Stop eerst de featureguard; laat nooit twee modelservers tegelijk draaien. Vanuit de oorspronkelijke repomap herstart deze opdracht de behouden demo op 8000 met de oude binary en database:
+
+```sh
+cd /Users/R0GUE/Documents/adami-case
+ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/final-q-review/cases.sqlite" \
+ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed" \
+ADAMI_BIND_ADDR="127.0.0.1:8000" \
+ADAMI_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174" \
+python3 backend/scripts/resource_guard.py \
+  --label adami-orq-document-preview --serve-preview --timeout-seconds 7200 \
+  --report "$HOME/Library/Caches/adami-case/head-matter-search/restored-original-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/head-matter-search/restored-original.log" \
+  -- "$HOME/Library/Caches/adami-case/cargo-final-review/debug/texas-case-finder" serve
+```
 
 ## Frontend lokaal proberen
 
@@ -143,6 +161,18 @@ VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 node node_modules/vite
 
 Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
 
+## Mike op main met methodekeuze
+
+Start na de bewaakte backend op 8000 de frontend vanuit de schone main-checkout. Gebruik de vrije poort 5176; laat andere previews ongemoeid.
+
+```sh
+cd frontend
+VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 \
+node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5176 --strictPort
+```
+
+Open **http://127.0.0.1:5176/**. De methodekeuze staat bij de invoer; opinion-chunks blijft standaard. Een head-matterresultaat opent de gemarkeerde redactionele context plus de volledige majority opinion. De mockmodus biedt uitsluitend de bestaande opinion-fixtures en levert geen verzonnen A-resultaten.
+
 ## Optionele Orq-uitleg apart proberen
 
 De Orq-uitbreiding draait als kleine Python-stdlib-adapter naast de bestaande bewaakte Rust-zoekbackend op 8000. De officiële uploadbewuste Orq-demo gebruikt 18000 met frontend 5175. Een aparte QA-preview kan daarnaast op 18001/5176 draaien. Na codewijzigingen moet de server met de bijbehorende extractorconfiguratie worden herstart. Hij laadt geen tweede embeddingmodel en bouwt geen index. Een taalmodel roept de vaste `search_cases`-tool aan; de adapter stuurt daarbij de oorspronkelijke multipartinvoer ongewijzigd naar de lokale backend. De drie zaak-ID’s, volgorde, scores, bronteksten en versies blijven behouden.
@@ -182,7 +212,7 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [evaluatieoverzicht](docs/evals/index.html) via de lokale evalserver hieronder voor de bestaande B1-referentiecontrole en E06. De volledige lijst van 25 ontwerpscenario’s blijft met invoer, herkomst, verwachtingen en bronbewijs bewaard in [scenarios.json](docs/evals/scenarios.json), buiten de UI. De catalogusstatus is `ontwerp`: de overige 24 scenario’s blijven gepland, zonder vaste benchmarklabels of algemene meetresultaten. De oorspronkelijke opdracht blijft eveneens bewaard; deze bronnen zijn ontwikkelmateriaal, geen verborgen testset.
+Open het [evaluatieoverzicht](docs/evals/index.html) via de lokale evalserver hieronder. De compacte pagina behoudt de vaste B1-referentiecontrole en E06; kaarten beginnen ingeklapt en bewaren een bestaande uitslag wanneer je ze sluit. Een aparte compacte kiezer voert elk van de 25 scenario’s lokaal uit met A, B of beide. De volledige ontwerpbeschrijvingen en onderhoudsinstructies blijven in de canonieke bronnen, buiten de zichtbare kaarten. Zonder kandidaatlabels leveren de scenario’s geen juridische kwaliteitsmetrics.
 
 Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
@@ -194,27 +224,75 @@ python3 -m unittest discover -s docs/evals -p 'test_*.py'
 
 De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronisatiecheck en generatortests automatisch uit bij wijzigingen aan deze evaldocumentatie. Een verouderde HTML-weergave laat de check falen. Dit valideert de documentatie, niet de kwaliteit of uitvoering van de toekomstige evals. Zie de [onderhoudsafspraken](AGENTS.md#evaluatiedocumentatie-onderhouden).
 
-## Evals uitvoeren op de webpagina
+## Zoekmethoden vergelijken op de evaluatiepagina
 
-De lokale evalpagina biedt twee afzonderlijke controles. **Beroepsborgstelling met een opgeheven rechtbank** gebruikt een bestaande vraag uit de eerdere B1-queryset, zonder document of uitsluiting. Vóór de eerste run zijn **Cummings v. State (156040)** en **Neubauer v. State (156042)** als ongeordende verwachte resultaten vastgelegd in `docs/evals/deterministic_b1.json` (preregistratiecommit `f3d80b6`). De controle slaagt als beide tussen precies drie geldige unieke corpusresultaten staan. Een andere match blijft onbeoordeeld; er is geen AI-beoordelaar, precisiescore of claim over volledige juridische relevantie. Ongeldige resultaten geven een technische fout.
+De lokale vergelijkingskiezer biedt alle 25 canonieke scenario’s afzonderlijk. Kies een scenario en voer opinion-chunks, head matter of beide uit. De standaardvergelijking voert uitsluitend lokale retrieval uit, zonder Orq-key of modelgeneratie. Beide methoden krijgen exact dezelfde invoer en uitsluitingen; de manifesten moeten gelijk zijn. Elk scenario sluit zijn bronzaak vóór de top drie uit. De exacte Engelse vraag en/of volledige meerderheidstekst met gecontroleerde hash vormen de invoer; er wordt geen verborgen vraaganker meegestuurd.
 
-Daarnaast blijft **E06: bewijs van andere delicten** de aparte AI-eval uit de scenariolijst. Een klik haalt drie echte zoekresultaten op en doet één Orq-beoordeling met scores 0–3, korte redenen en letterlijke bronfragmenten. Het model kiest bronfragment-IDs; de code kopieert de tekst zelf. Dit blijft een AI-indicatie, geen menselijke juridische referentie of Recall/nDCG-benchmark.
+De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Een eventuele AI-beoordeling staat uit totdat je die expliciet aanvinkt.
 
-Bouw eerst de backend met de gewone commando’s. Start daarna vanuit de reporoot met de bestaande index en modelcache:
+De vaste **B1**-kaart bewaart haar vooraf geregistreerde protocol uit commit `f3d80b6`: één beroepsborgstellingsvraag, zonder document of bronuitsluiting, met Cummings (156040) en Neubauer (156042) als ongeordende verwachte zaken. De afzonderlijke referentieknop behoudt dit protocol zonder A/B-keuze. Haar oorspronkelijke corpus-/pipeline-/modelcontext blijft strikt gebonden aan de oude baseline. De nieuwe dual-index heeft een andere context en levert daarom expliciet een contextfout, geen stil aangepaste referentie of geslaagde B1-run. Andere gevonden zaken blijven onbeoordeeld; dit is geen volledige juridische goldset of precisieclaim. Dezelfde kaart biedt daarnaast A/B/beide voor `B1-compare`: een afzonderlijke lokale vergelijking met exact de fixturevraag en fixturehash, geen upload of uitsluiting en het actuele indexmanifest. Deze variant krijgt een eigen run-ID en `not_scored`; zij claimt geen vooraf geregistreerd B1-oordeel en verandert de referentie niet.
 
 ```sh
-python3 backend/scripts/evals_web.py --port 8798 \
-  --binary "$PWD/backend/target/debug/texas-case-finder" \
-  --database "$HOME/Library/Caches/adami-case/bge-static-q-safe/cases.sqlite" \
+python3 backend/scripts/evals_web.py \
+  --port 8798 --backend http://127.0.0.1:8000 \
+  --database "$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite" \
   --model-cache "$HOME/Library/Caches/adami-case/fastembed" \
-  --corpus "$HOME/Downloads/texas-criminal-reports"
+  --corpus /Users/R0GUE/Downloads/texas-criminal-reports \
+  --outputs "$HOME/Library/Caches/adami-case/head-matter-search/web-evals"
 ```
 
-Gebruik bij een andere `CARGO_TARGET_DIR` de bijbehorende binary. Open **http://127.0.0.1:8798/**. B1 werkt zonder Orq-key en gebruikt alleen de gewone Rustzoekserver op 8000, onder de bestaande resourceguard. Voor de E06 AI-eval kun je `--ask-key` toevoegen (invoer zonder echo), of `ORQ_API_KEY` instellen; de key gaat niet naar de browser. Het vaste standaardmodel is `openai/gpt-4.1-mini-2025-04-14`; `ORQ_MODEL` en `ORQ_BASE_URL` zijn instelbaar. De Orq-uitlegadapter op 18000 wordt niet gebruikt.
+Open **http://127.0.0.1:8798/**. De webserver gebruikt `POST /api/evals/search` op de bestaande geladen engine en start geen tweede Rustproces of model. Hij bewaart invoer, bron-/scenariohashes, volledige zoekresponses, manifest, gekozen methode, uitsluitingen en timings buiten Git. De vergelijking toont echte zaak-ID’s, scores en overlap, zonder daar juridische kwaliteit of Recall/nDCG uit af te leiden. Onvolledige/mislukte runs blijven zichtbaar en worden niet met fictieve resultaten aangevuld.
 
-E06 gebruikt uitsluitend de exacte Engelse vraag uit `docs/evals/scenarios.json`. De bronzaak 156133 wordt **vóór** de top drie uitgesloten via `search --exclude-case-id ID QUESTION`; er wordt geen verborgen brondocument aan de vraag toegevoegd. Deze afzonderlijke Rustzoekactie draait maximaal 600 seconden onder de bestaande resourceguard, zonder herindexering. De demo-server mag hierbij in rust blijven draaien; start geen andere modeljob of zoekactie tegelijk. De evalserver staat zelf slechts één run tegelijk toe.
+Een AI-beoordeling is afzonderlijk opt-in, vereist bestaande servercredentials en verbruikt providerbudget. Zij geeft hoogstens een voorlopige AI-indicatie, geen menselijke juridische goldstandaard. Nieuwe live providercalls horen uitsluitend bij een expliciete taakautorisatie. De commandlinetool `retrieval_relevance.py` blijft beschikbaar met `--help`.
 
-Resultaten, bron-/modelversies en eventuele foutdiagnose blijven lokaal buiten Git onder `~/Library/Caches/adami-case/web-evals/`. De pagina onderscheidt een technisch voltooide run van de AI-scores: een afgeronde run kan zwakke of niet-relevante matches bevatten. Fouten worden getoond en niet als geslaagd ingevuld. Stop de evalserver met Ctrl+C in de eigen terminal. De bestaande docsservers blijven ongemoeid.
+## Technische evals uitvoeren
+
+De nieuwe Rust-CLI hergebruikt dezelfde engine als de app en sluit de bronzaak uit **vóór** de top drie. De 25 canonieke scenario’s worden in catalogusvolgorde uitgevoerd: vijf documentvragen, vijf losse vragen en vijftien combinaties. Alleen de exacte Engelse vraag en/of volledige meerderheidstekst gaan naar de zoekengine. Een query-only bronanker wordt uitsluitend voor herkomst en uitsluiting gebruikt.
+
+Gebruik een bestaande, passende index en modelcache. Stop eerst de bestaande modelserver; voer één bewaakte modeljob tegelijk uit. Bouw vooraf met de gewone backendchecks. Het onderstaande binarypad geldt voor de standaard Cargo-targetmap; pas het aan wanneer `CARGO_TARGET_DIR` is ingesteld.
+
+```sh
+export ADAMI_EVAL_BINARY="$PWD/backend/target/debug/texas-case-finder"
+export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite"
+export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
+python3 backend/scripts/resource_guard.py \
+  --label adami-eval --timeout-seconds 600 \
+  --report "$HOME/Library/Caches/adami-case/eval-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/eval.log" \
+  -- "$ADAMI_EVAL_BINARY" eval docs/evals/scenarios.json \
+  /Users/R0GUE/Downloads/texas-criminal-reports \
+  "$HOME/Library/Caches/adami-case/eval-run-01" --retrieval-method opinion_chunks
+```
+
+Kies `--retrieval-method opinion_chunks` of `--retrieval-method head_matter`; zonder vlag geldt de bestaande opinionmethode. Voer voor een vergelijking dezelfde scenarioselectie met beide methoden uit naar verschillende uitvoermappen. De uitvoermap moet nog niet bestaan. Voor een kleine controle voeg je bijvoorbeeld `--scenario-id E01 --scenario-id E06 --scenario-id E11` toe. De runner valideert ook dan de volledige catalogus en bronnen. Uitvoer blijft buiten Git:
+
+- `run.json` (artifactversie 2, `rust-eval-v2`): expliciete retrievalmethode, invoerherkomst, scenario-/bronhashes, indexmanifest met modelconfiguratie, passages, uitsluitingen en zoektijd per scenario.
+- `rankings.json`: geordende resultaat-ID’s per scenario, zonder verzonnen labels.
+- `report.json` en `report.md`: labeldekking, ontbrekende beoordelingen, metrics en tijd per invoermodus.
+
+Zonder kandidaatlabels zijn alle kwaliteitsmetrics `null` en is de status `not_scored`. Onbeoordeeld betekent nooit niet-relevant. De tijd omvat embedding en volledige zoekactie, zonder bron-/index-/modelladen. De eerste scenario-inferentie is apart herkenbaar aan de runvolgorde; latere scenario’s delen het geladen model. Dit zijn losse, beschrijvende metingen, geen belastingsbenchmark.
+
+Optionele labels kunnen mee met `--labels /pad/labels.json`. De scorer controleert invoerbinding en bronbewijs tegen exacte canonieke tekst en UTF-16-posities. AI-labels blijven voorlopig; deze versie maakt geen labels. Een bestaande run kan later zonder modelladen opnieuw worden beoordeeld, met dezelfde index, catalogus en corpus:
+
+```sh
+"$ADAMI_EVAL_BINARY" score /pad/run.json /pad/labels.json \
+  docs/evals/scenarios.json /Users/R0GUE/Downloads/texas-criminal-reports \
+  "$HOME/Library/Caches/adami-case/eval-rescore-01"
+```
+
+De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de canonieke LF-/trimtekst. Bij een toekomstige normalisatieafwijking stopt de runner; hashes en aangeboden tekst mogen niet stil van elkaar verschillen. De bronkeuze wijzigt geen scenario-invoer of goldlabels. Menselijke controle en AI-labelgeneratie horen niet bij deze technische basis.
+
+## Verificatie van de selecteerbare zoekmethoden
+
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **33 Pythonchecks**, **32 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+
+De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
+
+**Daadwerkelijk uitgevoerd:** de bewaakte sequentiële import publiceerde 135 zaken en 1368 passages (578 majority, 790 head matter) in 273,8 seconden, met 1196,9 MiB groepspiek, normale geheugendruk en geen swapgroei. De eerste import in één proces was eerder veilig gestopt bij 1573,34 MiB zonder databasepublicatie; de guardlimieten zijn niet verhoogd. Onafhankelijke vergelijking bevestigt alle 578 bestaande B-vectoren bytegelijk, alle majorityteksten en posities ongewijzigd, alle 135 ruwe bronJSONs exact en alle 25 scenariobronbindingen geldig.
+
+De onafhankelijke echte API-/browsercontrole doorliep A en B met vraag, TXT-document en PDF plus vraag; zes volledige readers met exacte sectiehashes en UTF-16-markeringen; fout/herstel en mobiele weergave. E01 (document), E06 (vraag) en E11 (beide) zijn via de webinterface gepaard uitgevoerd met dezelfde invoer, manifesten en bronuitsluiting vóór top drie. Een afzonderlijke bewaakte CLI-run van E06 met A bevestigde artefactversie 2, 134 kandidaten na bronuitsluiting en `not_scored`/lege kwaliteitsmetrics. Er zijn geen Orq-/providercalls uitgevoerd en geen nieuwe juridische kwaliteitswinst geclaimd.
+
+De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; de latere integratie verandert de Rust-engine niet. De nieuwe productfrontend-modelkeuze is afzonderlijk modelvrij gecontroleerd, inclusief combinatie met de retrievalmethode. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. Het main-startprofiel hierboven hergebruikt dezelfde gecontroleerde dual-index; stop eerst een eventuele oude modelguard.
 
 De losse commandlinetool `backend/scripts/retrieval_relevance.py` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.
 
@@ -226,4 +304,4 @@ De serverallowlist bevat `openai/gpt-4.1-mini-2025-04-14` (bestaande standaard) 
 
 Mike stuurt de keuze alleen via `X-Orq-Model`; de oorspronkelijke query-/documentmultipart gaat ongewijzigd naar Rust. `explanation_requested_model` registreert de keuze en `explanation_model` de werkelijk door de provider gemelde model-ID. Ontbrekende provideridentiteit blijft `null` en wordt als onbekend getoond. E06 gebruikt JSON `{"model":"..."}` en bewaart `requested_model` en de werkelijk gemelde `model` in het runartefact. De key blijft uitsluitend op de server en komt niet in deze browserverzoeken of resultaten.
 
-Voor deze wijziging worden aparte previews gebruikt: Mike op 5177 met sidecar18002 en de evalpagina op 8800. Browser-/Orq-validatie gebruikt expliciet opgeslagen echte retrieval tijdens de gelijktijdige indexbouw; dit valideert de modeldoorgifte en brongebonden uitvoer, niet de nog te integreren nieuwe embeddingindex.
+De afzonderlijke modelkeuzevalidatie gebruikte previews op 5177/18002 en 8800 met opgeslagen echte retrieval. Dat controleerde modeldoorgifte en brongebonden uitvoer, zonder een nieuwe embeddingindex te claimen. Het lokale main-profiel op 5176 zoekt rechtstreeks via Rust; daar is geen generatiemodelkiezer. De optionele Orq-sidecar blijft afzonderlijk configureerbaar.

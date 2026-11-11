@@ -70,107 +70,157 @@ function renderDeterministicResults(container, result) {
   container.replaceChildren(summary, list, details);
 }
 
-function renderResults(container, result) {
-  if (result.eval_id === 'B1') {
-    renderDeterministicResults(container, result);
-    return;
-  }
-  const checks = result.structural_checks;
-  const judgments = result.judgments;
-  if (result.status !== 'completed' || !Array.isArray(judgments) || judgments.length !== 3 ||
-      new Set(judgments.map(row => row.case_id)).size !== 3 ||
-      judgments.some(row => !Number.isInteger(row.grade) || row.grade < 0 || row.grade > 3) ||
-      !checks?.three_unique_results ||
-      (result.eval_id === 'E06' && (!checks.source_excluded || judgments.some(row => row.case_id === '156133')))) {
+
+const methodNames = {opinion_chunks: 'Oordeelpassages (B)', head_matter: 'Head matter (A)'};
+
+function renderMethod(run) {
+  const hits = run.search_response?.results;
+  const checks = run.structural_checks;
+  if (run.status !== 'completed' || !methodNames[run.retrieval_method] || !Array.isArray(hits) || hits.length !== 3 ||
+      new Set(hits.map(row => row.case_id)).size !== 3 || !checks?.three_unique_results ||
+      (run.eval_id !== 'B1-compare' && (!checks.source_excluded || hits.some(row => (run.excluded_case_ids || []).includes(row.case_id))))) {
     throw new Error('De run bevat geen geldige drie unieke resultaten. Probeer opnieuw.');
   }
-  const structural = element('p', '3 unieke uitspraken' +
-    (checks.source_excluded === true ? ' · Nixon (156133) uitgesloten' : ' · Bronzaak kan zichzelf terugvinden'), 'run-checks');
-  const scale = element('p', 'AI-relevantie: 0 niet relevant · 1 zijdelings · 2 bruikbaar · 3 sterk. Zoekscore is de lokale overeenkomstscore.', 'grade-scale');
-  const useful = judgments.filter(row => row.grade >= 2).length;
-  const summary = element('div', null, 'result-summary');
-  summary.append(
-    element('h4', `${useful} van de 3 matches bruikbaar`),
-    element('p', `${3 - useful} weinig of niet relevant · AI-beoordeling`),
-  );
-  const gradeLabels = ['Niet relevant', 'Zijdelings', 'Bruikbaar', 'Sterk'];
+  const judged = run.judge_status === 'completed';
+  if (judged && (!Array.isArray(run.judgments) || run.judgments.length !== 3 ||
+      new Set(run.judgments.map(row => row.case_id)).size !== 3 ||
+      run.judgments.some(row => !Number.isInteger(row.grade) || row.grade < 0 || row.grade > 3 || !hits.some(hit => hit.case_id === row.case_id)))) {
+    throw new Error('De AI-beoordeling hoort niet bij deze drie resultaten.');
+  }
+  const section = element('section', null, 'method-result');
+  section.append(element('h3', methodNames[run.retrieval_method], 'method-title'));
+  section.append(element('p', '3 unieke uitspraken' +
+    (checks.source_excluded ? ' · Bronzaak uitgesloten' : ' · Geen bronuitsluiting'), 'run-checks'));
+  section.append(element('p', judged ? 'AI-relevantie: 0 niet relevant · 1 zijdelings · 2 bruikbaar · 3 sterk.' : 'Lokale overeenkomstscores · geen AI-relevantiebeoordeling.', 'grade-scale'));
+  if (judged) {
+    const useful = run.judgments.filter(row => row.grade >= 2).length;
+    const summary = element('div', null, 'result-summary');
+    summary.append(element('h4', `${useful} van de 3 matches bruikbaar`), element('p', `${3 - useful} weinig of niet relevant · AI-beoordeling`));
+    section.append(summary);
+  }
   const list = element('ol', null, 'judgments');
-  judgments.forEach(row => {
+  hits.forEach(hit => {
+    const judgment = judged ? run.judgments.find(row => row.case_id === hit.case_id) : undefined;
     const item = element('li', null, 'judgment');
     const heading = element('div', null, 'judgment-heading');
-    heading.append(element('h4', row.title), element('span', `${gradeLabels[row.grade]} · ${row.grade} / 3`, 'grade'));
-    item.append(heading);
-    item.append(element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
-    item.append(element('p', row.reasoning, 'judgment-reason'), element('blockquote', row.quote));
+    heading.append(element('h4', hit.title));
+    if (judgment) heading.append(element('span', `${['Niet relevant', 'Zijdelings', 'Bruikbaar', 'Sterk'][judgment.grade]} · ${judgment.grade} / 3`, 'grade'));
+    const source = hit.passage.source_section === 'head_matter' ? 'Redactioneel voorwerk' : 'Meerderheidsoordeel';
+    item.append(heading, element('p', `Zaak ${hit.case_id} · Overeenkomst ${Number(hit.score).toFixed(4)} · ${source}`, 'judgment-meta'));
+    if (judgment) item.append(element('p', judgment.reasoning, 'judgment-reason'));
+    item.append(element('blockquote', judgment ? judgment.quote : hit.passage.text));
     list.append(item);
   });
   const provenance = element('details', null, 'run-provenance');
-  provenance.append(element('summary', 'Rundetails'), structural, scale);
+  provenance.append(element('summary', 'Rungegevens en beperkingen'));
   const details = element('dl');
   [
-    ['Run', result.run_id], ['Gekozen model', result.requested_model || 'Niet vastgelegd'],
-    ['Gebruikt model', result.model || 'Niet teruggegeven door provider'],
-    ['Duur', `${Number(result.duration_seconds).toFixed(1)} seconden`],
-    ['Corpus', result.corpus_version], ['Zoekmethode', result.ranking_version],
-    ['Lokaal resultaatbestand', result.artifact_name],
+    ['Run', run.run_id], ['Zoekmethode', methodNames[run.retrieval_method]],
+    ['Gekozen beoordelingsmodel', run.requested_model || 'Niet aangevraagd'],
+    ['Gebruikt beoordelingsmodel', run.judge_status === 'completed' ? (run.model || 'Niet teruggegeven door provider') : 'Niet aangevraagd'],
+    ['Duur', `${Number(run.duration_seconds).toFixed(1)} seconden`],
+    ['Invoer SHA-256', run.input_sha256], ['Corpus', run.corpus_version], ['Ranking', run.ranking_version],
+    ['Embeddingmodel', JSON.stringify(run.retrieval_manifest?.embedding || {})],
+    ['Lokaal resultaatbestand', run.artifact_name],
   ].forEach(([label, value]) => details.append(element('dt', label), element('dd', value)));
   provenance.append(details);
   const limitations = element('ul');
-  (result.limitations || []).forEach(text => limitations.append(element('li', text)));
+  (run.limitations || []).forEach(text => limitations.append(element('li', text)));
   provenance.append(limitations);
-  container.replaceChildren(summary, list, provenance);
+  section.append(list, provenance);
+  return section;
+}
+
+function renderResults(container, result) {
+  if (result.eval_id === 'B1') { renderDeterministicResults(container, result); return; }
+  const completed = result.status === 'completed' || (result.eval_id === 'B1-compare' && result.status === 'not_scored' && result.execution_status === 'completed');
+  if (!completed || !Array.isArray(result.runs) || !result.runs.length || result.runs.length > 2 ||
+      new Set(result.runs.map(run => run.retrieval_method)).size !== result.runs.length) {
+    throw new Error('De ontvangen vergelijking is ongeldig.');
+  }
+  const grid = element('div', null, 'method-results');
+  result.runs.forEach(run => grid.append(renderMethod(run)));
+  const contents = [];
+  if (result.runs.length === 2) {
+    const overlap = result.comparison?.overlap_count;
+    if (!Number.isInteger(overlap) || overlap < 0 || overlap > 3) throw new Error('De vergelijking mist geldige overlapgegevens.');
+    contents.push(element('p', `${overlap} van de 3 uitspraken komen in beide lijsten voor. Overlap zegt niets over juridische kwaliteit.`, 'comparison-summary'));
+    const wrapper = element('div', null, 'table-scroll');
+    const table = element('table', null, 'rank-comparison');
+    const caption = element('caption', 'Positie per uitspraak');
+    const headings = element('tr');
+    ['Uitspraak', ...result.runs.map(run => methodNames[run.retrieval_method])].forEach(label => {
+      const header = element('th', label); header.scope = 'col'; headings.append(header);
+    });
+    const head = element('thead'); head.append(headings);
+    const body = element('tbody');
+    const cases = new Map();
+    result.runs.forEach(run => run.search_response.results.forEach(hit => cases.set(hit.case_id, hit.title)));
+    cases.forEach((title, id) => {
+      const row = element('tr');
+      row.append(element('td', title));
+      result.runs.forEach(run => {
+        const rank = run.search_response.results.findIndex(hit => hit.case_id === id);
+        row.append(element('td', rank < 0 ? '—' : String(rank + 1)));
+      });
+      body.append(row);
+    });
+    table.append(caption, head, body); wrapper.append(table); contents.push(wrapper);
+  }
+  container.replaceChildren(...contents, grid);
 }
 
 function updateRunControls() {
-  document.querySelectorAll('.run-button').forEach(node => { node.disabled = running || node.dataset.modelReady === 'false'; });
-  document.querySelectorAll('.eval-model-select').forEach(node => { node.disabled = running || !node.options.length; });
+  document.querySelectorAll('.run-button').forEach(node => {
+    node.disabled = running || (node.dataset.judgeEnabled === 'true' && node.dataset.modelReady !== 'true');
+  });
+  document.querySelectorAll('.eval-model-select').forEach(node => {
+    node.disabled = running || node.dataset.enabled !== 'true' || !node.options.length;
+  });
 }
 
 async function loadModels(select, status, button) {
-  button.dataset.modelReady = 'false';
-  button.disabled = true;
-  updateRunControls();
+  button.dataset.modelReady = 'false'; updateRunControls();
   try {
     const response = await fetch('/api/models');
-    if (!response.ok) throw new Error('Modellen laden is mislukt. Vernieuw de pagina om het opnieuw te proberen.');
+    if (!response.ok) throw new Error('Modellen laden is mislukt. Schakel AI-beoordeling opnieuw in om het te proberen.');
     const catalog = await response.json();
     if (!Array.isArray(catalog.models) || !catalog.models.length) throw new Error('Er zijn geen beoordelingsmodellen beschikbaar.');
     if (!catalog.models.some(model => model.id === catalog.default_model)) throw new Error('De server geeft geen geldige modelkeuze.');
     select.replaceChildren(...catalog.models.map(model => {
-      const option = element('option', model.label);
-      option.value = model.id;
-      return option;
+      const option = element('option', model.label); option.value = model.id; return option;
     }));
-    select.value = catalog.default_model;
-    status.hidden = true;
-    button.dataset.modelReady = 'true';
-  } catch (error) {
-    status.textContent = error.message;
-  } finally {
-    updateRunControls();
-  }
+    select.value = catalog.default_model; status.hidden = true; button.dataset.modelReady = 'true';
+  } catch (error) { status.hidden = false; status.textContent = error.message; }
+  finally { updateRunControls(); }
 }
 
-async function runEval(evalRecord, button, status, results, modelSelect) {
+async function runEval(evalRecord, button, status, results, selector, judge, modelSelect) {
   if (running) return;
+  const methods = selector?.value === 'both' ? ['opinion_chunks', 'head_matter'] : [selector?.value || 'opinion_chunks'];
+  const judgeEnabled = judge?.checked || false;
   running = true;
-  updateRunControls();
+  document.querySelectorAll('.run-button, .method-selector, .scenario-selector, .judge-choice input').forEach(node => { node.disabled = true; });
   button.textContent = 'Bezig…';
   status.hidden = false;
-  status.textContent = evalRecord.id === 'B1' ? 'Zoeken en vergelijken met de twee vaste verwachte zaken…' : 'Zoeken en beoordelen… Dit kan even duren. Houd deze pagina open.';
+  status.textContent = judgeEnabled ? 'Zoeken en beoordelen… Houd deze pagina open.' : 'Lokaal zoeken en resultaten vergelijken…';
   status.className = 'run-status';
   results.replaceChildren();
   results.setAttribute('aria-busy', 'true');
   try {
     const response = await fetch(`/api/evals/${encodeURIComponent(evalRecord.id)}/run`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(modelSelect ? {model: modelSelect.value} : {}),
+      body: JSON.stringify(evalRecord.id === 'B1' ? {} : {retrieval_methods: methods, judge: judgeEnabled, ...(judgeEnabled && modelSelect ? {model: modelSelect.value} : {})}),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.');
-    if (result.eval_id !== evalRecord.id) throw new Error('De ontvangen run hoort niet bij deze eval.');
+    if (result.eval_id !== evalRecord.id || (evalRecord.id !== 'B1' && (!Array.isArray(result.runs) ||
+        JSON.stringify(result.runs.map(run => run.retrieval_method)) !== JSON.stringify(methods)))) {
+      throw new Error('De ontvangen run hoort niet bij deze eval of zoekmethode.');
+    }
     renderResults(results, result);
-    status.textContent = evalRecord.id === 'B1' ? 'Uitgevoerd · vaste referenties, zonder AI-beoordelaar.' : 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.';
+    status.hidden = false;
+  status.textContent = judgeEnabled ? 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.' : 'Uitgevoerd · lokale zoekresultaten, geen juridische kwaliteitsmeting.';
     status.className = 'run-status completed';
     button.textContent = 'Opnieuw uitvoeren';
   } catch (error) {
@@ -180,83 +230,96 @@ async function runEval(evalRecord, button, status, results, modelSelect) {
   } finally {
     running = false;
     results.setAttribute('aria-busy', 'false');
+    document.querySelectorAll('.run-button, .method-selector, .scenario-selector').forEach(node => { node.disabled = false; });
+    document.querySelectorAll('.judge-choice input').forEach(node => { node.disabled = node.dataset.available !== 'true'; });
     updateRunControls();
   }
 }
 
-function renderRunnable(evalRecord) {
-  const section = element('details', null, 'runnable-eval');
-  section.id = `run-${evalRecord.id}`;
-  const heading = element('summary', null, 'run-heading');
-  const title = element('h3', evalRecord.title);
-  title.id = `${section.id}-title`;
-  section.setAttribute('aria-labelledby', title.id);
-  const chevron = element('span', null, 'chevron');
-  chevron.setAttribute('aria-hidden', 'true');
-  heading.append(title, chevron);
-  section.append(heading);
-  const content = element('div', null, 'runnable-content');
-  const info = element('details', null, 'eval-info');
-  const infoToggle = element('summary', 'i');
-  infoToggle.setAttribute('aria-label', 'Uitleg en beoordeling van deze eval');
-  const explanation = element('div', null, 'eval-info-content');
-  if (evalRecord.id === 'B1') {
-    explanation.append(
-      element('p', 'De twee verwachte zaak-ID’s zijn vooraf vastgelegd en worden zonder AI-beoordelaar met de drie zoekresultaten vergeleken. Hun volgorde mag wisselen; beide moeten gevonden worden.'),
-      element('p', 'De derde match is onbeoordeeld. Dit zijn door agents voorgestelde, aan bronpassages gecontroleerde referenties, geen menselijke juridische goldset. Geslaagd zegt alleen dat deze twee vaste doelen zijn gevonden.'),
-    );
-  } else {
-  explanation.append(
-    element('p', 'Het systeem zoekt drie uitspraken bij de Engelse vraag. De bronzaak zelf is uitgesloten. AI beoordeelt of elke uitspraak de rechtsvraag beantwoordt; alleen vergelijkbare feiten zijn niet genoeg.'),
-    element('p', '0 = niet relevant, 1 = zijdelings, 2 = bruikbaar, 3 = sterk. De samenvatting telt scores 2 en 3 als bruikbaar.'),
-    element('p', 'Dit is een AI-beoordeling, zonder door mensen gecontroleerde referentie. Het is geen garantie van juridische juistheid.'),
-  );
+function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
+  let selector, judge, modelSelect, modelStatus, modelPicker;
+  if (evalRecord.id !== 'B1') {
+    const choices = element('div', null, 'run-choices');
+    const label = element('label', 'Zoekmethode');
+    selector = element('select', null, 'method-selector');
+    selector.setAttribute('aria-label', `Zoekmethode voor ${kind === 'diagnostic' ? 'scenario ' : ''}${evalRecord.id}`);
+    [['opinion_chunks', methodNames.opinion_chunks], ['head_matter', methodNames.head_matter], ['both', 'Vergelijk beide']].forEach(([value, text]) => {
+      const option = element('option', text); option.value = value; selector.append(option);
+    });
+    label.append(selector); choices.append(label);
+    if (evalRecord.id !== 'B1-compare') {
+      const judgeLabel = element('label', null, 'judge-choice');
+      judge = element('input'); judge.type = 'checkbox'; judge.checked = false;
+      judge.disabled = !judgeAvailable; judge.dataset.available = String(judgeAvailable);
+      judgeLabel.append(judge, document.createTextNode(' AI-beoordeling via Orq (extra kosten)' + (judgeAvailable ? '' : ' · niet beschikbaar')));
+      choices.append(judgeLabel);
+    }
+    content.append(choices);
   }
-  info.append(infoToggle, explanation);
-  content.append(info);
-  const input = element('div', null, 'run-input');
-  field(input, 'Input', evalRecord.query, 'run-query');
-  input.querySelector('.run-query p').lang = 'en';
-  content.append(input);
-  if (evalRecord.id === 'B1') {
-    field(content, 'Verwachte output', evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.', 'run-expectation');
-  } else {
-    field(content, 'Verwachte output', evalRecord.expected_behavior, 'run-expectation');
+  if (judge) {
+    modelPicker = element('div', null, 'eval-model-picker'); modelPicker.hidden = true;
+    const modelLabel = element('label', 'Beoordelingsmodel (Orq)');
+    modelSelect = element('select', null, 'eval-model-select'); modelSelect.id = `${scopeId}-model`; modelSelect.disabled = true;
+    modelLabel.htmlFor = modelSelect.id;
+    modelStatus = element('p', 'Modellen laden…', 'model-status'); modelStatus.setAttribute('role', 'status');
+    modelStatus.id = `${scopeId}-model-status`; modelSelect.setAttribute('aria-describedby', modelStatus.id);
+    modelPicker.append(modelLabel, modelSelect, modelStatus); content.append(modelPicker);
   }
   const action = element('div', null, 'run-action');
-  const button = element('button', 'Start eval', 'run-button');
-  button.type = 'button';
-  button.dataset.evalId = evalRecord.id;
-  button.setAttribute('aria-label', `Start eval: ${evalRecord.id}`);
-  let modelSelect;
-  if (evalRecord.id !== 'B1') {
-    const picker = element('div', null, 'eval-model-picker');
-    const label = element('label', 'Beoordelingsmodel');
-    modelSelect = element('select', null, 'eval-model-select');
-    modelSelect.id = `${section.id}-model`;
-    label.htmlFor = modelSelect.id;
-    modelSelect.disabled = true;
-    const modelStatus = element('p', 'Modellen laden…', 'model-status');
-    modelStatus.setAttribute('role', 'status');
-    modelStatus.id = `${modelSelect.id}-status`;
-    modelSelect.setAttribute('aria-describedby', modelStatus.id);
-    picker.append(label, modelSelect, modelStatus);
-    content.append(picker);
-    void loadModels(modelSelect, modelStatus, button);
-  }
-  const status = element('p', '', 'run-status');
-  status.hidden = true;
-  status.id = `${section.id}-status`;
-  status.setAttribute('role', 'status');
+  const button = element('button', evalRecord.id === 'B1-compare' ? 'Start vergelijking' : 'Start eval', 'run-button');
+  button.type = 'button'; button.dataset.evalId = evalRecord.id; button.dataset.kind = kind;
+  button.setAttribute('aria-label', `Start ${kind === 'diagnostic' ? 'scenario' : 'eval'}: ${evalRecord.id}`);
+  const status = element('p', '', 'run-status'); status.hidden = true; status.id = `${scopeId}-status`; status.setAttribute('role', 'status');
   button.setAttribute('aria-describedby', status.id);
-  const results = element('div', null, 'run-results');
-  results.id = `${section.id}-results`;
-  results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
-  button.addEventListener('click', () => runEval(evalRecord, button, status, results, modelSelect));
-  action.append(button, status);
-  content.append(action, results);
-  section.append(content);
-  return section;
+  const results = element('div', null, 'run-results'); results.id = `${scopeId}-results`; results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
+  if (judge) {
+    button.dataset.judgeEnabled = 'false'; button.dataset.modelReady = 'false';
+    judge.addEventListener('change', () => {
+      button.dataset.judgeEnabled = String(judge.checked); modelSelect.dataset.enabled = String(judge.checked); modelPicker.hidden = !judge.checked;
+      if (judge.checked && !modelSelect.options.length) void loadModels(modelSelect, modelStatus, button);
+      else updateRunControls();
+    });
+  }
+  button.addEventListener('click', () => runEval(evalRecord, button, status, results, selector, judge, modelSelect));
+  action.append(button, status); content.append(action, results);
+}
+
+function renderRunnable(evalRecord, judgeAvailable, diagnostic = false) {
+  const section = element('details', null, 'runnable-eval');
+  section.id = `${diagnostic ? 'compare' : 'run'}-${evalRecord.id}`;
+  const heading = element('summary', null, 'run-heading');
+  const title = element('h3', diagnostic ? `${evalRecord.id} · ${evalRecord.title}` : evalRecord.title);
+  title.id = `${section.id}-title`; section.setAttribute('aria-labelledby', title.id);
+  const chevron = element('span', null, 'chevron'); chevron.setAttribute('aria-hidden', 'true'); heading.append(title, chevron); section.append(heading);
+  const content = element('div', null, 'runnable-content');
+  const info = element('details', null, 'eval-info');
+  const toggle = element('summary', 'i'); toggle.setAttribute('aria-label', 'Uitleg en beoordeling van deze eval');
+  const explanation = element('div', null, 'eval-info-content');
+  if (evalRecord.id === 'B1') {
+    explanation.append(element('p', 'De oorspronkelijke referentiecontrole gebruikt de vooraf vastgelegde corpus- en modelcontext. Beide verwachte zaak-ID’s moeten in de top drie staan; hun volgorde mag wisselen.'),
+      element('p', 'Deze door agents voorgestelde referenties zijn geen menselijke juridische goldset. Bij een andere index geeft de vaste controle een contextfout; de afzonderlijke zoekvariant hieronder wijzigt de referentie niet.'));
+  } else {
+    explanation.append(element('p', 'Vergelijk lokale zoekmethodes op dezelfde invoer en index. De bronzaak wordt vóór de top drie uitgesloten. Overlap en overeenkomstscore bewijzen geen juridische relevantie.'),
+      element('p', 'Optionele AI-beoordeling: 0 niet relevant, 1 zijdelings, 2 bruikbaar, 3 sterk. Scores 2 en 3 tellen als bruikbaar; dit is geen menselijke juridische referentie.'));
+  }
+  info.append(toggle, explanation); content.append(info);
+  const input = element('div', null, 'run-input');
+  if (evalRecord.document_label) {
+    field(input, 'Document', `${evalRecord.source_case.name} · ${evalRecord.document_label}`);
+    input.append(element('p', 'De volledige meerderheidstekst is invoer; het leesfragment is geen zoekdocument.', 'input-note'));
+  }
+  field(input, 'Input', evalRecord.query, 'run-query');
+  const queryText = input.querySelector('.run-query p'); if (queryText) queryText.lang = 'en';
+  const mode = {query: 'Alleen vraag', document: 'Alleen document', combined: 'Document + vraag'}[evalRecord.input_mode];
+  input.append(element('p', mode + (evalRecord.source_excluded ? ' · Bronzaak uitgesloten' : ''), 'input-note')); content.append(input);
+  field(content, 'Verwachte output', evalRecord.id === 'B1' ? evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.' : evalRecord.expected_behavior, 'run-expectation');
+  addRunControls(content, evalRecord, judgeAvailable, section.id, diagnostic ? 'diagnostic' : 'fixed');
+  if (evalRecord.id === 'B1') {
+    const variant = element('section', null, 'b1-variant'); variant.id = 'run-B1-compare';
+    variant.append(element('h4', 'Zoekmethodes vergelijken · nieuwe variant'), element('p', 'Dezelfde B1-vraag, met de actuele zoekindex. Geen score van de vooraf vastgelegde referentiecontrole.', 'input-note'));
+    addRunControls(variant, evalRecord.comparison_variant, false, variant.id, 'variant'); content.append(variant);
+  }
+  section.append(content); return section;
 }
 
 async function loadCatalog() {
@@ -268,8 +331,23 @@ async function loadCatalog() {
     if (!response.ok) throw new Error('Catalogus niet beschikbaar');
     const catalog = await response.json();
     const records = ['B1', 'E06'].map(id => catalog.evals.find(row => row.id === id && row.runnable));
-    if (records.some(row => !row)) throw new Error('De evals zijn niet beschikbaar');
-    runnableList.replaceChildren(...records.map(renderRunnable));
+    const evals = catalog.diagnostic_evals.filter(row => row.runnable);
+    if (records.some(row => !row) || !evals.length || new Set(evals.map(row => row.id)).size !== evals.length) throw new Error('Uitvoerbare evals ontbreken of staan dubbel');
+    runnableList.replaceChildren(...records.map(row => renderRunnable(row, catalog.judge_available === true)));
+    const diagnosticList = document.getElementById('diagnostic-list');
+    if (!diagnosticList) throw new Error('De lokale vergelijkingskiezer ontbreekt');
+    const choices = element('label', 'Scenario', 'eval-selection');
+    const selector = element('select', null, 'method-selector scenario-selector'); selector.setAttribute('aria-label', 'Evaluatie kiezen');
+    const cards = new Map();
+    evals.forEach(record => {
+      const option = element('option', `${record.id} · ${record.title}`); option.value = record.id; selector.append(option);
+      cards.set(record.id, renderRunnable(record, catalog.judge_available === true, true));
+    });
+    choices.append(selector); const active = element('div');
+    const choose = () => active.replaceChildren(cards.get(selector.value)); selector.addEventListener('change', choose);
+    const initial = location.hash.startsWith('#compare-') ? location.hash.slice(9) : '';
+    if (cards.has(initial)) selector.value = initial;
+    choose(); diagnosticList.replaceChildren(choices, active);
     catalogStatus.hidden = true;
     revealAnchor();
   } catch {

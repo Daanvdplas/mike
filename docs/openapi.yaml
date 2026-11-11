@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Texas Legal Document Similarity Finder
-  version: 1.2.0
+  version: 1.3.0
   description: |
     Canonical API contract for the Rust backend. End-to-end verification status
     is documented in README and CODEBASE_GUIDE; examples remain synthetic.
@@ -26,7 +26,9 @@ paths:
         usable input is required. Trim query whitespace; a blank query counts
         as absent. An explicitly supplied invalid document always fails,
         including when a usable query is supplied. Never silently ignore it.
-        All corpus passages are scored; each case uses its maximum passage
+        Choose opinion_chunks (default, majority opinions) or head_matter
+        (editorial context). All passages in the selected source section are
+        scored; each case uses its maximum passage
         score. Sort by score descending, then case_id lexicographically ascending.
         For equal passage scores choose passage_id lexicographically ascending.
         The complete 135-case index must be ready; partial results are forbidden.
@@ -64,6 +66,8 @@ paths:
                 query:
                   type: string
                   description: Optional UTF-8 query; at most 1 MiB (1048576 bytes) before trimming. Whitespace-only counts as absent.
+                retrieval_method:
+                  $ref: '#/components/schemas/RetrievalMethod'
               anyOf:
                 - required: [document]
                 - required: [query]
@@ -81,6 +85,62 @@ paths:
                 syntheticQuery:
                   summary: Synthetic frontend fixture; scores are invented
                   externalValue: ./examples/search-response.json
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '413':
+          $ref: '#/components/responses/DocumentTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedDocument'
+        '422':
+          $ref: '#/components/responses/UnreadableDocument'
+        '503':
+          $ref: '#/components/responses/IndexUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/evals/search:
+    post:
+      operationId: evaluateSearchCases
+      summary: Run local retrieval with explicit benchmark source exclusions
+      description: |
+        Rust backend only; the optional Orq explanation adapter does not expose
+        this route. Reuses the same loaded index, model and serialized engine as
+        product search. Exclude case IDs before scoring and top-three selection.
+        The eligible corpus must contain at least three cases. Unknown or
+        duplicate IDs are invalid input. No judge, model generation or legal
+        quality metrics are invoked. CORS and request/document/query limits
+        match /api/search. This local diagnostic endpoint returns the exact
+        index manifest for reproducible comparisons; it does not modify data.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                query:
+                  type: string
+                  description: Same UTF-8 query and limit as product search.
+                document:
+                  type: string
+                  format: binary
+                  description: Same PDF/TXT input and limits as product search.
+                retrieval_method:
+                  $ref: '#/components/schemas/RetrievalMethod'
+                excluded_case_ids:
+                  type: string
+                  default: '[]'
+                  description: JSON-encoded array of unique known case-ID strings.
+              anyOf:
+                - required: [document]
+                - required: [query]
+      responses:
+        '200':
+          description: Three eligible cases with exclusions and index lineage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationSearchResponse'
         '400':
           $ref: '#/components/responses/InvalidInput'
         '413':
@@ -157,6 +217,43 @@ paths:
                 type: object
 components:
   schemas:
+    RetrievalMethod:
+      type: string
+      enum: [opinion_chunks, head_matter]
+      default: opinion_chunks
+      description: |
+        Select the indexed source section. Both use the same local BGE model,
+        exhaustive cosine scoring, maximum passage score per case and top three.
+        Head matter is editorial context, not the court's majority reasoning.
+    EvaluationSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [response, excluded_case_ids, eligible_case_count, index_manifest]
+      properties:
+        response:
+          $ref: '#/components/schemas/SearchResponse'
+        excluded_case_ids:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        eligible_case_count:
+          type: integer
+          minimum: 3
+        index_manifest:
+          type: object
+          required: [format_version, pipeline, embedding, corpus_version]
+          description: Exact persisted corpus, preprocessing and embedding configuration.
+          properties:
+            format_version:
+              type: integer
+              enum: [3]
+            pipeline:
+              type: string
+            embedding:
+              type: object
+            corpus_version:
+              type: string
     CaseMetadata:
       type: object
       required: [case_id, title, court, decision_date, citation, text_version]
@@ -190,7 +287,21 @@ components:
         text:
           type: string
           minLength: 1
-          description: Exact original substring of the canonical detail text.
+          description: Exact substring of the canonical detail source selected by source_section.
+        source_section:
+          type: string
+          enum: [majority, head_matter]
+          description: |
+            Additive field. Absent in legacy opinion fixtures means majority.
+            New index results always supply the section. head_matter offsets
+            refer to CaseDetail.head_matter, never to CaseDetail.text.
+        text_version:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+          description: |
+            Additive version of this passage's source section. New results
+            always supply it. Compare majority with CaseDetail.text_version
+            and head matter with CaseDetail.head_matter_text_version.
         start_utf16:
           type: integer
           minimum: 0
@@ -200,8 +311,9 @@ components:
           minimum: 1
           description: |
             UTF-16 code-unit position, exclusive and greater than start_utf16.
-            detail.text.slice(start_utf16, end_utf16) in JavaScript equals text.
-            Offsets must not split a surrogate pair. Do not normalize detail text.
+            Slice the selected detail source string in JavaScript to obtain
+            passage.text. Offsets must not split a surrogate pair. Do not
+            normalize the source string.
     InputContext:
       type: object
       additionalProperties: false
@@ -297,6 +409,8 @@ components:
       additionalProperties: false
       required: [mode, corpus_version, ranking_version, results]
       properties:
+        retrieval_method:
+          $ref: '#/components/schemas/RetrievalMethod'
         input_context:
           $ref: '#/components/schemas/InputContext'
         explanation_status:
@@ -334,8 +448,15 @@ components:
               minLength: 1
               description: |
                 Complete canonical majority-opinion text, as plain text.
-                Search-passage offsets refer to this exact string and text_version.
+                Majority-passage offsets refer to this exact string and text_version.
                 No original PDF layout or HTML rendering is implied.
+            head_matter:
+              type: string
+              description: Additive canonical editorial context; head_matter passage offsets refer here.
+            head_matter_text_version:
+              type: string
+              pattern: '^sha256:[a-f0-9]{64}$'
+              description: Additive SHA-256 version of the exact canonical head_matter string.
     HealthResponse:
       type: object
       additionalProperties: false

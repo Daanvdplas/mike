@@ -1,6 +1,6 @@
 //! Cosine and its original numeric regression test are reused from COA:
 //! https://github.com/Daanvdplas/meedoenbalie-rag-learning/blob/cada34fbb4d22bde46d31c3cdbcda495e6d93e9b/src/ranking.rs
-use super::{EngineError, ErrorKind, IndexedPassage};
+use super::{EngineError, ErrorKind, IndexedPassage, SourceSection};
 use std::collections::BTreeMap;
 
 pub(super) fn cosine(left: &[f32], right: &[f32]) -> Result<f32, String> {
@@ -33,6 +33,22 @@ pub(super) fn rank_cases_excluding(
     document: Option<&[f32]>,
     excluded_case_ids: &[String],
 ) -> Result<Vec<(usize, f64)>, EngineError> {
+    rank_cases_for_section(
+        passages,
+        query,
+        document,
+        excluded_case_ids,
+        SourceSection::Majority,
+    )
+}
+
+pub(super) fn rank_cases_for_section(
+    passages: &[IndexedPassage],
+    query: Option<&[f32]>,
+    document: Option<&[f32]>,
+    excluded_case_ids: &[String],
+    section: SourceSection,
+) -> Result<Vec<(usize, f64)>, EngineError> {
     if query.is_none() && document.is_none() {
         return Err(EngineError::new(
             ErrorKind::InvalidInput,
@@ -41,7 +57,9 @@ pub(super) fn rank_cases_excluding(
     }
     let mut cases: BTreeMap<&str, (usize, f64)> = BTreeMap::new();
     for (index, item) in passages.iter().enumerate() {
-        if excluded_case_ids.contains(&item.case_id) {
+        if excluded_case_ids.contains(&item.case_id)
+            || item.passage.source_section.unwrap_or_default() != section
+        {
             continue;
         }
         let compare = |vector: &[f32]| {
@@ -130,6 +148,8 @@ mod tests {
         IndexedPassage {
             case_id: case.into(),
             passage: Passage {
+                source_section: None,
+                text_version: None,
                 passage_id: id.into(),
                 text: "text".into(),
                 start_utf16: 0,
@@ -210,6 +230,8 @@ mod independent_reference_tests {
         IndexedPassage {
             case_id: case_id.into(),
             passage: Passage {
+                source_section: None,
+                text_version: None,
                 passage_id: passage_id.into(),
                 text: "reference evidence".into(),
                 start_utf16: 0,

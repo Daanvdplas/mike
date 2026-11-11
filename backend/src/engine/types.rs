@@ -1,5 +1,40 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RetrievalMethod {
+    #[default]
+    OpinionChunks,
+    HeadMatter,
+}
+
+impl RetrievalMethod {
+    pub fn parse(value: &str) -> Result<Self, EngineError> {
+        match value {
+            "opinion_chunks" => Ok(Self::OpinionChunks),
+            "head_matter" => Ok(Self::HeadMatter),
+            _ => Err(EngineError::new(
+                ErrorKind::InvalidInput,
+                "Unknown retrieval method.",
+            )),
+        }
+    }
+    pub fn source_section(self) -> SourceSection {
+        match self {
+            Self::OpinionChunks => SourceSection::Majority,
+            Self::HeadMatter => SourceSection::HeadMatter,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceSection {
+    #[default]
+    Majority,
+    HeadMatter,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CaseMetadata {
     pub case_id: String,
@@ -16,6 +51,10 @@ pub struct Passage {
     pub text: String,
     pub start_utf16: usize,
     pub end_utf16: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_section: Option<SourceSection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -29,10 +68,20 @@ pub struct SearchResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SearchResponse {
+    #[serde(default)]
+    pub retrieval_method: RetrievalMethod,
     pub mode: String,
     pub corpus_version: String,
     pub ranking_version: String,
     pub results: Vec<SearchResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvaluationSearchResponse {
+    pub response: SearchResponse,
+    pub excluded_case_ids: Vec<String>,
+    pub eligible_case_count: usize,
+    pub index_manifest: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -41,6 +90,10 @@ pub struct CaseDetail {
     pub metadata: CaseMetadata,
     pub corpus_version: String,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head_matter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head_matter_text_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

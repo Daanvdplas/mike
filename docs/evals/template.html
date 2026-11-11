@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Start een vaste referentiecontrole of E06 en bekijk de echte resultaten.">
+  <meta name="description" content="Start de vaste B1-referentiecontrole of vergelijk lokale zoekmethodes op B1, E06 en 25 scenario’s.">
   <meta name="eval-assignment-sha256" content="{{HASH}}">
   <meta name="eval-catalog-sha256" content="{{CATALOG_HASH}}">
   <link rel="icon" href="data:,">
@@ -26,6 +26,10 @@
       <button id="catalog-retry" type="button" hidden>Opnieuw verbinden</button>
       <div id="runnable-list"></div>
       <noscript><p>Schakel JavaScript in om de evals te bekijken.</p></noscript>
+    </section>
+    <section class="diagnostic-section" aria-labelledby="diagnostic-heading">
+      <h2 id="diagnostic-heading">Andere scenario’s vergelijken</h2>
+      <div id="diagnostic-list"></div>
     </section>
   </main>
   <script>{{SCRIPT}}</script>

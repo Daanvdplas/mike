@@ -12,8 +12,9 @@ export function createMockClient(delay = 650): SearchClient {
   return {
     async search(input) {
       const { mode } = validateInput(input);
+      if (input.retrieval_method === 'head_matter') throw new Error('Head-matterzoeken is niet beschikbaar in de voorbeeldmodus.');
       await new Promise((resolve) => setTimeout(resolve, delay));
-      return { ...structuredClone(fixtureResponse), mode };
+      return { ...structuredClone(fixtureResponse), mode, retrieval_method: 'opinion_chunks' };
     },
     async getCase(caseUrl) {
       const detail = fixtureCases.find((item) => caseUrl === `/api/cases/${encodeURIComponent(item.case_id)}`);
@@ -33,13 +34,19 @@ export function createApiClient(baseUrl: string, fetcher: typeof fetch = fetch):
   return {
     async search(input) {
       const { query, document } = validateInput(input);
+      const method = input.retrieval_method ?? 'opinion_chunks';
       const form = new FormData();
       if (query) form.append('query', query);
       if (document) form.append('document', document);
-      return request<SearchResponse>('/api/search', {
+      form.append('retrieval_method', method);
+      const response = await request<SearchResponse>('/api/search', {
         method: 'POST', body: form,
         ...(input.model ? { headers: { 'X-Orq-Model': input.model } } : {}),
       });
+      if ((response.retrieval_method ?? 'opinion_chunks') !== method) {
+        throw new Error('De backend gebruikte een andere zoekmethode. Verstuur je zoekopdracht opnieuw.');
+      }
+      return response;
     },
     getCase: (caseUrl) => request<CaseDetail>(caseUrl),
     async getModels() {

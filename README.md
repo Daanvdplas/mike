@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Featurestatus:** deze branch voegt een selecteerbare head-matterzoekmethode toe naast de bestaande opinion-chunks. De aparte dual-index en de API-/browserdoorloop zijn onafhankelijk gecontroleerd; zie de verificatie onderaan. De tijdelijke featurepreview op 5177/8001/8799 is daarna gestopt en de oorspronkelijke demo op 8000 is hersteld. Bestaande databases en binaries zijn behouden.
+**Status:** selecteerbare head-matterzoekmethode naast de bestaande opinion-chunks, met een gecontroleerde dual-index en API-/browserdoorloop. Het lokale main-startprofiel hieronder gebruikt Mike op 5176, één bewaakte Rustbackend op 8000 en evaluaties op 8798. Bestaande databases en binaries blijven behouden; zie de verificatie onderaan.
 
 ## Begin hier
 
@@ -61,11 +61,11 @@ Bouw eerst buiten het modelbudget met de backendchecks hierboven. Gebruik voor d
 export ADAMI_BINARY="$HOME/Library/Caches/adami-case/cargo-head-matter/debug/texas-case-finder"
 export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite"
 export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
-export ADAMI_BIND_ADDR="127.0.0.1:8001"
-export ADAMI_CORS_ORIGINS="http://localhost:5177,http://127.0.0.1:5177"
+export ADAMI_BIND_ADDR="127.0.0.1:8000"
+export ADAMI_CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5176,http://127.0.0.1:5176"
 ```
 
-Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000. De featurepreview mag pas starten wanneer die andere modeldemo netjes is gestopt of haar guard vanzelf is afgelopen. Na de afgeronde featurecontrole is de oorspronkelijke demo hersteld; reserveer opnieuw het exclusieve modelslot voordat je de featurebackend herstart.
+Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000. De nieuwe mainserver vervangt die oude demo wanneer haar guard netjes is gestopt; reserveer eerst het exclusieve modelslot. De nieuwe server hergebruikt de schema-3-index en bouwt bij starten geen nieuwe index.
 
 ```sh
 python3 backend/scripts/resource_guard.py \
@@ -88,9 +88,9 @@ python3 backend/scripts/resource_guard.py \
 Stop met Ctrl+C in de guardterminal. De guard ruimt uitsluitend zijn eigen procesgroep op. Import/CLIjobs blijven maximaal 600 seconden begrensd; de preview maximaal twee uur. De RSS-grens blijft 1536 MiB, geheugendruk moet normaal blijven en swap mag niet met 128 MiB groeien. De guard stopt ook bij meetfouten of deadline; dit is geen procesisolatie of absolute piekgarantie.
 
 ```sh
-curl http://127.0.0.1:8001/api/health
-curl --form-string 'query=trial evidence' http://127.0.0.1:8001/api/search
-curl --form-string 'query=trial evidence' --form-string 'retrieval_method=head_matter' http://127.0.0.1:8001/api/search
+curl http://127.0.0.1:8000/api/health
+curl --form-string 'query=trial evidence' http://127.0.0.1:8000/api/search
+curl --form-string 'query=trial evidence' --form-string 'retrieval_method=head_matter' http://127.0.0.1:8000/api/search
 ```
 
 `retrieval_method` is `opinion_chunks` (standaard, B) of `head_matter` (A). Beide leveren precies drie unieke zaken. Head matter is redactionele context en krijgt eigen markeringen; de volledige majority opinion blijft beschikbaar. De CLI ondersteunt `search --retrieval-method head_matter QUESTION`; voer dit uitsluitend als aparte bewaakte job uit wanneer de server niet draait.
@@ -161,17 +161,17 @@ VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 node node_modules/vite
 
 Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
 
-## Featurepreview met methodekeuze
+## Mike op main met methodekeuze
 
-Start na de bewaakte backend op 8001 een afzonderlijke frontend vanuit deze worktree. Gebruik poort 5177; een bestaande server op 5176 blijft ongemoeid.
+Start na de bewaakte backend op 8000 de frontend vanuit de schone main-checkout. Gebruik de vrije poort 5176; laat andere previews ongemoeid.
 
 ```sh
 cd frontend
-VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8001 \
-node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5177 --strictPort
+VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 \
+node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5176 --strictPort
 ```
 
-Open **http://127.0.0.1:5177/**. De methodekeuze staat bij de invoer; opinion-chunks blijft standaard. Een head-matterresultaat opent de gemarkeerde redactionele context plus de volledige majority opinion. De mockmodus biedt uitsluitend de bestaande opinion-fixtures en levert geen verzonnen A-resultaten.
+Open **http://127.0.0.1:5176/**. De methodekeuze staat bij de invoer; opinion-chunks blijft standaard. Een head-matterresultaat opent de gemarkeerde redactionele context plus de volledige majority opinion. De mockmodus biedt uitsluitend de bestaande opinion-fixtures en levert geen verzonnen A-resultaten.
 
 ## Optionele Orq-uitleg apart proberen
 
@@ -234,14 +234,14 @@ De vaste **B1**-kaart bewaart haar vooraf geregistreerde protocol uit commit `f3
 
 ```sh
 python3 backend/scripts/evals_web.py \
-  --port 8799 --backend http://127.0.0.1:8001 \
+  --port 8798 --backend http://127.0.0.1:8000 \
   --database "$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite" \
   --model-cache "$HOME/Library/Caches/adami-case/fastembed" \
   --corpus /Users/R0GUE/Downloads/texas-criminal-reports \
   --outputs "$HOME/Library/Caches/adami-case/head-matter-search/web-evals"
 ```
 
-Open **http://127.0.0.1:8799/**. De webserver gebruikt `POST /api/evals/search` op de bestaande geladen engine en start geen tweede Rustproces of model. Hij bewaart invoer, bron-/scenariohashes, volledige zoekresponses, manifest, gekozen methode, uitsluitingen en timings buiten Git. De vergelijking toont echte zaak-ID’s, scores en overlap, zonder daar juridische kwaliteit of Recall/nDCG uit af te leiden. Onvolledige/mislukte runs blijven zichtbaar en worden niet met fictieve resultaten aangevuld.
+Open **http://127.0.0.1:8798/**. De webserver gebruikt `POST /api/evals/search` op de bestaande geladen engine en start geen tweede Rustproces of model. Hij bewaart invoer, bron-/scenariohashes, volledige zoekresponses, manifest, gekozen methode, uitsluitingen en timings buiten Git. De vergelijking toont echte zaak-ID’s, scores en overlap, zonder daar juridische kwaliteit of Recall/nDCG uit af te leiden. Onvolledige/mislukte runs blijven zichtbaar en worden niet met fictieve resultaten aangevuld.
 
 Een AI-beoordeling is afzonderlijk opt-in, vereist bestaande servercredentials en verbruikt providerbudget. Zij geeft hoogstens een voorlopige AI-indicatie, geen menselijke juridische goldstandaard. Nieuwe live providercalls horen uitsluitend bij een expliciete taakautorisatie. De commandlinetool `retrieval_relevance.py` blijft beschikbaar met `--help`.
 
@@ -284,7 +284,7 @@ De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de
 
 ## Verificatie van de selecteerbare zoekmethoden
 
-Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **30 Pythonchecks**, **27 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **33 Pythonchecks**, **32 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 
@@ -292,4 +292,16 @@ De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties e
 
 De onafhankelijke echte API-/browsercontrole doorliep A en B met vraag, TXT-document en PDF plus vraag; zes volledige readers met exacte sectiehashes en UTF-16-markeringen; fout/herstel en mobiele weergave. E01 (document), E06 (vraag) en E11 (beide) zijn via de webinterface gepaard uitgevoerd met dezelfde invoer, manifesten en bronuitsluiting vóór top drie. Een afzonderlijke bewaakte CLI-run van E06 met A bevestigde artefactversie 2, 134 kandidaten na bronuitsluiting en `not_scored`/lege kwaliteitsmetrics. Er zijn geen Orq-/providercalls uitgevoerd en geen nieuwe juridische kwaliteitswinst geclaimd.
 
-De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; latere integratie van de evaluatiepagina verandert die Rust-engine en productfrontend niet. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. De feature kan later met bovenstaande commando’s opnieuw starten wanneer het exclusieve modelslot beschikbaar is.
+De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; latere integratie van de evaluatiepagina verandert die Rust-engine en productfrontend niet. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. Het main-startprofiel hierboven hergebruikt dezelfde gecontroleerde dual-index; stop eerst een eventuele oude modelguard.
+
+De losse commandlinetool `backend/scripts/retrieval_relevance.py` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.
+
+## Orq-model kiezen
+
+Mike toont bij de optionele uitlegsidecar een keuze **Model voor toelichting**. De E06-kaart gebruikt **Beoordelingsmodel**. Beide lijsten komen van `GET /api/models` op hun eigen server. De gewone Rust-API biedt die route niet; daar blijft lokaal zoeken zonder modelkiezer beschikbaar. B1 heeft geen modelkeuze en doet geen Orq-aanroep.
+
+De serverallowlist bevat `openai/gpt-4.1-mini-2025-04-14` (bestaande standaard) en `openai/gpt-4.1-2025-04-14`. Beide exacte IDs zijn in de actuele geauthenticeerde Orq-catalogus aangetroffen. Die catalogus geeft geen tool-/schema-capabilities, daarom worden niet alle catalogusmodellen aangeboden. Met `ORQ_MODELS` kun je een kommagescheiden subset van deze ondersteunde IDs kiezen; `ORQ_MODEL`/`--model` moet daarin staan. Een onbekend gekozen model geeft 400 vóór zoeken of een providerrequest. Provider-/modeltoegangsfouten zijn zichtbaar en schakelen niet over naar een ander model.
+
+Mike stuurt de keuze alleen via `X-Orq-Model`; de oorspronkelijke query-/documentmultipart gaat ongewijzigd naar Rust. `explanation_requested_model` registreert de keuze en `explanation_model` de werkelijk door de provider gemelde model-ID. Ontbrekende provideridentiteit blijft `null` en wordt als onbekend getoond. E06 gebruikt JSON `{"model":"..."}` en bewaart `requested_model` en de werkelijk gemelde `model` in het runartefact. De key blijft uitsluitend op de server en komt niet in deze browserverzoeken of resultaten.
+
+De afzonderlijke modelkeuzevalidatie gebruikte previews op 5177/18002 en 8800 met opgeslagen echte retrieval. Dat controleerde modeldoorgifte en brongebonden uitvoer, zonder een nieuwe embeddingindex te claimen. Het lokale main-profiel op 5176 zoekt rechtstreeks via Rust; daar is geen generatiemodelkiezer. De optionele Orq-sidecar blijft afzonderlijk configureerbaar.

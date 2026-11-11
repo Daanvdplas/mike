@@ -82,3 +82,55 @@ it('kiest een scenario en beide zoekmethodes zonder AI-beoordeling', async () =>
     expect(document.querySelector('.eval-list')).toBeNull(); expect(document.querySelector('.page-footer')).toBeNull();
   } finally { vi.unstubAllGlobals(); }
 });
+
+it.each([false, true])('houdt zoekmethode en optioneel beoordelingsmodel gescheiden (catalogusfout: %s)', async (catalogFailed) => {
+  document.body.innerHTML = '<p id="catalog-status"></p><button id="catalog-retry"></button><div id="runnable-list"></div><div id="diagnostic-list"></div>';
+  const fixture = JSON.parse(readFileSync('../docs/evals/deterministic_b1.json', 'utf8'));
+  const record = {id: 'E06', title: 'Synthetic E06', input_mode: 'query', query: 'Exact question', source_excluded: true,
+    source_case: {id: '156133', name: 'Source case'}, expected_behavior: 'Synthetic expectation', runnable: true};
+  const fixed = {id: 'B1', title: fixture.title, input_mode: 'query', query: fixture.query, expected_cases: fixture.expected_cases, runnable: true,
+    comparison_variant: {id: 'B1-compare', input_mode: 'query', query: fixture.query, runnable: true}};
+  let payload: any;
+  const alternate = 'openai/gpt-4.1-2025-04-14';
+  const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/evals') return new Response(JSON.stringify({evals: [fixed, record], diagnostic_evals: [record], judge_available: true}));
+    if (url === '/api/models') return new Response(JSON.stringify({models: [{id: 'openai/gpt-4.1-mini-2025-04-14', label: 'Mini'}, {id: alternate, label: 'Full'}], default_model: alternate}), {status: catalogFailed ? 503 : 200});
+    payload = JSON.parse(String(options!.body));
+    return new Response(JSON.stringify({eval_id: 'E06', status: 'completed', runs: payload.retrieval_methods.map((method: string) => ({
+      run_id: method, eval_id: 'E06', status: 'completed', retrieval_method: method,
+      structural_checks: {three_unique_results: true, source_excluded: true}, judge_status: payload.judge ? 'completed' : 'not_requested',
+      requested_model: payload.model, model: payload.judge ? 'gpt-4.1-2025-04-14' : null, duration_seconds: 1,
+      search_response: {results: ['a', 'b', 'c'].map(case_id => ({case_id, title: case_id, score: .8, passage: {text: `Exact source ${case_id}.`, source_section: method === 'head_matter' ? 'head_matter' : 'majority'}}))},
+      judgments: payload.judge ? ['a', 'b', 'c'].map(case_id => ({case_id, grade: 2, reasoning: 'Synthetic judgment.', quote: `Exact source ${case_id}.`})) : [],
+    })), comparison: {overlap_count: 3}}));
+  });
+  vi.stubGlobal('fetch', fetcher);
+  try {
+    new Function(viewerScript)();
+    await vi.waitFor(() => expect(document.querySelector('#run-E06')).not.toBeNull());
+    const card = document.querySelector<HTMLDetailsElement>('#run-E06')!; card.open = true;
+    const button = card.querySelector<HTMLButtonElement>('[data-eval-id="E06"]')!;
+    const method = card.querySelector<HTMLSelectElement>('select[aria-label="Zoekmethode voor E06"]')!; method.value = 'both';
+    expect(button.disabled).toBe(false);
+    expect(fetcher.mock.calls.some(([url]) => url === '/api/models')).toBe(false);
+    const judge = card.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    judge.checked = true; judge.dispatchEvent(new Event('change', {bubbles: true}));
+    if (catalogFailed) {
+      await vi.waitFor(() => expect(card.querySelector('.model-status')!.textContent).toContain('mislukt'));
+      expect(button.disabled).toBe(true);
+      judge.checked = false; judge.dispatchEvent(new Event('change', {bubbles: true}));
+      expect(button.disabled).toBe(false);
+    } else {
+      await vi.waitFor(() => expect(card.querySelector<HTMLSelectElement>('.eval-model-select')!.options.length).toBe(2));
+      card.querySelector<HTMLSelectElement>('.eval-model-select')!.value = alternate;
+      expect(button.disabled).toBe(false);
+    }
+    button.click();
+    await vi.waitFor(() => expect(card.querySelectorAll('.method-result')).toHaveLength(2));
+    expect(payload.retrieval_methods).toEqual(['opinion_chunks', 'head_matter']);
+    expect(payload.judge).toBe(!catalogFailed);
+    expect(payload.model).toBe(catalogFailed ? undefined : alternate);
+    if (!catalogFailed) expect(card.querySelector('.run-results')!.textContent).toContain('gpt-4.1-2025-04-14');
+    expect(document.querySelector('#run-B1-compare .eval-model-select')).toBeNull();
+  } finally { vi.unstubAllGlobals(); }
+});

@@ -11,6 +11,8 @@ import sys
 from urllib import error, request
 import uuid
 
+from orq_models import ModelIdentityError, provider_model
+
 ORQ_BASE_URL = "https://my.orq.ai/v3/router"
 MAX_DOCUMENT_CHARS = 20_000
 SYSTEM_PROMPT = """You assess retrieved legal passages, not provide legal advice.
@@ -181,7 +183,7 @@ def judge(query, document, passages, model, key, base_url, rubric=None, source_s
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     ))
     # Persist only model content on invalid output, never request headers or credentials.
-    diagnostic = {"model": response.get("model", model), "choices": []}
+    diagnostic = {"model": response.get("model"), "choices": []}
     for choice in response.get("choices", [])[:1]:
         diagnostic["choices"].append({
             "finish_reason": choice.get("finish_reason"),
@@ -200,7 +202,11 @@ def judge(query, document, passages, model, key, base_url, rubric=None, source_s
     except EvaluationError as failure:
         failure.diagnostic = diagnostic
         raise
-    return checked, response.get("model", model), response.get("usage")
+    try:
+        actual_model = provider_model(response, model)
+    except ModelIdentityError as failure:
+        raise EvaluationError(str(failure)) from None
+    return checked, actual_model, response.get("usage")
 
 
 

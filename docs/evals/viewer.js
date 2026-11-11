@@ -116,7 +116,8 @@ function renderMethod(run) {
   const details = element('dl');
   [
     ['Run', run.run_id], ['Zoekmethode', methodNames[run.retrieval_method]],
-    ['AI-beoordelaar', run.model || 'Niet aangevraagd'],
+    ['Gekozen beoordelingsmodel', run.requested_model || 'Niet aangevraagd'],
+    ['Gebruikt beoordelingsmodel', run.judge_status === 'completed' ? (run.model || 'Niet teruggegeven door provider') : 'Niet aangevraagd'],
     ['Duur', `${Number(run.duration_seconds).toFixed(1)} seconden`],
     ['Invoer SHA-256', run.input_sha256], ['Corpus', run.corpus_version], ['Ranking', run.ranking_version],
     ['Embeddingmodel', JSON.stringify(run.retrieval_manifest?.embedding || {})],
@@ -169,7 +170,32 @@ function renderResults(container, result) {
   container.replaceChildren(...contents, grid);
 }
 
-async function runEval(evalRecord, button, status, results, selector, judge) {
+function updateRunControls() {
+  document.querySelectorAll('.run-button').forEach(node => {
+    node.disabled = running || (node.dataset.judgeEnabled === 'true' && node.dataset.modelReady !== 'true');
+  });
+  document.querySelectorAll('.eval-model-select').forEach(node => {
+    node.disabled = running || node.dataset.enabled !== 'true' || !node.options.length;
+  });
+}
+
+async function loadModels(select, status, button) {
+  button.dataset.modelReady = 'false'; updateRunControls();
+  try {
+    const response = await fetch('/api/models');
+    if (!response.ok) throw new Error('Modellen laden is mislukt. Schakel AI-beoordeling opnieuw in om het te proberen.');
+    const catalog = await response.json();
+    if (!Array.isArray(catalog.models) || !catalog.models.length) throw new Error('Er zijn geen beoordelingsmodellen beschikbaar.');
+    if (!catalog.models.some(model => model.id === catalog.default_model)) throw new Error('De server geeft geen geldige modelkeuze.');
+    select.replaceChildren(...catalog.models.map(model => {
+      const option = element('option', model.label); option.value = model.id; return option;
+    }));
+    select.value = catalog.default_model; status.hidden = true; button.dataset.modelReady = 'true';
+  } catch (error) { status.hidden = false; status.textContent = error.message; }
+  finally { updateRunControls(); }
+}
+
+async function runEval(evalRecord, button, status, results, selector, judge, modelSelect) {
   if (running) return;
   const methods = selector?.value === 'both' ? ['opinion_chunks', 'head_matter'] : [selector?.value || 'opinion_chunks'];
   const judgeEnabled = judge?.checked || false;
@@ -184,7 +210,7 @@ async function runEval(evalRecord, button, status, results, selector, judge) {
   try {
     const response = await fetch(`/api/evals/${encodeURIComponent(evalRecord.id)}/run`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(evalRecord.id === 'B1' ? {} : {retrieval_methods: methods, judge: judgeEnabled}),
+      body: JSON.stringify(evalRecord.id === 'B1' ? {} : {retrieval_methods: methods, judge: judgeEnabled, ...(judgeEnabled && modelSelect ? {model: modelSelect.value} : {})}),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.');
@@ -206,11 +232,12 @@ async function runEval(evalRecord, button, status, results, selector, judge) {
     results.setAttribute('aria-busy', 'false');
     document.querySelectorAll('.run-button, .method-selector, .scenario-selector').forEach(node => { node.disabled = false; });
     document.querySelectorAll('.judge-choice input').forEach(node => { node.disabled = node.dataset.available !== 'true'; });
+    updateRunControls();
   }
 }
 
 function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
-  let selector, judge;
+  let selector, judge, modelSelect, modelStatus, modelPicker;
   if (evalRecord.id !== 'B1') {
     const choices = element('div', null, 'run-choices');
     const label = element('label', 'Zoekmethode');
@@ -229,6 +256,15 @@ function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
     }
     content.append(choices);
   }
+  if (judge) {
+    modelPicker = element('div', null, 'eval-model-picker'); modelPicker.hidden = true;
+    const modelLabel = element('label', 'Beoordelingsmodel (Orq)');
+    modelSelect = element('select', null, 'eval-model-select'); modelSelect.id = `${scopeId}-model`; modelSelect.disabled = true;
+    modelLabel.htmlFor = modelSelect.id;
+    modelStatus = element('p', 'Modellen laden…', 'model-status'); modelStatus.setAttribute('role', 'status');
+    modelStatus.id = `${scopeId}-model-status`; modelSelect.setAttribute('aria-describedby', modelStatus.id);
+    modelPicker.append(modelLabel, modelSelect, modelStatus); content.append(modelPicker);
+  }
   const action = element('div', null, 'run-action');
   const button = element('button', evalRecord.id === 'B1-compare' ? 'Start vergelijking' : 'Start eval', 'run-button');
   button.type = 'button'; button.dataset.evalId = evalRecord.id; button.dataset.kind = kind;
@@ -236,7 +272,15 @@ function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
   const status = element('p', '', 'run-status'); status.hidden = true; status.id = `${scopeId}-status`; status.setAttribute('role', 'status');
   button.setAttribute('aria-describedby', status.id);
   const results = element('div', null, 'run-results'); results.id = `${scopeId}-results`; results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
-  button.addEventListener('click', () => runEval(evalRecord, button, status, results, selector, judge));
+  if (judge) {
+    button.dataset.judgeEnabled = 'false'; button.dataset.modelReady = 'false';
+    judge.addEventListener('change', () => {
+      button.dataset.judgeEnabled = String(judge.checked); modelSelect.dataset.enabled = String(judge.checked); modelPicker.hidden = !judge.checked;
+      if (judge.checked && !modelSelect.options.length) void loadModels(modelSelect, modelStatus, button);
+      else updateRunControls();
+    });
+  }
+  button.addEventListener('click', () => runEval(evalRecord, button, status, results, selector, judge, modelSelect));
   action.append(button, status); content.append(action, results);
 }
 

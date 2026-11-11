@@ -15,6 +15,41 @@ import evals_web
 
 
 class EvalsWebTest(unittest.TestCase):
+    def test_judge_model_choices_are_validated_without_blocking_local_retrieval(self):
+        alternate = 'openai/gpt-4.1-2025-04-14'
+        config = {'repo': evals_web.REPO, 'key': 'synthetic'}
+        calls = []
+        def run(actual, eval_id):
+            calls.append((eval_id, actual['retrieval_methods'], actual['judge_enabled'], actual.get('model')))
+            return {'eval_id': eval_id, 'status': 'completed'}
+        server = evals_web.ThreadingHTTPServer(('127.0.0.1', 0), evals_web.handler_class(config, run))
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        base = f'http://127.0.0.1:{server.server_port}'
+        def req(eval_id, payload):
+            return request.Request(base + f'/api/evals/{eval_id}/run', data=json.dumps(payload).encode(), headers={'Origin': base, 'Content-Type': 'application/json'})
+        try:
+            with request.urlopen(base + '/api/models') as response:
+                self.assertIn(alternate, [model['id'] for model in json.load(response)['models']])
+            with request.urlopen(req('E06', {'retrieval_methods': ['head_matter'], 'judge': True, 'model': alternate})) as response:
+                self.assertEqual(json.load(response)['status'], 'completed')
+            self.assertEqual(calls[-1], ('E06', ['head_matter'], True, alternate))
+            with request.urlopen(req('E06', {'model': alternate})) as response:
+                self.assertEqual(json.load(response)['status'], 'completed')
+            self.assertEqual(calls[-1][-1], alternate)
+            for eval_id, payload in [('E06', {'judge': True, 'model': 'unknown'}), ('E06', {'model': None}), ('B1', {'model': alternate}), ('B1-compare', {'model': alternate})]:
+                with self.subTest(eval_id=eval_id, payload=payload), self.assertRaises(error.HTTPError) as rejected:
+                    request.urlopen(req(eval_id, payload))
+                self.assertEqual(rejected.exception.code, 400); rejected.exception.close()
+            config['key'] = ''
+            with request.urlopen(req('E06', {'retrieval_methods': ['opinion_chunks', 'head_matter'], 'judge': False})) as response:
+                self.assertEqual(json.load(response)['status'], 'completed')
+            self.assertFalse(calls[-1][2])
+            with self.assertRaises(error.HTTPError) as rejected:
+                request.urlopen(req('E06', {'judge': True, 'model': alternate}))
+            self.assertEqual(rejected.exception.code, 503); rejected.exception.close()
+        finally:
+            server.shutdown(); server.server_close(); thread.join()
+
     def test_b1_comparison_uses_only_fixed_query_and_reports_no_baseline_score(self):
         fixture, fixture_hash = evals_web.b1.load_fixture(evals_web.REPO)
         with tempfile.TemporaryDirectory() as temporary:

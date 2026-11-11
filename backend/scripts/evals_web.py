@@ -17,6 +17,7 @@ import uuid
 
 import retrieval_relevance as relevance
 import deterministic_b1 as b1
+from orq_models import ModelCatalog, UnsupportedModel
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
@@ -232,6 +233,7 @@ def run_eval(config, eval_id):
 
 
 def handler_class(config, runner=run_eval):
+    models = config.get("models") or ModelCatalog(config.get("model", DEFAULT_MODEL))
     lock = threading.Lock()
     static = config["repo"] / "docs/evals"
 
@@ -250,6 +252,12 @@ def handler_class(config, runner=run_eval):
 
         def do_GET(self):
             path = urlsplit(self.path).path
+            if path == "/api/models":
+                if not config.get("key"):
+                    self.send_json(503, {"error": {"code": "model_unavailable", "message": "De evalserver heeft geen Orq-credential."}})
+                else:
+                    self.send_json(200, models.payload())
+                return
             if path == "/api/evals":
                 try:
                     self.send_json(200, catalog(config))
@@ -293,18 +301,24 @@ def handler_class(config, runner=run_eval):
                 if self.headers.get("Content-Type", "").split(';')[0] != "application/json" or not 0 < length <= 1024:
                     raise ValueError()
                 options = json.loads(self.rfile.read(length))
-                if not isinstance(options, dict) or set(options) - {"retrieval_methods", "judge"}:
+                if not isinstance(options, dict) or set(options) - {"retrieval_methods", "judge", "model"}:
                     raise ValueError()
                 if ids[path] == "B1" and options:
                     raise ValueError()
                 methods = options.get("retrieval_methods", ["opinion_chunks"])
-                judge_enabled = options.get("judge", False)
-                if ids[path] == "B1-compare" and judge_enabled:
+                judge_enabled = options.get("judge", "model" in options)
+                if ids[path] == "B1-compare" and (judge_enabled or "model" in options):
                     raise ValueError()
                 if (not isinstance(methods, list) or not 1 <= len(methods) <= 2
                         or any(method not in {"opinion_chunks", "head_matter"} for method in methods)
                         or len(set(methods)) != len(methods) or type(judge_enabled) is not bool):
                     raise ValueError()
+                if "model" in options and not isinstance(options["model"], str):
+                    raise UnsupportedModel("Kies een model-ID uit de serverlijst.")
+                selected_model = models.select(options.get("model")) if judge_enabled or "model" in options else None
+            except UnsupportedModel as failure:
+                self.send_json(400, {"error": {"code": "unsupported_model", "message": str(failure)}})
+                return
             except (ValueError, TypeError):
                 self.send_json(400, {"error": {"code": "invalid_input", "message": "Deze knop voert alleen de vastgelegde eval-invoer uit."}})
                 return
@@ -315,7 +329,10 @@ def handler_class(config, runner=run_eval):
                 if judge_enabled and not config.get("key"):
                     self.send_json(503, {"error": {"code": "model_unavailable", "message": "De evalserver heeft geen modelcredential."}})
                     return
-                self.send_json(200, runner({**config, "retrieval_methods": methods, "judge_enabled": judge_enabled}, ids[path]))
+                run_config = {**config, "retrieval_methods": methods, "judge_enabled": judge_enabled}
+                if selected_model is not None:
+                    run_config["model"] = selected_model
+                self.send_json(200, runner(run_config, ids[path]))
             except (RunError, relevance.EvaluationError) as failure:
                 self.send_json(502, {"error": {"code": "run_failed", "message": str(failure)}})
             except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
@@ -345,7 +362,7 @@ def main():
               "orq_base": os.environ.get("ORQ_BASE_URL", relevance.ORQ_BASE_URL),
               "database": args.database.resolve(),
               "model_cache": args.model_cache.resolve(), "corpus": args.corpus.resolve(),
-              "outputs": args.outputs.resolve()}
+              "outputs": args.outputs.resolve(), "models": ModelCatalog(args.model, os.environ.get("ORQ_MODELS"))}
     server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_class(config))
     print(f"Eval page: http://127.0.0.1:{server.server_port}/", flush=True)
     try:

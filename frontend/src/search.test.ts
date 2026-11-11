@@ -53,16 +53,36 @@ describe('bronmarkering', () => {
 });
 
 describe('lokale simulatie en API-grens', () => {
+  it('houdt de gewone zoekbackend zonder modelcatalogus ondersteund', async () => {
+    const client = createApiClient('http://127.0.0.1:8000', async () => new Response('{}', { status: 404 }));
+    expect(await client.getModels!()).toBeNull();
+  });
+
+  it('geeft een gekozen toelichtingsmodel alleen in de aparte header door', async () => {
+    let request: RequestInit | undefined;
+    const client = createApiClient('http://127.0.0.1:18000', async (_url, init) => {
+      request = init;
+      return new Response(JSON.stringify(response), { status: 200 });
+    });
+    await client.search({ query: 'vraag', document: txt, model: 'catalog/test-model' });
+    expect(request?.headers).toEqual({ 'X-Orq-Model': 'catalog/test-model' });
+    expect([...(request?.body as FormData).keys()]).toEqual(['query', 'document', 'retrieval_method']);
+  });
+
   it('stuurt de gekozen zoekmethode mee en weigert een stille terugval naar oordeelpassages', async () => {
     const bodies: FormData[] = [];
+    const headers: (HeadersInit | undefined)[] = [];
     let returnedMethod = 'head_matter';
     const client = createApiClient('http://127.0.0.1:8000', async (_url, init) => {
       bodies.push(init!.body as FormData);
+      headers.push(init!.headers);
       return new Response(JSON.stringify({ ...response, retrieval_method: returnedMethod }));
     });
-    const actual = await client.search({ query: 'vraag', retrieval_method: 'head_matter' });
+    const actual = await client.search({ query: 'vraag', retrieval_method: 'head_matter', model: 'catalog/selected-model' });
     expect(bodies[0].get('retrieval_method')).toBe('head_matter');
     expect(actual.retrieval_method).toBe('head_matter');
+    expect(headers[0]).toEqual({ 'X-Orq-Model': 'catalog/selected-model' });
+    expect(bodies[0].get('model')).toBeNull();
     returnedMethod = 'opinion_chunks';
     await expect(client.search({ query: 'vraag', retrieval_method: 'head_matter' })).rejects.toThrow('zoekmethode');
   });

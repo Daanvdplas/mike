@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SearchClient } from './client';
-import { getPassageParts, validateInput, type CaseDetail, type RetrievalMethod, type SearchResponse, type SearchResult } from './search';
+import { getPassageParts, validateInput, type CaseDetail, type ModelCatalog, type RetrievalMethod, type SearchResponse, type SearchResult } from './search';
 
 interface SelectedDocument {
   result: SearchResult;
@@ -17,6 +17,9 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   const [selected, setSelected] = useState<SelectedDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>();
+  const [model, setModel] = useState('');
+  const [modelError, setModelError] = useState('');
   const textarea = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadButton = useRef<HTMLButtonElement>(null);
@@ -24,6 +27,21 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   const restoreInputFocus = useRef(false);
   const readerOpener = useRef<HTMLButtonElement | null>(null);
   const resultsScroll = useRef(0);
+
+  useEffect(() => {
+    if (!client.getModels) return;
+    let cancelled = false;
+    void client.getModels().then(catalog => {
+      if (cancelled) return;
+      setModelCatalog(catalog);
+      setModel(catalog?.default_model ?? '');
+    }).catch(() => {
+      if (cancelled) return;
+      setModelCatalog(null);
+      setModelError('Modelkeuze is niet beschikbaar. Zoeken gebruikt de serverinstelling.');
+    });
+    return () => { cancelled = true; };
+  }, [client]);
 
   useEffect(() => {
     if (busy || !restoreInputFocus.current) return;
@@ -41,7 +59,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (pending.current) return;
-    const input = { query, document, retrieval_method: retrievalMethod };
+    const input = { query, document, retrieval_method: retrievalMethod, ...(model ? { model } : {}) };
     try { validateInput(input); }
     catch (cause) { setError(message(cause)); textarea.current?.focus(); return; }
     restoreInputFocus.current = event.currentTarget.contains(window.document.activeElement);
@@ -97,6 +115,14 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
             if (fileInput.current) fileInput.current.value = '';
             uploadButton.current?.focus();
           }}>×</button></div> : null}
+          {modelCatalog?.models.length ? <div className="model-picker">
+            <label htmlFor="explanation-model">Model voor toelichting</label>
+            <select id="explanation-model" value={model} disabled={busy} onChange={event => setModel(event.currentTarget.value)}>
+              {modelCatalog.models.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
+          </div> : null}
+          {client.getModels && modelCatalog === undefined ? <p className="model-note" role="status">Modellen laden…</p> : null}
+          {modelError || (modelCatalog && !modelCatalog.models.length) ? <p className="model-note" role="status">{modelError || 'Geen modellen beschikbaar voor toelichting. Zoeken gebruikt de serverinstelling.'}</p> : null}
           <div className="composer-actions">
             <button className="upload-button" ref={uploadButton} disabled={busy} type="button" onClick={() => fileInput.current?.click()}><span aria-hidden="true">＋</span> Document toevoegen</button>
             <input id="document" ref={fileInput} className="visually-hidden" type="file" accept=".pdf,.txt,application/pdf,text/plain" tabIndex={-1} aria-label="Document kiezen" disabled={busy} onChange={(event) => {
@@ -111,6 +137,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
       {response ? <section className="answer" aria-labelledby="results-title">
         <h2 id="results-title" className="answer-title">Drie uitspraken</h2>
         <p className="answer-note">{response.retrieval_method === 'head_matter' ? 'Head matter (A) · match in het redactionele voorwerk.' : 'Oordeelpassages (B) · match in het meerderheidsoordeel.'}{isMock ? ' Voorbeeldresultaten, geen analyse van je invoer.' : ''}</p>
+        {response.explanation_model || response.explanation_requested_model ? <p className="answer-note answer-model">{response.explanation_model ? `Toelichting via ${response.explanation_model}` : `Gebruikt model niet gemeld · aangevraagd: ${response.explanation_requested_model}`}</p> : null}
         <ol className="case-list">
           {response.results.map((result, index) => <li key={result.case_id} className="case-item">
             <button className="case-button" type="button" aria-label={`${result.title} — volledig document bekijken`} onClick={(event) => {

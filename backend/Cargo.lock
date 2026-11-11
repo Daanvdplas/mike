@@ -2314,6 +2314,7 @@ dependencies = [
  "axum",
  "fastembed",
  "http-body-util",
+ "ort",
  "pdf-extract",
  "rusqlite",
  "serde",

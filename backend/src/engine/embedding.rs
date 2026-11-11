@@ -2,7 +2,9 @@
 //! https://github.com/Daanvdplas/meedoenbalie-rag-learning/blob/cada34fbb4d22bde46d31c3cdbcda495e6d93e9b/src/lib.rs#L100
 use super::{EngineError, ErrorKind, chunk::TOKEN_BUDGET, ranking::cosine};
 use serde::{Deserialize, Serialize};
-use std::{io::Read, path::Path};
+use std::{io::Read, path::Path, sync::OnceLock};
+
+static ENVIRONMENT: OnceLock<Result<ort::environment::Environment, String>> = OnceLock::new();
 
 pub(super) const MODEL: &str = "Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q";
 
@@ -28,14 +30,28 @@ pub(super) struct LocalEmbeddings {
 
 impl LocalEmbeddings {
     pub(super) fn new(cache: &Path) -> Result<Self, EngineError> {
+        let environment = ENVIRONMENT
+            .get_or_init(|| {
+                ort::init()
+                    .with_name("adami-case")
+                    .build()
+                    .map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map_err(|_| unavailable())?
+            .clone();
         let mut model = fastembed::TextEmbedding::try_new(
             fastembed::TextInitOptions::new(fastembed::EmbeddingModel::ParaphraseMLMiniLML12V2Q)
+                .with_environment(environment)
                 .with_cache_dir(cache.to_owned())
                 .with_show_download_progress(true)
                 .with_max_length(512)
                 .with_intra_threads(2),
         )
-        .map_err(|_| unavailable())?;
+        .map_err(|error| {
+            eprintln!("Local embedding model initialization failed: {error}");
+            unavailable()
+        })?;
         // Count the full input. The caller splits it before embedding, never truncates.
         model
             .tokenizer
@@ -151,5 +167,19 @@ mod tests {
         assert_eq!(vectors.len(), 1);
         assert_eq!(vectors[0].len(), 384);
         assert!(vectors[0].iter().all(|v| v.is_finite()));
+    }
+
+    #[test]
+    #[ignore = "requires the local model; regression for import followed by reload"]
+    fn real_model_can_be_recreated_after_previous_session_is_dropped() {
+        let cache = std::env::var_os("ADAMI_MODEL_CACHE").expect("Set ADAMI_MODEL_CACHE");
+        let first_signature;
+        {
+            let model = LocalEmbeddings::new(Path::new(&cache)).unwrap();
+            first_signature = model.config().clone();
+        }
+        let mut second = LocalEmbeddings::new(Path::new(&cache)).unwrap();
+        assert_eq!(second.config(), &first_signature);
+        assert_eq!(second.embed(&["trial evidence".into()]).unwrap().len(), 1);
     }
 }

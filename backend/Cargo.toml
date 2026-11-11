@@ -7,6 +7,7 @@ rust-version = "1.94.1"
 [dependencies]
 axum = { version = "0.8.8", features = ["multipart"] }
 fastembed = { version = "=7.1.2", default-features = false, features = ["hf-hub-native-tls", "ort-download-binaries-native-tls"] }
+ort = { version = "=2.0.0-rc.15", default-features = false }
 pdf-extract = "0.12.1"
 rusqlite = { version = "0.42.0", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

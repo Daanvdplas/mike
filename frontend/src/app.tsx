@@ -135,6 +135,7 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
   const heading = useRef<HTMLHeadingElement>(null);
   const { result, corpusVersion } = selected;
   const explanation = selected.explanationStatus !== 'unavailable' ? result.explanation : undefined;
+  const explanationText = explanation ? [explanation.text, ...new Set(explanation.limitations.filter((limitation) => !explanation.text.includes(limitation)))].join(' ') : undefined;
   useEffect(() => {
     let cancelled = false;
     heading.current?.focus({ preventScroll: true });
@@ -157,18 +158,9 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
     {detail && parts ? <>
       <section className="document-reason" aria-labelledby="reason-title">
         <h2 id="reason-title">Waarom dit document?</h2>
-        {explanation ? <>
-          <p className="model-explanation">{explanation.text}</p>
-          {explanation.citations.map((citation, index) => <blockquote className="why-passage" key={`${citation.passage_id}-${index}`}>
-            {citation.quote}<br /><a className="evidence-link" href="#source-passage">Bekijk gemarkeerde bronpassage</a>
-          </blockquote>)}
-          {explanation.limitations.length ? <ul className="explanation-limitations">{explanation.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
-        </> : <>
-          {selected.explanationStatus ? <p className="explanation-status" role="status">De toelichting is tijdelijk niet beschikbaar.</p> : null}
-          <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de onderstaande bronpassage.' : 'De zoekmethode vond de beste tekstovereenkomst binnen deze uitspraak in de onderstaande passage.'}</p>
-          <blockquote className="why-passage">{result.passage.text}</blockquote>
-        </>}
-        <p className="source-meta">Overeenkomstscore: {result.score.toLocaleString('nl-NL', { maximumFractionDigits: 3 })}</p>
+        {explanation ? <p className="model-explanation">{explanationText}</p> : selected.explanationStatus ?
+          <p className="explanation-status" role="status">De toelichting is tijdelijk niet beschikbaar.</p> :
+          <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de gemarkeerde bronpassage.' : 'De gemarkeerde passage bevat de beste tekstovereenkomst die de zoekmethode in deze uitspraak vond.'}</p>}
       </section>
       <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{parts.before}<mark id="source-passage" tabIndex={-1}>{parts.match}</mark>{parts.after}</div></article>
     </> : null}

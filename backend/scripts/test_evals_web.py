@@ -10,9 +10,11 @@ import evals_web
 class EvalsWebTest(unittest.TestCase):
     def test_catalog_and_one_run_share_the_local_page_without_exposing_files(self):
         calls = []
+        chosen = []
         config = {"repo": evals_web.REPO, "key": "synthetic"}
         def run(_config, eval_id):
             calls.append(eval_id)
+            chosen.append(_config.get("model"))
             return {"eval_id": eval_id, "status": "completed"}
         server = evals_web.ThreadingHTTPServer(('127.0.0.1', 0), evals_web.handler_class(config, run))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -29,13 +31,27 @@ class EvalsWebTest(unittest.TestCase):
             with request.urlopen(req) as response:
                 self.assertEqual(json.load(response)["status"], "completed")
             self.assertEqual(calls, ["E06"])
+            alternate = "openai/gpt-4.1-2025-04-14"
+            selected = request.Request(base + "/api/evals/E06/run", data=json.dumps({"model": alternate}).encode(),
+                                       headers={"Origin": base, "Content-Type": "application/json"})
+            with request.urlopen(selected) as response:
+                self.assertEqual(json.load(response)["status"], "completed")
+            self.assertEqual(chosen[-1], alternate)
+            for eval_id, model in [("E06", "unknown"), ("B1", alternate)]:
+                invalid = request.Request(base + f"/api/evals/{eval_id}/run", data=json.dumps({"model": model}).encode(),
+                                          headers={"Origin": base, "Content-Type": "application/json"})
+                with self.assertRaises(error.HTTPError) as rejected:
+                    request.urlopen(invalid)
+                self.assertEqual(rejected.exception.code, 400)
+                rejected.exception.close()
+            self.assertEqual(calls, ["E06", "E06"])
             removed = request.Request(base + "/api/evals/relevance/run", data=b"{}",
                                       headers={"Origin": base, "Content-Type": "application/json"})
             with self.assertRaises(error.HTTPError) as rejected:
                 request.urlopen(removed)
             self.assertEqual(rejected.exception.code, 404)
             rejected.exception.close()
-            self.assertEqual(calls, ["E06"])
+            self.assertEqual(calls, ["E06", "E06"])
             config["key"] = None
             without_key = request.Request(base + "/api/evals/B1/run", data=b"{}",
                                           headers={"Origin": base, "Content-Type": "application/json"})

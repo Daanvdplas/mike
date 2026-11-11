@@ -159,6 +159,17 @@ Elke E06-run doet vervolgens precies één Orq-chatmodelaanroep via dezelfde str
 
 Runresultaten bevatten `status: completed`, afzonderlijke structurele checks, AI-grades en beperkingen. `completed` betekent uitsluitend technisch uitgevoerd; een grade 0 is geen technische mislukking. Dit is geen gelabelde benchmark of menselijke juridische controle. E06 sluit zijn bron vóór top3 uit. JSON-resultaten en foutdiagnose staan buiten Git. De [README](../README.md#evals-uitvoeren-op-de-webpagina) bevat het concrete startcommando. Eén gerichte Rustuitsluitingstest, CLI-parsercheck en een modelvrije webroutecheck dekken de nieuwe verbindingen; de E06-knop en de verwijdering van het eerdere Clayton-preset worden onafhankelijk gecontroleerd.
 
+
+### Servergestuurde Orq-modelkeuze
+
+[`orq_models.py`](../backend/scripts/orq_models.py) beheert een kleine expliciete allowlist met de bestaande GPT-4.1-mini-snapshot en GPT-4.1-snapshot. De actuele geauthenticeerde `GET /v3/router/models` bevestigde beide IDs; de 131 catalogusregels bevatten alleen identiteit/eigenaar/datum, geen capabilities. De UI krijgt daarom uitsluitend de ondersteunde allowlist via `GET /api/models`, met `models[{id,label}]` en `default_model`. `ORQ_MODELS` beperkt die lijst tot een subset; een onbekende of dubbele configuratie of default buiten de lijst wordt geweigerd.
+
+De Mike-sidecar valideert `X-Orq-Model` vóór extractie, retrieval en providerrequests. De oorspronkelijke multipartbytes blijven behouden. Alleen de sidecar breidt zijn OpenAPI/CORS-contract uit; de core-Rust-API blijft gelijk. Beide Responses-stappen gebruiken dezelfde gekozen ID. `explanation_requested_model` registreert de keuze, `explanation_model` de daadwerkelijke provideridentiteit. Ontbrekende identiteit wordt nooit uit de keuze ingevuld; een afwijkende modelidentiteit of provider-HTTP-fout wordt expliciet geweigerd zonder modelvervanging.
+
+De E06-runroute accepteert uitsluitend een optionele string `model`, valideert die vóór de run en maakt een requestgebonden configkopie. Hierdoor verandert een keuze de globale default of een andere run niet. `retrieval_relevance.judge` bewaart de daadwerkelijk gerapporteerde provider-ID als `model` naast `requested_model`; ontbrekende identiteit blijft onbekend. B1 accepteert geen modelveld en volgt onveranderd het deterministische pad. De key blijft in serverruntime en wordt niet als UIveld, header of artefactwaarde verzonden. Beide pickers gebruiken alleen serveropties en geven de gebruikte response-ID weer.
+
+Gerichte modelvrije checks dekken onbekende keuzes vóór werk, onveranderde multipartdoorgifte, beide providerrequests met de gekozen ID, CORS/preflight, requested-versus-actual en het keyloze B1-pad. Geïsoleerde previews gebruiken opgeslagen echte retrieval voor de twee browser-/Orq-flows tijdens externe indexbouw; er worden geen embeddingjobs, indexen, fixtures of caches aangepast.
+
 ## Corpus, opslag en index
 
 Het lokale corpus staat in `/Users/R0GUE/Downloads/texas-criminal-reports`. De eerdere data-inspectie vond 135 historische uitspraken van het Texas Court of Criminal Appeals uit 1892–1893, volledige JSON-teksten en bijbehorende HTML. De volumemetadata vermeldt foutief 1992–1993; import gebruikt `decision_date` per zaak.

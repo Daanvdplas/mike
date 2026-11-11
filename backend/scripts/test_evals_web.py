@@ -21,9 +21,9 @@ class EvalsWebTest(unittest.TestCase):
         try:
             with request.urlopen(base + "/api/evals") as response:
                 data = json.load(response)
-            self.assertEqual([row["id"] for row in data["evals"]], ["E06"])
-            self.assertEqual(data["evals"][0]["input_mode"], "query")
-            self.assertIsNone(data["evals"][0]["document_label"])
+            self.assertEqual([row["id"] for row in data["evals"]], ["B1", "E06"])
+            self.assertEqual(data["evals"][1]["input_mode"], "query")
+            self.assertIsNone(data["evals"][1]["document_label"])
             req = request.Request(base + "/api/evals/E06/run", data=b"{}",
                                   headers={"Origin": base, "Content-Type": "application/json"})
             with request.urlopen(req) as response:
@@ -36,6 +36,15 @@ class EvalsWebTest(unittest.TestCase):
             self.assertEqual(rejected.exception.code, 404)
             rejected.exception.close()
             self.assertEqual(calls, ["E06"])
+            config["key"] = None
+            without_key = request.Request(base + "/api/evals/B1/run", data=b"{}",
+                                          headers={"Origin": base, "Content-Type": "application/json"})
+            with request.urlopen(without_key) as response:
+                self.assertEqual(json.load(response)["eval_id"], "B1")
+            with self.assertRaises(error.HTTPError) as rejected:
+                request.urlopen(req)
+            self.assertEqual(rejected.exception.code, 503)
+            rejected.exception.close()
             with self.assertRaises(error.HTTPError) as rejected:
                 request.urlopen(base + "/.git/config")
             self.assertEqual(rejected.exception.code, 404)

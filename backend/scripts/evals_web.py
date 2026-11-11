@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 import uuid
 
 import retrieval_relevance as relevance
+import deterministic_b1 as b1
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
@@ -46,7 +47,12 @@ def e06_record(repo):
 
 def catalog(config):
     row, _ = e06_record(config["repo"])
+    fixture, _ = b1.load_fixture(config["repo"])
     return {"evals": [
+        {"id": "B1", "title": fixture["title"], "input_mode": "query",
+         "query": fixture["query"], "document_label": None,
+         "expected_cases": [{"case_id": item["case_id"], "title": item["title"]} for item in fixture["expected_cases"]],
+         "runnable": True},
         {"id": "E06", "title": row["title"], "input_mode": "query",
          "query": row["query"]["en"], "query_nl": row["query"]["nl"],
          "document_label": None, "source_case": row["source_case"],
@@ -113,11 +119,40 @@ def excluded_search(config, row, run_dir):
     return response, manifest, source
 
 
+def run_b1(config, run_id, run_dir, started):
+    fixture, fixture_hash = b1.load_fixture(config["repo"])
+    try:
+        manifest, cases = b1.verified_index(fixture, config["database"], config["corpus"])
+        response = relevance.search(config["backend"], fixture["query"], None)
+        (run_dir / "search.json").write_text(json.dumps(response, ensure_ascii=False, indent=2))
+        scored = b1.score(fixture, response, cases)
+    except ValueError as failure:
+        raise RunError(str(failure)) from None
+    result = {
+        "run_id": run_id, "eval_id": "B1", "status": "completed", **scored,
+        "input": {"mode": "query", "query": fixture["query"], "document_label": None},
+        "fixture_version": fixture["fixture_version"], "fixture_sha256": fixture_hash,
+        "reference_status": fixture["reference_status"],
+        "corpus_version": response["corpus_version"], "ranking_version": response["ranking_version"],
+        "retrieval_manifest": manifest, "search_response": response,
+        "excluded_case_ids": [], "structural_checks": {"three_unique_results": True, "valid_corpus_ids": True},
+        "duration_seconds": round(time.monotonic() - started, 3),
+        "limitations": ["Vooraf vastgelegde, door agents voorgestelde referenties; geen menselijke juridische goldset.",
+                        "Alleen aanwezigheid van deze twee verwachte zaken wordt getoetst; andere matches zijn onbeoordeeld.",
+                        "Geen AI-beoordelaar, geen precisie- of algemene juridische kwaliteitsmeting."],
+        "artifact_name": run_id + "/result.json",
+    }
+    (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    return result
+
+
 def run_eval(config, eval_id):
     run_id = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
     run_dir = config["outputs"] / run_id
     run_dir.mkdir(parents=True)
     started = time.monotonic()
+    if eval_id == "B1":
+        return run_b1(config, run_id, run_dir, started)
     rubric = None
     source = None
     manifest = None
@@ -215,7 +250,7 @@ def handler_class(config, runner=run_eval):
                 self.send_json(403, {"error": {"code": "origin_rejected", "message": "Start de eval vanaf deze lokale pagina."}})
                 return
             path = urlsplit(self.path).path
-            ids = {"/api/evals/E06/run": "E06"}
+            ids = {"/api/evals/B1/run": "B1", "/api/evals/E06/run": "E06"}
             if path not in ids:
                 self.send_json(404, {"error": {"code": "unknown_eval", "message": "Deze eval is niet uitvoerbaar."}})
                 return
@@ -226,7 +261,7 @@ def handler_class(config, runner=run_eval):
                 self.send_json(409, {"error": {"code": "busy", "message": "Er loopt al een eval. Wacht tot die klaar is."}})
                 return
             try:
-                if not config.get("key"):
+                if ids[path] == "E06" and not config.get("key"):
                     self.send_json(503, {"error": {"code": "model_unavailable", "message": "De evalserver heeft geen modelcredential."}})
                     return
                 self.send_json(200, runner(config, ids[path]))
@@ -250,10 +285,11 @@ def main():
     parser.add_argument("--model-cache", type=Path, default=Path(os.environ.get("ADAMI_CACHE_DIR", ".fastembed_cache")))
     parser.add_argument("--corpus", type=Path, default=Path.home() / "Downloads/texas-criminal-reports")
     parser.add_argument("--outputs", type=Path, default=Path.home() / "Library/Caches/adami-case/web-evals")
+    parser.add_argument("--ask-key", action="store_true", help="Ask for an optional key to enable the E06 AI judge")
     args = parser.parse_args()
-    key = os.environ.get("ORQ_API_KEY") or getpass.getpass("Orq API key (not echoed): ")
-    if not key.strip():
-        raise SystemExit("Missing Orq API key.")
+    key = os.environ.get("ORQ_API_KEY")
+    if args.ask_key and not key:
+        key = getpass.getpass("Orq API key (not echoed): ") or None
     config = {"repo": REPO, "backend": args.backend.rstrip('/'), "model": args.model, "key": key,
               "orq_base": os.environ.get("ORQ_BASE_URL", relevance.ORQ_BASE_URL),
               "binary": args.binary.resolve(), "database": args.database.resolve(),

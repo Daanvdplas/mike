@@ -51,6 +51,6 @@ Fouten gebruiken steeds `{"error":{"code":"...","message":"..."}}`. Toon de lees
 | 503 | Volledige zoekindex nog niet beschikbaar. |
 | 500 | Onverwachte backendfout. |
 
-De standaard backend-URL is `http://127.0.0.1:8000`; de gecontroleerde API-frontend draait afzonderlijk op `http://127.0.0.1:5174` met `VITE_API_MODE=api`. De standaardmock op 5173 blijft ongewijzigd. Maak de frontend-base-URL configureerbaar. De backend ondersteunt CORS voor configureerbare ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`. De API-preview voegt beide 5174-origins toe via `ADAMI_CORS_ORIGINS`; de startcommando’s staan in README.
+De standaard backend-URL is `http://127.0.0.1:8000`; de gewone frontend draait op `http://127.0.0.1:5173` en kiest standaard de echte API. Een extra API-preview kan op `http://127.0.0.1:5174` draaien. Fixtures zijn uitsluitend opt-in via `VITE_API_MODE=mock` of `npm run dev:mock`; API-/netwerkfouten geven nooit fictieve resultaten. Maak de frontend-base-URL configureerbaar. De backend ondersteunt CORS voor configureerbare ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`. De API-preview voegt beide 5174-origins toe via `ADAMI_CORS_ORIGINS`; de startcommando’s staan in README.
 
 `GET /api/health` geeft pas 200 met `status: ready` als het volledige corpus beschikbaar is; anders 503. De runtime biedt het contract aan op `GET /openapi.json`. Geen API-key nodig voor deze lokale demo; er hoort geen Orq-key in de frontend.

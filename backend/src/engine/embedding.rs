@@ -8,7 +8,8 @@ use std::{io::Read, path::Path, sync::OnceLock};
 
 static ENVIRONMENT: OnceLock<Result<ort::environment::Environment, String>> = OnceLock::new();
 
-pub(super) const MODEL: &str = "Xenova/bge-small-en-v1.5";
+pub(super) const MODEL: &str = "Qdrant/bge-small-en-v1.5-onnx-Q";
+const MODEL_KIND: fastembed::EmbeddingModel = fastembed::EmbeddingModel::BGESmallENV15Q;
 const QUERY_PREFIX: &str = "Represent this sentence for searching relevant passages: ";
 const INFERENCE_BATCH_SIZE: usize = 1;
 
@@ -39,6 +40,11 @@ impl LocalEmbeddings {
         eprintln!(
             "Initializing local model {MODEL} (batch <= {INFERENCE_BATCH_SIZE}, threads = 2, CPU arena = off)"
         );
+        let model_info =
+            fastembed::TextEmbedding::get_model_info(&MODEL_KIND).map_err(|_| unavailable())?;
+        let quantization = fastembed::TextEmbedding::get_quantization_mode(&MODEL_KIND);
+        let pooling = fastembed::TextEmbedding::get_default_pooling_method(&MODEL_KIND)
+            .ok_or_else(unavailable)?;
         let environment = ENVIRONMENT
             .get_or_init(|| {
                 ort::init()
@@ -50,7 +56,7 @@ impl LocalEmbeddings {
             .map_err(|_| unavailable())?
             .clone();
         let mut model = fastembed::TextEmbedding::try_new(
-            fastembed::TextInitOptions::new(fastembed::EmbeddingModel::BGESmallENV15)
+            fastembed::TextInitOptions::new(MODEL_KIND.clone())
                 .with_environment(environment)
                 // Explicit CPU policy: release variable-shape working allocations.
                 .with_execution_providers(vec![
@@ -75,12 +81,12 @@ impl LocalEmbeddings {
             .map_err(|_| unavailable())?;
         let config = EmbeddingConfig {
             model: MODEL.into(),
-            dimensions: 384,
+            dimensions: model_info.dim,
             max_tokens: 512,
-            sdk: "fastembed 7.1.2; intra_threads=2".into(),
-            pooling: "Cls".into(),
+            sdk: format!("fastembed 7.1.2; quantization={quantization:?}; intra_threads=2"),
+            pooling: format!("{pooling:?}"),
             query_prefix: QUERY_PREFIX.into(),
-            artifacts_sha256: artifacts_fingerprint(cache, "onnx/model.onnx")?,
+            artifacts_sha256: artifacts_fingerprint(cache, &model_info.model_file)?,
         };
         eprintln!("Local embedding model ready");
         Ok(Self { model, config })
@@ -190,6 +196,22 @@ fn artifacts_fingerprint(cache: &Path, model_file: &str) -> Result<String, Engin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_model_metadata_is_static_quantized_bge_with_cls() {
+        let info = fastembed::TextEmbedding::get_model_info(&MODEL_KIND).unwrap();
+        assert!(matches!(
+            fastembed::TextEmbedding::get_quantization_mode(&MODEL_KIND),
+            fastembed::QuantizationMode::Static
+        ));
+        assert_eq!(info.model_code, MODEL);
+        assert_eq!(info.model_file, "model_optimized.onnx");
+        assert_eq!(info.dim, 384);
+        assert_eq!(
+            fastembed::TextEmbedding::get_default_pooling_method(&MODEL_KIND),
+            Some(fastembed::Pooling::Cls)
+        );
+    }
 
     #[test]
     fn native_inference_is_bounded_and_all_rows_keep_their_input_order() {

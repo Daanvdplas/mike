@@ -2,7 +2,7 @@
 
 ## Huidige stand
 
-De Rust-backend en gemergde React-frontend zijn beschikbaar in deze repository. De statisch gequantiseerde BGE-index is onder de resourceguard berekend: 135 zaken en 578 passages. De gezamenlijke live UI/API-controle is onafhankelijk afgerond: de API-preview draait op 5174, de bewaakte backend op 8000 en de standaardmock op 5173 blijft ongewijzigd. De oorspronkelijke MiniLM-meting van 0/15 blijft bewaard als indicatieve AI-evaluatie; zij is geen menselijke juridische referentie. Er is geen A/B/C-uitbreiding of top-vijfcontract ingevoerd.
+De Rust-backend en gemergde React-frontend zijn beschikbaar in deze repository. De statisch gequantiseerde BGE-index is onder de resourceguard berekend: 135 zaken en 578 passages. De gezamenlijke live UI/API-controle is onafhankelijk afgerond: de gewone frontend op 5173 gebruikt nu standaard de bewaakte backend op 8000. De aparte API-preview op 5174 kan daarnaast draaien; fixtures vereisen een expliciete mockkeuze. De oorspronkelijke MiniLM-meting van 0/15 blijft bewaard als indicatieve AI-evaluatie; zij is geen menselijke juridische referentie. Er is geen A/B/C-uitbreiding of top-vijfcontract ingevoerd.
 
 De [evaluatieviewer](evals/index.html) toont 25 concrete ontwerpbeschrijvingen. Gecontroleerde kandidaatlabels, een benchmarkrunner en bijbehorende meetresultaten ontbreken nog.
 
@@ -20,7 +20,7 @@ De twee native-boundsregressies zijn rood en daarna groen uitgevoerd. De standaa
 
 De repo bevat het API-contract, synthetische fixtures, de geteste Axum-router en PDF/TXT-extractie, en de data-/zoekengine met corpusimport en SQLite-opslag. De server/CLI-koppeling bestaat. Deterministische tests en een echte TCP-doorloop met ontbrekende database zijn gecontroleerd; de nieuwe BGE-index is vooraf berekend en de gezamenlijke UI/API-eindcontrole is afgerond. Frontendimplementatie valt buiten deze backendwijziging.
 
-De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen.
+De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en kiest standaard de echte lokale API. Synthetische [fixtures](examples/search-response.json) blijven uitsluitend beschikbaar in expliciete mockmodus. De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
 
@@ -82,14 +82,17 @@ De mapverdeling is `backend/` voor de Rust-service en `frontend/` voor de aparte
 
 ## Bestaande frontend: invoer, documentvoorbeelden en leesweergave
 
-[`frontend/src/main.tsx`](../frontend/src/main.tsx) kiest bij het starten een client en rendert de React-app. Standaard is dit de lokale mock in [`client.ts`](../frontend/src/client.ts); alleen `VITE_API_MODE=api` kiest de HTTP-client met configureerbare `VITE_API_BASE_URL` (standaard `http://127.0.0.1:8000`). Er zijn geen externe modelaanroepen, accounts of extra UI-libraries.
+[`frontend/src/main.tsx`](../frontend/src/main.tsx) kiest bij het starten een client en rendert de React-app. [`createSearchRuntime` in `runtime.ts`](../frontend/src/runtime.ts) kiest standaard de HTTP-client in [`client.ts`](../frontend/src/client.ts), met configureerbare `VITE_API_BASE_URL` (standaard `http://127.0.0.1:8000`). Uitsluitend `VITE_API_MODE=mock` kiest de lokale fixtureclient; onbekende of ontbrekende moduswaarden selecteren nooit fixtures. API-, index- en netwerkfouten worden doorgegeven aan de bestaande foutweergave, zonder terugval naar verzonnen resultaten. Er zijn geen externe modelaanroepen, accounts of extra UI-libraries.
 
 ```mermaid
 flowchart LR
   U[Eigen tekst en/of bijlage] --> A[React App: invoer en gesprek]
   A --> V[validateInput: bruikbare invoer, type en grootte]
-  V --> M[Mockclient: vaste JSON-fixtures]
-  M --> R[Drie documentvoorbeelden onder de invoerbox]
+  V --> C[Clientkeuze: standaard API]
+  C --> API[Lokale backend: eigen document en/of vraag]
+  C --> M[Alleen expliciet mock: vaste JSON-fixtures]
+  API --> R[Drie documentvoorbeelden onder de invoerbox]
+  M --> R
   R --> D[Klik opent aparte reader en haalt detail op]
   D --> G[Corpus-/tekstversie en exacte UTF-16-uitsnede controleren]
   G --> T[Volledige tekst met markering en brononderbouwing]
@@ -108,7 +111,7 @@ De voorbeelden gebruiken een sober pagina-icoon, zaakmetadata en een excerpt uit
 
 De HTTP-client gebruikt `FormData` zonder een eigen multipart-Content-Type, volgt de aangeboden `case_url` en toont backendfoutberichten. Naast de tests met onderschepte HTTP-grens is de echte browser/backendintegratie uitgevoerd: query/TXT/PDF/combinatie, drie volledige brondocumenten met markeringen en herstel na een 422-fout. De API-schemas blijven vastgelegd in [OpenAPI](openapi.yaml).
 
-Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend en gezamenlijke API/UI-doorloop zijn hiermee gecontroleerd; de echte API-preview gebruikt expliciet poort 5174. Backendimport en backendtests staan in de andere hoofdstukken beschreven.
+Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend en gezamenlijke API/UI-doorloop zijn hiermee gecontroleerd. De gewone frontend op 5173 kiest standaard API; een extra expliciete API-preview kan op 5174 draaien. `npm run dev:mock` is een aparte opt-in voor fictieve resultaten en gebruikt eveneens 5173. [`runtime.test.ts`](../frontend/src/runtime.test.ts) beschermt standaard-APIkeuze, expliciete mockkeuze en foutdoorgifte zonder fixtureterugval. Backendimport en backendtests staan in de andere hoofdstukken beschreven.
 
 ## Evaluatiedocumentatie en viewer
 
@@ -190,6 +193,8 @@ De volledige import piekte op 1105,86 MiB; de afgeronde HTTP-guardmeting op 705,
 De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige documentatieclaims zijn handmatig en onafhankelijk gecheckt; zij vormen nog geen volledige mechanische documentatie-mergegate.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: gewone frontendstart op 5173 gebruikt voortaan standaard de echte lokale API. Fixtures zijn uitsluitend opt-in via `VITE_API_MODE=mock` of `npm run dev:mock`; backend-/netwerkfouten leveren nooit fictieve resultaten op.
 
 - 2026-11-11: centrale evaluatiedocumentatie toegevoegd met canonieke Markdownbron, gegenereerde HTML-viewer en synchronisatiecheck in CI. De scenariocatalogus toont 25 concrete brononderbouwde ontwerpen; kandidaatlabels en runner blijven gepland. Er zijn geen benchmarkresultaten toegevoegd.
 

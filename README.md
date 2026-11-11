@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de volledige Rust/SQLite/BGE-demo is onafhankelijk via echte HTTP en de browser gecontroleerd en klaar voor de gebruiker om te testen.** Open de [echte API-preview op 5174](http://127.0.0.1:5174/); de backend draait op `127.0.0.1:8000` onder de resourceguard, maximaal twee uur. De bestaande mock op 5173 blijft ongewijzigd. JSON-fixtures zijn synthetisch; de API-preview gebruikt de 135 echte corpuszaken.
+**Status: de volledige Rust/SQLite/BGE-demo is onafhankelijk via echte HTTP en de browser gecontroleerd en klaar voor de gebruiker om te testen.** Open de [demo op 5173](http://127.0.0.1:5173/); de frontend gebruikt standaard de echte lokale API. De backend draait op `127.0.0.1:8000` onder de resourceguard, maximaal twee uur. De afzonderlijke API-preview op 5174 kan daarnaast beschikbaar zijn. Fictieve resultaten zijn uitsluitend beschikbaar via een expliciete mockstart. JSON-fixtures zijn synthetisch; de API-preview gebruikt de 135 echte corpuszaken.
 
 ## Begin hier
 
@@ -49,11 +49,11 @@ Op de gereviewde codehead `9ef3bf9` slaagden 45 Rust-tests, vijf Python-beleidst
 
 ## Nu parallel beginnen
 
-De frontend gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. De bestaande frontend is via de gewone main-integratie overgenomen; de backend-PR voegt geen nieuwe frontendfunctionaliteit toe.
+De frontend gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md); fixtures zijn alleen voor expliciete mockmodus. De bestaande frontend is via de gewone main-integratie overgenomen; de backend-PR voegt geen nieuwe frontendfunctionaliteit toe.
 
 ## Backend gebruiken
 
-De demo draait al op 5174/8000. De onderstaande commando’s zijn voor een latere herstart: stop eerst de bestaande guard en voer nooit twee modeljobs tegelijk uit. Binary, index en model zijn op deze Mac vooraf voorbereid; er wordt niet binnen het modelbudget gecompileerd.
+De normale frontend gebruikt 5173/8000; de aparte API-preview op 5174 kan daarnaast draaien. De onderstaande commando’s zijn voor een latere herstart: stop eerst de bestaande guard en voer nooit twee modeljobs tegelijk uit. Binary, index en model zijn op deze Mac vooraf voorbereid; er wordt niet binnen het modelbudget gecompileerd.
 
 ```sh
 export ADAMI_BINARY="$HOME/Library/Caches/adami-case/cargo-final-review/debug/texas-case-finder"
@@ -113,9 +113,17 @@ npm ci
 npm run dev
 ```
 
-De bestaande standaardmock staat op `http://127.0.0.1:5173/`. De ontwikkelserver luistert alleen lokaal. Typ/plak eigen tekst, voeg een PDF/TXT van maximaal 10 MiB toe, of combineer beide. Versturen toont na een korte laadstatus altijd dezelfde drie verzonnen zaken als klikbare documentvoorbeelden onder de invoerbox, op desktop naast elkaar. Een nieuwe zoekopdracht vervangt de vorige resultaten. Open een document om in een aparte leesweergave de volledige aangeleverde meerderheidstekst met markering te lezen; de terugknop brengt je naar de resultaten. Het blok ‘Waarom dit document?’ toont de exacte gevonden bronpassage en overeenkomstscore, geen gegenereerde juridische verklaring of daadwerkelijke analyse van je invoer in de demostand.
+Open `http://127.0.0.1:5173/`. De ontwikkelserver luistert alleen lokaal en gebruikt standaard de echte backend op `http://127.0.0.1:8000`. Typ/plak eigen tekst, voeg een PDF/TXT van maximaal 10 MiB toe, of combineer beide. De backend moet met een complete index gereed zijn. Zoeken toont precies drie echte corpuszaken als documentvoorbeelden onder de invoerbox. Open een document om de volledige aangeleverde meerderheidstekst met markering te lezen; de terugknop brengt je naar de resultaten. ‘Waarom dit document?’ toont de exacte gevonden bronpassage en overeenkomstscore, geen gegenereerde juridische verklaring.
 
-De standaarddemostand leest of verstuurt bestandsinhoud niet en slaat uploads of gesprekken niet op. De bijlage wordt in de mock alleen op naam, extensie en grootte gecontroleerd; inhoudelijke PDF/TXT-validatie en echte zoekresultaten verlopen via de Rust-backend in API-modus. De fixtureteksten zijn kort en bewijzen geen leesbaarheid van lange echte uitspraken.
+Een API-, index- of verbindingsfout wordt als fout getoond. De frontend schakelt nooit stilzwijgend over op fixtures. Met `VITE_API_BASE_URL` kun je een andere backendbasis instellen; `frontend/.env.example` toont de normale API-configuratie. Een eventuele bestaande `frontend/.env.local` met `VITE_API_MODE=mock` kiest nog steeds expliciet de fictieve modus: verwijder die instelling of zet haar op `api` voor echt zoeken.
+
+Alleen voor los frontendwerk zonder backend:
+
+```sh
+npm run dev:mock
+```
+
+Deze expliciete mockstart gebruikt dezelfde poort 5173; stop eerst de eigen frontendserver. De mock toont altijd dezelfde drie verzonnen zaken en leest, verstuurt of bewaart bestandsinhoud niet. De UI benoemt de resultaten als voorbeelden zonder analyse van je invoer. Een bestand wordt daarin alleen op extensie en grootte gecontroleerd. Inhoudelijke PDF/TXT-validatie en echte zoekresultaten verlopen uitsluitend via de backend. Mockteksten zijn kort en bewijzen geen leesbaarheid van lange echte uitspraken.
 
 Gecontroleerde frontendchecks:
 
@@ -124,16 +132,16 @@ npm test
 npm run build
 ```
 
-`npm test` controleert invoermodi en grenzen, mock/API-uitwisseling, React-interacties en UTF-16-markeringen met versiecontrole. De build voert TypeScript-controle uit en schrijft `frontend/dist/` (genegeerd door Git).
+`npm test` controleert de standaardkeuze voor de echte API, expliciete mockkeuze, foutdoorgifte zonder fictieve terugval, invoermodi en grenzen, mock/API-uitwisseling, React-interacties en UTF-16-markeringen met versiecontrole. De build voert TypeScript-controle uit en schrijft `frontend/dist/` (genegeerd door Git).
 
-De echte API-preview is afzonderlijk gestart op 5174, zonder de mock op 5173 te veranderen. Start die zo vanuit de reporoot, nadat de bewaakte backend draait en CORS voor 5174 is toegestaan:
+Een extra API-preview kan naast de gewone frontend afzonderlijk op 5174 worden gestart. Dit is niet nodig om op 5173 echte zoekresultaten te krijgen. Start die zo vanuit de reporoot, nadat de bewaakte backend draait en CORS voor 5174 is toegestaan:
 
 ```sh
 cd frontend
 VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174 --strictPort
 ```
 
-Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus blijft `mock`; zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
+Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
 
 ## Uitgevoerde controle en indicatieve zoekkwaliteit
 

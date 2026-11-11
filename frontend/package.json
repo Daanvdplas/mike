@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:mock": "VITE_API_MODE=mock vite --host 127.0.0.1 --port 5173 --strictPort"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

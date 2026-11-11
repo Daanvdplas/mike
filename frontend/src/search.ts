@@ -8,12 +8,14 @@ export interface SearchResult extends CaseMetadata {
   explanation?: {
     text: string;
     citations: { passage_id: string; quote: string }[];
+    input_citations?: { quote: string; start_utf16: number; end_utf16: number }[];
     limitations: string[];
   };
 }
 export interface SearchResponse {
   mode: 'query' | 'document' | 'combined'; corpus_version: string; ranking_version: string; results: SearchResult[];
   explanation_status?: 'available' | 'unavailable';
+  input_context?: { text_version: string; utf16_length: number };
 }
 export interface CaseDetail extends CaseMetadata { corpus_version: string; text: string }
 export function validateInput(input: SearchInput): SearchInput & { query: string; mode: SearchResponse['mode'] } {

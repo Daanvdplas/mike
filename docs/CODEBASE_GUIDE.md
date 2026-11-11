@@ -113,6 +113,18 @@ De HTTP-client gebruikt `FormData` zonder een eigen multipart-Content-Type, volg
 
 Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend en gezamenlijke API/UI-doorloop zijn hiermee gecontroleerd. De gewone frontend op 5173 kiest standaard API; een extra expliciete API-preview kan op 5174 draaien. `npm run dev:mock` is een aparte opt-in voor fictieve resultaten en gebruikt eveneens 5173. [`runtime.test.ts`](../frontend/src/runtime.test.ts) beschermt standaard-APIkeuze, expliciete mockkeuze en foutdoorgifte zonder fixtureterugval. Backendimport en backendtests staan in de andere hoofdstukken beschreven.
 
+## Optionele Orq-toelichting
+
+[`backend/scripts/orq_proxy.py`](../backend/scripts/orq_proxy.py) is een aparte Python-stdlib-server op 18000, geen vervanging van de Rust-engine. Hij hergebruikt de bestaande HTTP-zoekbackend op 8000 en laadt geen index of embeddingmodel. De frontendpreview op 5175 wijst expliciet naar deze adapter; de gewone frontend/API blijven afzonderlijk bestaan.
+
+De adapter geeft de vraag en aanwezigheid van een upload aan het gekozen Orq-model. Het model moet eenmaal `search_cases` aanroepen met lege argumenten. De applicatie koppelt dat verzoek aan de oorspronkelijke multipartbytes en stuurt die ongewijzigd naar Rust. Een tweede modelrequest bevat de werkelijk gevonden drie zaken en passages en vraagt om drie korte verklaringen met bestaande case-/passage-ID’s. De server valideert exacte identiteit, aantal en schemagrens en voegt zelf de oorspronkelijke passage als citaat toe. De oorspronkelijke resultaten, volgorde, scores en bronversies worden niet door het model aangepast. Er is geen reranking of vrije vervolgzoekloop.
+
+De HTTP-uitbreiding is optioneel en achterwaarts compatibel: `explanation_status` en per resultaat `explanation` staan in [OpenAPI](openapi.yaml). De sidecar serveert zijn uitgebreide runtimecontract op `/openapi.json`; health en volledige zaakteksten komen van de bestaande backend. Provider-/schemafouten geven echte zoekresultaten met `unavailable`, nooit fictieve zoekresultaten. De reader toont gevalideerde tekst, bronlinks en beperkingen; corpus-/tekstversie en UTF-16-markering blijven de bestaande controles gebruiken.
+
+De sleutel wordt uitsluitend serverzijdig uit `ORQ_API_KEY` of een privé `ORQ_API_KEY_FILE` buiten Git geladen. Uploadbytes gaan alleen naar de eigen zoekbackend, niet naar Orq; de modeluitleg krijgt bij uploads een vaste beperking daarover. Vragen en corpuspassages gaan wel naar de externe modelroute. Orq krijgt `store: false`; gateway-/providerretentie is hiermee niet geaudit. De adapter staat één zoekopdracht tegelijk toe, maximaal twee modelrequests per opdracht, 30 seconden provider-timeout, 128 KiB providerinvoer, 1 MiB providerantwoord en een eindig procesbudget (standaard twintig requests). De echte bestaande modelserver en zijn resourceguard worden niet door de sidecar beheerd.
+
+De exacte modelroute `openai/gpt-4.1-mini-2025-04-14` is via de live catalogus en een kleine tool-/structured-outputpreflight gecontroleerd; `ORQ_MODEL` of `--model` kan haar wijzigen. Andere modelroutes zijn niet automatisch gevalideerd. [`test_orq_proxy.py`](../backend/scripts/test_orq_proxy.py) controleert toolvolgorde, ongewijzigde invoer/resultaten, bron-ID’s/citaten, foutdoorgifte, uploadcontext, bestandstatussen en runtimecontract zonder providerrequests. Startinstructies staan in README. Dit is geen juridische kwaliteitsevaluatie.
+
 ## Evaluatiedocumentatie en viewer
 
 [EVALUATIEOPDRACHT.md](EVALUATIEOPDRACHT.md) is de canonieke specificatie van de beoordelingsafspraken. [evals/scenarios.json](evals/scenarios.json) bevat 25 concrete ontwerpbeschrijvingen met invoermodus, bronzaak, exact invoerfragment, Engelse zoekvraag waar van toepassing, verwacht juridisch gedrag en onderbouwing. [evals/index.html](evals/index.html) is de gegenereerde, klikbare leesweergave uit beide bronnen. De viewer hoort bij de projectdocumentatie en staat los van de React-productinterface en de synthetische productfixtures.
@@ -193,6 +205,8 @@ De volledige import piekte op 1105,86 MiB; de afgeronde HTTP-guardmeting op 705,
 De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige documentatieclaims zijn handmatig en onafhankelijk gecheckt; zij vormen nog geen volledige mechanische documentatie-mergegate.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: expliciet geautoriseerde optionele Orq-sidecar toegevoegd voor modelgestuurde aanroep van de vaste lokale zoektool en brongebonden uitleg. Drie oorspronkelijke resultaten blijven behouden; uploadtekst wordt niet aan Orq gegeven.
 
 - 2026-11-11: gewone frontendstart op 5173 gebruikt voortaan standaard de echte lokale API. Fixtures zijn uitsluitend opt-in via `VITE_API_MODE=mock` of `npm run dev:mock`; backend-/netwerkfouten leveren nooit fictieve resultaten op.
 

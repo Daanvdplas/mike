@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Texas Legal Document Similarity Finder
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Canonical API contract for the Rust backend. End-to-end verification status
     is documented in README and CODEBASE_GUIDE; examples remain synthetic.
@@ -12,6 +12,8 @@ info:
 servers:
   - url: http://127.0.0.1:8000
     description: Default local backend
+  - url: http://127.0.0.1:18000
+    description: Optional Orq explanation adapter using the same local search backend
 paths:
   /api/search:
     post:
@@ -26,6 +28,12 @@ paths:
         score. Sort by score descending, then case_id lexicographically ascending.
         For equal passage scores choose passage_id lexicographically ascending.
         The complete 135-case index must be ready; partial results are forbidden.
+        The optional Orq adapter on port 18000 adds explanation_status and, only
+        when all three explanations validate, explanation on each result. The
+        model invokes search_cases with the original input fixed by the server;
+        result identities, order, scores and source versions remain unchanged.
+        Provider/schema failures preserve the real search results with status
+        unavailable and omit explanations. No synthetic fallback is permitted.
         Operational limits: query text is at most 1 MiB of UTF-8 bytes (400),
         the complete multipart request is at most 12 MiB (413), and extracted
         PDF text is at most 20 MiB (422). Inputs are rejected, never truncated.
@@ -186,12 +194,46 @@ components:
             UTF-16 code-unit position, exclusive and greater than start_utf16.
             detail.text.slice(start_utf16, end_utf16) in JavaScript equals text.
             Offsets must not split a surrogate pair. Do not normalize detail text.
+    Explanation:
+      type: object
+      additionalProperties: false
+      required: [text, citations, limitations]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1200
+        citations:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: object
+            additionalProperties: false
+            required: [passage_id, quote]
+            properties:
+              passage_id:
+                type: string
+                minLength: 1
+              quote:
+                type: string
+                minLength: 1
+                description: Exact trusted passage text supplied by the server, never a generated quote.
+        limitations:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
     SearchResult:
       allOf:
         - $ref: '#/components/schemas/CaseMetadata'
         - type: object
           required: [score, passage, case_url]
           properties:
+            explanation:
+              $ref: '#/components/schemas/Explanation'
             score:
               type: number
               format: double
@@ -211,6 +253,10 @@ components:
       additionalProperties: false
       required: [mode, corpus_version, ranking_version, results]
       properties:
+        explanation_status:
+          type: string
+          enum: [available, unavailable]
+          description: Optional adapter status; available means all three explanations passed source validation.
         mode:
           type: string
           enum: [document, query, combined]

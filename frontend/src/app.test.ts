@@ -121,3 +121,64 @@ it('toont de gehele lange brontekst veilig en weigert markeringen bij versievers
   expect(document.querySelector('.opinion')?.textContent).toBe(fullText);
   expect(document.querySelector('.opinion script')).toBeNull();
 });
+
+it('toont brongebonden modeluitleg met een verwijzing naar de exacte gemarkeerde passage', async () => {
+  const mock = createMockClient(0);
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    search: async (input) => {
+      const response = await mock.search(input);
+      return {
+        ...response,
+        explanation_status: 'available' as const,
+        results: response.results.map((result) => ({
+          ...result,
+          explanation: {
+            text: 'Deze uitspraak bespreekt getuigenbewijs. <script>ongewenst()</script>',
+            citations: [{ passage_id: result.passage.passage_id, quote: result.passage.text }],
+            limitations: ['De passage bewijst niet dat de feiten van beide zaken gelijk zijn.'],
+          },
+        })),
+      };
+    },
+  }, false);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Hoe betrouwbaar is getuigenbewijs?';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.model-explanation')?.textContent).toContain('Deze uitspraak bespreekt getuigenbewijs.');
+  expect(document.querySelector('.why-passage')?.textContent).toContain('Witness testimony');
+  expect(document.querySelector('a[href="#source-passage"]')).not.toBeNull();
+  expect(document.querySelector('#source-passage')?.textContent).toContain('Witness testimony');
+  expect(document.querySelector('.explanation-limitations')?.textContent).toContain('De passage bewijst niet');
+  expect(document.querySelector('.document-reason script')).toBeNull();
+});
+
+it('houdt echte zoekresultaten leesbaar en meldt het als modeluitleg niet beschikbaar is', async () => {
+  const mock = createMockClient(0);
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    search: async (input) => ({ ...await mock.search(input), explanation_status: 'unavailable' as const }),
+  }, false);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Een vraag';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+  expect(document.querySelectorAll('.case-button')).toHaveLength(3);
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.explanation-status')?.textContent).toContain('De toelichting is tijdelijk niet beschikbaar.');
+  expect(document.querySelector('.model-explanation')).toBeNull();
+  expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
+  expect(document.querySelector('mark')?.textContent).toContain('Witness testimony');
+});

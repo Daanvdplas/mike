@@ -71,10 +71,13 @@ textarea:focus-visible { outline: none; }
 .document-reason h2 { margin: 0 0 var(--space-sm); }
 .document-reason > p:not(.source-meta) { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; }
 .why-passage { margin: 16px 0; max-width: 65ch; font-size: 15px; line-height: 1.7; }
+.model-explanation { white-space: pre-wrap; }
+.evidence-link { color: #2558a0; font-size: 12px; text-underline-offset: 3px; }
+.explanation-limitations { color: var(--muted); font-size: 13px; line-height: 1.7; padding-left: 20px; }
 .document-text { margin-top: var(--space-lg); }
 .document-text h2 { margin: 0 0 var(--space-md); }
 .opinion { white-space: pre-wrap; overflow-wrap: anywhere; font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.9; max-width: 68ch; }
-mark { background: #dde9fa; color: inherit; padding: 2px 0; box-decoration-break: clone; }
+mark { background: #dde9fa; color: inherit; padding: 2px 0; box-decoration-break: clone; scroll-margin-top: 88px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 600px) {
   .app-header { height: 76px; padding: 0 20px; }

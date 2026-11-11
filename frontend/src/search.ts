@@ -5,9 +5,15 @@ export interface CaseMetadata {
 export interface SearchResult extends CaseMetadata {
   score: number; case_url: string;
   passage: { passage_id: string; text: string; start_utf16: number; end_utf16: number };
+  explanation?: {
+    text: string;
+    citations: { passage_id: string; quote: string }[];
+    limitations: string[];
+  };
 }
 export interface SearchResponse {
   mode: 'query' | 'document' | 'combined'; corpus_version: string; ranking_version: string; results: SearchResult[];
+  explanation_status?: 'available' | 'unavailable';
 }
 export interface CaseDetail extends CaseMetadata { corpus_version: string; text: string }
 export function validateInput(input: SearchInput): SearchInput & { query: string; mode: SearchResponse['mode'] } {

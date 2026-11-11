@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SearchClient } from './client';
 import { getPassageParts, validateInput, type CaseDetail, type SearchResponse, type SearchResult } from './search';
 
-interface SelectedDocument { result: SearchResult; corpusVersion: string }
+interface SelectedDocument {
+  result: SearchResult;
+  corpusVersion: string;
+  explanationStatus?: SearchResponse['explanation_status'];
+}
 
 export function App({ client, isMock }: { client: SearchClient; isMock: boolean }) {
   const [query, setQuery] = useState('');
@@ -104,7 +108,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
             <button className="case-button" type="button" aria-label={`${result.title} — volledig document bekijken`} onClick={(event) => {
               readerOpener.current = event.currentTarget;
               resultsScroll.current = window.scrollY;
-              setSelected({ result, corpusVersion: response.corpus_version });
+              setSelected({ result, corpusVersion: response.corpus_version, explanationStatus: response.explanation_status });
             }}>
               <span className="page-heading"><DocumentEmblem /><span>Uitspraak {index + 1}</span></span>
               <span className="case-title">{result.title}</span>
@@ -130,6 +134,7 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
   const [error, setError] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
   const { result, corpusVersion } = selected;
+  const explanation = selected.explanationStatus !== 'unavailable' ? result.explanation : undefined;
   useEffect(() => {
     let cancelled = false;
     heading.current?.focus({ preventScroll: true });
@@ -152,11 +157,20 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
     {detail && parts ? <>
       <section className="document-reason" aria-labelledby="reason-title">
         <h2 id="reason-title">Waarom dit document?</h2>
-        <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de onderstaande bronpassage.' : 'De zoekmethode vond de beste tekstovereenkomst binnen deze uitspraak in de onderstaande passage.'}</p>
-        <blockquote className="why-passage">{result.passage.text}</blockquote>
+        {explanation ? <>
+          <p className="model-explanation">{explanation.text}</p>
+          {explanation.citations.map((citation, index) => <blockquote className="why-passage" key={`${citation.passage_id}-${index}`}>
+            {citation.quote}<br /><a className="evidence-link" href="#source-passage">Bekijk gemarkeerde bronpassage</a>
+          </blockquote>)}
+          {explanation.limitations.length ? <ul className="explanation-limitations">{explanation.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul> : null}
+        </> : <>
+          {selected.explanationStatus ? <p className="explanation-status" role="status">De toelichting is tijdelijk niet beschikbaar.</p> : null}
+          <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de onderstaande bronpassage.' : 'De zoekmethode vond de beste tekstovereenkomst binnen deze uitspraak in de onderstaande passage.'}</p>
+          <blockquote className="why-passage">{result.passage.text}</blockquote>
+        </>}
         <p className="source-meta">Overeenkomstscore: {result.score.toLocaleString('nl-NL', { maximumFractionDigits: 3 })}</p>
       </section>
-      <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{parts.before}<mark>{parts.match}</mark>{parts.after}</div></article>
+      <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{parts.before}<mark id="source-passage" tabIndex={-1}>{parts.match}</mark>{parts.after}</div></article>
     </> : null}
   </main>;
 }

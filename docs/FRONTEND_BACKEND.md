@@ -54,3 +54,11 @@ Fouten gebruiken steeds `{"error":{"code":"...","message":"..."}}`. Toon de lees
 De standaard backend-URL is `http://127.0.0.1:8000`; de gewone frontend draait op `http://127.0.0.1:5173` en kiest standaard de echte API. Een extra API-preview kan op `http://127.0.0.1:5174` draaien. Fixtures zijn uitsluitend opt-in via `VITE_API_MODE=mock` of `npm run dev:mock`; API-/netwerkfouten geven nooit fictieve resultaten. Maak de frontend-base-URL configureerbaar. De backend ondersteunt CORS voor configureerbare ontwikkelorigins, standaard `http://localhost:5173` en `http://127.0.0.1:5173`. De API-preview voegt beide 5174-origins toe via `ADAMI_CORS_ORIGINS`; de startcommando’s staan in README.
 
 `GET /api/health` geeft pas 200 met `status: ready` als het volledige corpus beschikbaar is; anders 503. De runtime biedt het contract aan op `GET /openapi.json`. Geen API-key nodig voor deze lokale demo; er hoort geen Orq-key in de frontend.
+
+## Optionele Orq-adapter
+
+De afzonderlijke adapter op `http://127.0.0.1:18000` accepteert dezelfde zoekinvoer en proxy’t volledige zaakteksten/health naar de bestaande backend op 8000. Gebruik voor deze aparte preview `VITE_API_BASE_URL=http://127.0.0.1:18000` op frontendpoort 5175. Er is geen sleutel in de frontend.
+
+`SearchResponse.explanation_status` is optioneel: `available` betekent dat alle drie modeltoelichtingen gevalideerd zijn, `unavailable` betekent echte resultaten zonder toelichting. Alleen bij `available` heeft elk resultaat `explanation: {text, citations: [{passage_id, quote}], limitations: string[]}`. Het model kiest uitsluitend een bestaande passage-ID per zaak; de server vult `quote` met de exacte bronpassage. Bij een mislukte model/provider/schema-stap blijft de oorspronkelijke top drie beschikbaar met `unavailable`. Als de eigenlijke zoekbackend faalt, geldt het bestaande HTTP-foutcontract. De normale backend op 8000 hoeft deze optionele velden niet te leveren.
+
+Uploadinhoud gaat niet naar het taalmodel, alleen een eventuele vraag en teruggegeven bronpassages. De adapter voegt deze beperking expliciet aan uploaduitleg toe. De frontend toont modeltekst/citaatlinks/beperkingen naast de bestaande brononderbouwing en behoudt volledige meerderheidstekst, versies en UTF-16-markeringen. Geen modeltekst als bewijs van juridische juistheid presenteren.

@@ -50,25 +50,48 @@ De frontend gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de 
 
 ## Backend gebruiken
 
-De onderstaande CLI-ingangen bestaan. Start tijdens de exclusieve corpusimport geen tweede build, modeljob of server. Modelwerk moet via de [resourceguard](backend/scripts/resource_guard.py) en binnen het afgesproken geheugenbudget lopen; de definitieve bewaakte startprocedure volgt na de verse indexcontrole.
+Bouw eerst de binary, zonder gelijktijdige modeljob. Gebruik per worktree een eigen targetmap; gedeelde artifacts van dezelfde crate kunnen tests uit een andere checkout hergebruiken.
 
 ```sh
-export ADAMI_DB_PATH="$PWD/data/cases.sqlite3"
+export CARGO_BUILD_JOBS=2
+export CARGO_TARGET_DIR="$HOME/Library/Caches/adami-case/cargo-api"
+cargo +1.94.1 build --manifest-path backend/Cargo.toml --locked
+export ADAMI_BINARY="$CARGO_TARGET_DIR/debug/texas-case-finder"
+export ADAMI_DB_PATH="$HOME/Library/Caches/adami-case/bge-static-q-safe/cases.sqlite"
 export ADAMI_CACHE_DIR="$HOME/Library/Caches/adami-case/fastembed"
-cargo +1.94.1 run --manifest-path backend/Cargo.toml -- import /Users/R0GUE/Downloads/texas-criminal-reports
-cargo +1.94.1 run --manifest-path backend/Cargo.toml -- serve
 ```
 
-De eerste import downloadt het lokale embeddingmodel als het ontbreekt. Import bewaart alle 135 zaken, passages en embeddings in SQLite. Herimport vervangt de index in één transactie. Start de server opnieuw na import; de server herindexeert nooit stilzwijgend.
+Op deze Mac is de nieuwe index vooraf berekend: 135 zaken en 578 passages. Een eerste import downloadt het model als het ontbreekt. Voor een verse index voer je de volgende import afzonderlijk uit, zonder draaiende modelserver; bij hergebruik van de bestaande index is dit niet nodig.
+
+```sh
+python3 backend/scripts/resource_guard.py \
+  --label adami-import --timeout-seconds 600 \
+  --report "$HOME/Library/Caches/adami-case/import-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/import.log" \
+  -- "$ADAMI_BINARY" import /Users/R0GUE/Downloads/texas-criminal-reports
+```
+
+Import vervangt de index in één transactie. Start de server opnieuw na import; de server herindexeert nooit stilzwijgend. De demo gebruikt alleen de bestaande database en lokale modelcache. Start de server voor maximaal twee uur met dezelfde geheugenbewaking:
+
+```sh
+python3 backend/scripts/resource_guard.py \
+  --label adami-preview --serve-preview --timeout-seconds 7200 \
+  --report "$HOME/Library/Caches/adami-case/preview-guard.json" \
+  --log "$HOME/Library/Caches/adami-case/preview.log" \
+  -- "$ADAMI_BINARY" serve
+```
+
+Stop de preview met **Ctrl+C in die terminal**. De guard ruimt uitsluitend zijn eigen procesgroep op. Zonder `--serve-preview` blijven tests en imports begrensd op maximaal 600 seconden. De langere modus accepteert alleen een concreet backendpad gevolgd door `serve`; geen shell, Cargo of losse PATH-alias. De RSS-grens blijft 1536 MiB, geheugendruk moet normaal blijven en swap mag niet met 128 MiB groeien. De guard stopt ook bij meetfouten of de deadline. Dit is geen procesisolatie of absolute garantie dat een korte geheugenpiek onmogelijk is.
+
+In een tweede terminal kun je de HTTP-API gebruiken:
 
 ```sh
 curl http://127.0.0.1:8000/api/health
 curl --form-string 'query=trial evidence' http://127.0.0.1:8000/api/search
 curl -F 'document=@/pad/naar/zaak.pdf' --form-string 'query=witness testimony' http://127.0.0.1:8000/api/search
-cargo +1.94.1 run --manifest-path backend/Cargo.toml -- search 'trial evidence'
 ```
 
-Gebruik voor zaakdetails de `case_url` uit het zoekresultaat, op dezelfde backendbasis-URL. Een ontbrekende, corrupte of onvolledige database laat de server met 503-readiness draaien; er komen geen fictieve zoekresultaten. `/openapi.json` blijft bereikbaar.
+Gebruik voor zaakdetails de `case_url` uit het zoekresultaat, op dezelfde backendbasis-URL. Een ontbrekende, corrupte of onvolledige database geeft 503-readiness en geen fictieve zoekresultaten; `/openapi.json` blijft bereikbaar. Het CLI-commando `search QUESTION` gebruikt dezelfde engine en hoort, net als import, uitsluitend in een aparte bewaakte job wanneer de server niet draait.
 
 | Instelling | Standaard |
 |---|---|
@@ -77,7 +100,7 @@ Gebruik voor zaakdetails de `case_url` uit het zoekresultaat, op dezelfde backen
 | `ADAMI_BIND_ADDR` | `127.0.0.1:8000` |
 | `ADAMI_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
 
-CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Er zijn geen API-sleutels of externe modelaanroepen nodig. De modelcache en SQLite-database horen buiten Git.
+CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Er zijn geen API-sleutels of externe modelaanroepen nodig. De modelcache, database en guardverslagen horen buiten Git.
 
 ## Frontend lokaal proberen
 

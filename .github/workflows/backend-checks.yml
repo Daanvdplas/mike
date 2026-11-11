@@ -35,5 +35,7 @@ jobs:
         run: cargo +1.94.1 clippy --locked --all-targets -- -D warnings
       - name: Deterministic tests (no embedding model download)
         run: cargo +1.94.1 test --locked
+      - name: Resource guard policy (no model or system probes)
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: Build
         run: cargo +1.94.1 build --locked

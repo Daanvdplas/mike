@@ -15,6 +15,18 @@ MAX_RSS_KIB = 1536 * 1024
 MAX_SWAP_GROWTH_MIB = 128
 
 
+def command_timeout_limit(command, serve_preview=False):
+    if not command:
+        raise ValueError("Supply a command")
+    if not serve_preview:
+        return 600
+    binary = command[0]
+    if (len(command) != 2 or command[1] != "serve"
+            or Path(binary).name != "texas-case-finder" or not os.path.dirname(binary)):
+        raise ValueError("--serve-preview requires a direct backend path followed only by serve")
+    return 7200
+
+
 def violation(sample, baseline_swap_mib, elapsed, timeout):
     if sample["rss_kib"] >= MAX_RSS_KIB:
         return "rss_limit"
@@ -68,22 +80,34 @@ def stop_owned_group(child):
             time.sleep(0.1)
 
 
-def main():
+def parse_arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--label", required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--timeout-seconds", type=float, default=180)
+    parser.add_argument("--serve-preview", action="store_true",
+                        help="Allow up to 7200 seconds only for a direct backend serve command")
     parser.add_argument("command", nargs=argparse.REMAINDER)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
-    if not command or not 0 < args.timeout_seconds <= 600:
-        parser.error("Supply a command and timeout in (0, 600] seconds")
+    try:
+        limit = command_timeout_limit(command, args.serve_preview)
+    except ValueError as error:
+        parser.error(str(error))
+    if not 0 < args.timeout_seconds <= limit:
+        parser.error(f"Supply a timeout in (0, {limit}] seconds")
+    return args, command
+
+
+def main():
+    args, command = parse_arguments()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.log.parent.mkdir(parents=True, exist_ok=True)
     report = {"label": args.label, "rss_limit_mib": MAX_RSS_KIB / 1024,
               "swap_growth_limit_mib": MAX_SWAP_GROWTH_MIB, "interval_seconds": 1,
-              "timeout_seconds": args.timeout_seconds, "samples": []}
+              "timeout_seconds": args.timeout_seconds, "serve_preview": args.serve_preview,
+              "samples": []}
     child = None
     reason = None
     interrupted = False

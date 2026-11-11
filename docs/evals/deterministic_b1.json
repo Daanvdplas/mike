@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "fixture_version": "appeal-bond-b1-v1",
+  "id": "B1",
+  "title": "Beroepsborgstelling met een opgeheven rechtbank",
+  "input_mode": "query",
+  "query": "Find decisions about an appeal bond that names a court which no longer exists after a judicial reorganization.",
+  "document": null,
+  "excluded_case_ids": [],
+  "expected_cases": [
+    {
+      "case_id": "156040",
+      "title": "Cummings v. State",
+      "source_file": "json/0406-01.json",
+      "decision_date": "1892-12-21",
+      "raw_sha256": "9cb84513de18af16e43f1d44bd7a2285e3e750b5fa12e354369f7c4276d71b0e",
+      "text_version": "sha256:16a18c1431efa975ad3872834468985fa1e106790f69f56abf0497d421d92cb1",
+      "evidence": {
+        "section": "majority",
+        "quote": "There was at the time of entering into the recognizance in this case no such court known to the laws of this State as the “Court of Appeals.”",
+        "start_utf16": 3223,
+        "end_utf16": 3364
+      }
+    },
+    {
+      "case_id": "156042",
+      "title": "Neubauer v. State",
+      "source_file": "json/0513-01.json",
+      "decision_date": "1893-02-03",
+      "raw_sha256": "9e6eaec67b00ad8e9e76754384e7ff86b191391ea69c5f2aac7f6fbbc8ad525c",
+      "text_version": "sha256:f4558896d8f46b15320dbee780bfc341bbea23ed217a131aca694b55d230e024",
+      "evidence": {
+        "section": "majority",
+        "quote": "The recognizance should have bound the appellant to abide the judgment of the Court of Criminal Appeals, as required by the Act of 1892, page 38, section 32.",
+        "start_utf16": 226,
+        "end_utf16": 383
+      }
+    }
+  ],
+  "expected_order": "unordered",
+  "success_rule": "Both expected case IDs occur in exactly three unique valid corpus results. Rank may vary. The third result is unjudged.",
+  "reference_status": "Agent-proposed, independently checked against the supplied sources; not human legal gold or exhaustive relevance labels.",
+  "context": {
+    "corpus_version": "sha256:d3f2794d2875fa3f3bddcd43eb55d273c2fd99e41cb6eee3a2723eacf10bf16a",
+    "ranking_version": "cosine-max-v1",
+    "index_pipeline": "majority-lf-trim-v1|chars1600-overlap160-token480-v1|question-prefix-v1|cosine-max-v1",
+    "embedding": {
+      "model": "Qdrant/bge-small-en-v1.5-onnx-Q",
+      "dimensions": 384,
+      "max_tokens": 512,
+      "sdk": "fastembed 7.1.2; quantization=Static; intra_threads=2",
+      "pooling": "Cls",
+      "query_prefix": "Represent this sentence for searching relevant passages: ",
+      "artifacts_sha256": "44dd8d1cf7f64e80fe20cc79177a5c2792b65593e15d130f95a83c617d2a463d"
+    }
+  },
+  "origin": {
+    "source": "Existing preregistered fresh evaluation, record B1",
+    "file": "/Users/R0GUE/Library/Caches/adami-case/final-review/preregistered-fresh-evaluation.json",
+    "sha256": "8a8379d210c27e4d836d83da02ea35a6c1e646cedea3185906669d99f6d95bb6"
+  },
+  "registration": "Query and both expected IDs committed before the first run of this two-target eval. Do not adjust them after observing retrieval output."
+}

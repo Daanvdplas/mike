@@ -4,6 +4,14 @@
 
 **Werk in uitvoering:** de overstap naar BGE-small-en-v1.5, CLS-pooling, een queryinstructie en manifestformaat 2 is nog niet volledig geverifieerd. Een eerdere bulkimport is gestopt wegens geheugendruk; er is nog geen goedgekeurde verse BGE-index of kwaliteitsuitslag. De MiniLM-baseline van 0/15 en de evaluatiebestanden blijven bewaard. Zwaar werk volgt uitsluitend de afgesproken resourcegate. Dit zijn geen opgeleverde BGE-resultaten.
 
+## Resourcecheckpoint vóór nieuwe modelmetingen
+
+[embedding.rs](../backend/src/engine/embedding.rs) voert native inference nu uit in afzonderlijke groepen van maximaal vier teksten, met twee ONNX-threads. Iedere native call levert eerst de genormaliseerde vectoren op en laat zijn ruwe uitvoer los voordat de volgende groep begint. Alleen een kleine interne batchgrootte meegeven aan één volledige corpuscall was onvoldoende: fastembed bewaart dan de ruwe uitvoer van alle interne batches tot de export. De nieuwe helper controleert ook het aantal teruggegeven rijen per groep, behoudt de invoervolgorde en logt aantallen als voortgang zonder documentinhoud.
+
+[resource_guard.py](../backend/scripts/resource_guard.py) start precies één eigen procesgroep, meet elke seconde de gezamenlijke RSS van die groep en leest de macOS-geheugendruk en swap. Het script start alleen bij normale druk (`kern.memorystatus_vm_pressure_level = 1`) en stopt de eigen groep bij RSS vanaf 1536 MiB, niet-normale druk, swapgroei vanaf 128 MiB of de tijdslimiet. Meetfouten stoppen de job eveneens; andere gebruikersprocessen worden niet gesignaleerd. De grens voor één meting is maximaal 600 seconden. Het JSON-verslag bevat proces-ID's, monsters, piek-RSS en stopreden; logs en verslagen horen buiten Git. Modelchecks moeten één voor één draaien, met `--test-threads=1`.
+
+De twee native-boundsregressies zijn rood en daarna groen uitgevoerd. De standaard Rust-run slaagde met vijftien deterministische tests; zes echte modelchecks blijven genegeerd. Twee Python-beleidstests en lichte succes-/timeoutprobes voor de watchdog slaagden. Dit bewijst nog geen veilige echte modelpiek of bruikbare juridische zoekkwaliteit. Daarvoor zijn een afzonderlijke resource-review, een kleine bewaakte modelsmoke en pas daarna een eventuele volledige import nodig. De oude kwaliteitsscore 0/15 blijft een bewaarde, ongewijzigde baseline.
+
 De repo bevat het API-contract, synthetische fixtures, de geteste Axum-router en PDF/TXT-extractie, en de data-/zoekengine met corpusimport en SQLite-opslag. De server/CLI-koppeling bestaat. Deterministische tests en een echte TCP-doorloop met ontbrekende database zijn gecontroleerd; de volledige corpusdoorloop en onafhankelijke eindreview lopen nog. Frontendimplementatie valt buiten deze backendwijziging.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.

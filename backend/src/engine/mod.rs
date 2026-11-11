@@ -209,11 +209,24 @@ fn build_snapshot(
     Ok(snapshot)
 }
 
-fn text_vector(embedder: &mut dyn Embedder, text: &str, is_query: bool) -> Result<Vec<f32>, EngineError> {
+fn text_vector(
+    embedder: &mut dyn Embedder,
+    text: &str,
+    is_query: bool,
+) -> Result<Vec<f32>, EngineError> {
     let text = corpus::canonicalize(text);
-    let prefix = if is_query { embedder.config().query_prefix.clone() } else { String::new() };
-    let chunks = chunk::chunk_text(&text, "input", |s| embedder.token_count(&format!("{prefix}{s}")))?;
-    let texts: Vec<_> = chunks.into_iter().map(|c| format!("{prefix}{}", c.passage.text)).collect();
+    let prefix = if is_query {
+        embedder.config().query_prefix.clone()
+    } else {
+        String::new()
+    };
+    let chunks = chunk::chunk_text(&text, "input", |s| {
+        embedder.token_count(&format!("{prefix}{s}"))
+    })?;
+    let texts: Vec<_> = chunks
+        .into_iter()
+        .map(|c| format!("{prefix}{}", c.passage.text))
+        .collect();
     let vectors = embedder.embed(&texts)?;
     if vectors.len() != texts.len() {
         return Err(EngineError::new(
@@ -286,18 +299,29 @@ mod tests {
             inputs: Vec<String>,
         }
         impl Embedder for Recorder {
-            fn config(&self) -> &EmbeddingConfig { &self.config }
-            fn token_count(&self, text: &str) -> Result<usize, EngineError> { Ok(text.chars().count() + 2) }
+            fn config(&self) -> &EmbeddingConfig {
+                &self.config
+            }
+            fn token_count(&self, text: &str) -> Result<usize, EngineError> {
+                Ok(text.chars().count() + 2)
+            }
             fn embed(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>, EngineError> {
                 self.inputs.extend_from_slice(texts);
                 Ok(texts.iter().map(|_| vec![1., 0.]).collect())
             }
         }
-        let mut recorder = Recorder { config: EmbeddingConfig {
-            model:"test".into(), dimensions:2, max_tokens:512, sdk:"test".into(),
-            pooling:"test".into(), query_prefix:"Represent this sentence for searching relevant passages: ".into(),
-            artifacts_sha256:"test".into(),
-        }, inputs:Vec::new() };
+        let mut recorder = Recorder {
+            config: EmbeddingConfig {
+                model: "test".into(),
+                dimensions: 2,
+                max_tokens: 512,
+                sdk: "test".into(),
+                pooling: "test".into(),
+                query_prefix: "Represent this sentence for searching relevant passages: ".into(),
+                artifacts_sha256: "test".into(),
+            },
+            inputs: Vec::new(),
+        };
         text_vector(&mut recorder, &"query ".repeat(400), true).unwrap();
         assert!(recorder.inputs.len() > 1);
         for input in &recorder.inputs {

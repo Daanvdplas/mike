@@ -171,3 +171,139 @@ mod tests {
         assert!(normalized_mean(&[vec![f32::INFINITY]]).is_err());
     }
 }
+
+#[cfg(test)]
+mod independent_reference_tests {
+    use super::*;
+    use crate::engine::Passage;
+
+    fn passage(case_id: &str, passage_id: &str, vector: &[f32]) -> IndexedPassage {
+        IndexedPassage {
+            case_id: case_id.into(),
+            passage: Passage {
+                passage_id: passage_id.into(),
+                text: "reference evidence".into(),
+                start_utf16: 0,
+                end_utf16: 18,
+            },
+            start_byte: 0,
+            end_byte: 18,
+            vector: vector.to_vec(),
+        }
+    }
+
+    // Independent arithmetic: f64 dot/norms, without production cosine or grouping.
+    fn reference_cosine(left: &[f32], right: &[f32]) -> f64 {
+        let left: Vec<_> = left.iter().map(|v| f64::from(*v)).collect();
+        let right: Vec<_> = right.iter().map(|v| f64::from(*v)).collect();
+        let numerator = left.iter().zip(&right).map(|(a, b)| a * b).sum::<f64>();
+        let left_length = left.iter().map(|v| v * v).sum::<f64>().sqrt();
+        let right_length = right.iter().map(|v| v * v).sum::<f64>().sqrt();
+        numerator / (left_length * right_length)
+    }
+
+    fn reference_all_cases(
+        passages: &[IndexedPassage],
+        query: Option<&[f32]>,
+        document: Option<&[f32]>,
+    ) -> Vec<(String, String, f64)> {
+        let mut identities: Vec<_> = passages.iter().map(|p| p.case_id.clone()).collect();
+        identities.sort();
+        identities.dedup();
+        let mut cases = Vec::new();
+        for case in identities {
+            let mut candidates: Vec<_> = passages
+                .iter()
+                .filter(|p| p.case_id == case)
+                .map(|p| {
+                    let score = match (query, document) {
+                        (Some(q), Some(d)) => {
+                            0.7 * reference_cosine(q, &p.vector)
+                                + 0.3 * reference_cosine(d, &p.vector)
+                        }
+                        (Some(q), None) => reference_cosine(q, &p.vector),
+                        (None, Some(d)) => reference_cosine(d, &p.vector),
+                        _ => panic!("The reference requires an input"),
+                    };
+                    (p.passage.passage_id.clone(), score)
+                })
+                .collect();
+            candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap().then(a.0.cmp(&b.0)));
+            cases.push((case, candidates[0].0.clone(), candidates[0].1));
+        }
+        cases.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap().then(a.0.cmp(&b.0)));
+        cases
+    }
+
+    #[test]
+    fn top_three_matches_independent_full_f64_ranking_in_every_mode_and_order() {
+        let mut passages = vec![
+            passage("A", "A:2", &[3., 4., 0.]),
+            passage("A", "A:1", &[3., 4., 0.]),
+            passage("B", "B:1", &[0., 1., 0.]),
+            passage("B", "B:2", &[0., 2., 1.]),
+            passage("C", "C:1", &[0., 0., 1.]),
+            passage("D", "D:1", &[1., 0., 0.]),
+            passage("E", "E:1", &[-1., -1., -1.]),
+            passage("F", "F:2", &[4., 3., 2.]),
+            passage("F", "F:1", &[4., 3., 2.]),
+            passage("G", "G:1", &[1., 0., 0.]),
+            passage("H", "H:1", &[0., 1., 0.]),
+            // The combined winner occurs last, so no candidate prefix may be used.
+            passage("Z", "Z:1", &[2., 1., 0.]),
+        ];
+        let query = [1., 0., 0.];
+        let document = [0., 1., 0.];
+        for reverse in [false, true] {
+            if reverse {
+                passages.reverse();
+            }
+            for (query, document) in [
+                (Some(query.as_slice()), None),
+                (None, Some(document.as_slice())),
+                (Some(query.as_slice()), Some(document.as_slice())),
+            ] {
+                let reference = reference_all_cases(&passages, query, document);
+                let actual = rank_cases(&passages, query, document).unwrap();
+                assert_eq!(actual.len(), 3);
+                for ((index, score), expected) in actual.iter().zip(&reference[..3]) {
+                    assert_eq!(passages[*index].case_id, expected.0);
+                    assert_eq!(passages[*index].passage.passage_id, expected.1);
+                    assert!((score - expected.2).abs() < 1e-6);
+                }
+                let last_returned_score = actual[2].1;
+                for omitted in &reference[3..] {
+                    assert!(omitted.2 <= last_returned_score + 1e-6);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ranking_rejects_invalid_inputs_and_incomplete_case_sets() {
+        let passages = vec![
+            passage("A", "A:1", &[1., 0.]),
+            passage("B", "B:1", &[0., 1.]),
+            passage("C", "C:1", &[-1., 0.]),
+        ];
+        for query in [
+            vec![],
+            vec![0., 0.],
+            vec![1.],
+            vec![f32::NAN, 0.],
+            vec![f32::INFINITY, 0.],
+        ] {
+            assert!(rank_cases(&passages, Some(&query), None).is_err());
+        }
+        assert!(rank_cases(&passages, None, None).is_err());
+        assert_eq!(
+            rank_cases(&passages[..2], Some(&[1., 0.]), None)
+                .unwrap_err()
+                .kind,
+            ErrorKind::IndexUnavailable
+        );
+        let mean = normalized_mean(&[vec![3., 0.], vec![0., 4.]]).unwrap();
+        assert!((f64::from(mean[0]) - 0.6).abs() < 1e-6);
+        assert!((f64::from(mean[1]) - 0.8).abs() < 1e-6);
+    }
+}

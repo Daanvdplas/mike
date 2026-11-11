@@ -12,7 +12,7 @@ De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt ho
 - [backend/src/lib.rs](../backend/src/lib.rs) exporteert de engine. De HTTP-service wordt door een aparte agent toegevoegd; er is op deze branch nog geen CLI of serverbinary.
 - SQLite gebruikt de gebundelde SQLite-build via rusqlite. PDF-extractie, CORS en YAML-naar-JSON-conversie hebben dependencies klaarstaan, maar zijn geen onderdeel van de data-engine.
 - [.github/workflows/backend-checks.yml](../.github/workflows/backend-checks.yml) volgt de COA-checkvolgorde: expliciete Rust-toolchain, fmt, clippy, deterministische tests en build. De standaardchecks laden geen embeddingmodel.
-- De basiscommando's staan in de [README](../README.md). De engine heeft elf geslaagde deterministische tests; echte modelchecks staan afzonderlijk op `#[ignore]`. De lokale modelcheck is uitgevoerd; de volledige echte corpusimport volgt apart en is nog geen juridische kwaliteitsbeoordeling.
+- De basiscommando's staan in de [README](../README.md). De engine heeft dertien geslaagde deterministische tests; echte modelchecks staan afzonderlijk op `#[ignore]`. De lokale modelcheck is uitgevoerd; de volledige echte corpusimport volgt apart en is nog geen juridische kwaliteitsbeoordeling.
 
 ## Geïmplementeerde data-/zoekengine
 
@@ -27,6 +27,8 @@ De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt ho
 [ranking.rs](../backend/src/engine/ranking.rs) bevat de overgenomen COA-cosinusfunctie en haar numerieke regressietest, met bronverwijzing in het bestand. De nieuwe casegroepering volgt `cosine-max-v1`: alle passages vergelijken, maximum per zaak, vaste passage-/case-ID-ties en exact drie unieke zaken. [types.rs](../backend/src/engine/types.rs) beschrijft de contractresponses. De engine levert de oorspronkelijke beste passage en volledige canonieke majority-tekst; hij genereert geen antwoord.
 
 De deterministische tests controleren onder meer Unicode/overlap, drie invoermodi, lange vragen, casegroepering, beide tie-breaks, bronidentiteit, duplicaten, herimport, corrupte opslag en een partiële index met nog drie resterende zaken. Ze gebruiken bekende embeddingvectoren aan de modelgrens. De echte modeltest controleert daarnaast onverkorte tokenaantallen en vectorvorm. De afzonderlijke echte-corpuscheck importeert alle zaken en herlaadt de index, maar vervangt geen inhoudelijke beoordeling van zoekkwaliteit.
+
+De onafhankelijk geschreven module `independent_reference_tests` in [ranking.rs](../backend/src/engine/ranking.rs) vergelijkt productie-uitkomsten met een volledige f64-referentieberekening zonder de productiecosinus of casegroepering aan te roepen. De voorbeelden controleren alle drie invoermodi, een beste zaak aan het einde van de invoer, passage- en caseties, omgekeerde invoervolgorde en scores van weggelaten zaken. Extra grensgevallen controleren ongeldige vectoren, minder dan drie zaken en de normalisatie van een gemiddelde documentvector. Deze modelvrije tests zijn in een afzonderlijke reviewtarget uitgevoerd; een gedeelde Cargo-target tussen worktrees bleek onbetrouwbaar voor testherkomst.
 
 ## Gebruik en geplande hoofdroute
 
@@ -107,7 +109,7 @@ Deze paden liggen buiten deze repo en zijn daarom oriëntatiepunten, geen beschi
 
 ## Verificatie bij implementatie
 
-De bouwchecks staan in README en CI. De elf deterministische enginetests en afzonderlijke lokale modelcheck staan hierboven beschreven. Onafhankelijke review en HTTP-integratie moeten de volledige oplevering aantoonbaar maken:
+De bouwchecks staan in README en CI. De dertien deterministische enginetests en afzonderlijke lokale modelcheck staan hierboven beschreven. Onafhankelijke review en HTTP-integratie moeten de volledige oplevering aantoonbaar maken:
 
 - alle drie invoermodi, PDF/TXT en duidelijke fouten bij onbruikbare invoer;
 - precies drie unieke zaken, volledige scoring en deterministische gelijke scores;
@@ -120,6 +122,7 @@ Contract- en fixturechecks moeten bij implementatie aansluiten op deze backend-C
 
 ## Recente architectuurwijzigingen
 
+- 2026-11-11: twee onafhankelijke modelvrije referentietests toegevoegd voor de gekozen rankingmethode en numerieke foutgevallen. Alle dertien deterministische enginetests geslaagd in een eigen reviewtarget; dit is geen juridische kwaliteitsgarantie.
 - 2026-11-11: zelfstandige data-/zoekengine toegevoegd met gerichte COA-hergebruikverwijzingen, SQLite-snapshot, volledige corpusidentiteitscontrole, tokenbewuste Unicodepassages en exacte top drie. Elf deterministische tests en de lokale modelgrenscheck uitgevoerd; HTTP-service en inhoudelijke kwaliteitsvalidatie volgen afzonderlijk.
 
 - 2026-11-11: zelfstandige Rust-library, vaste dependency-lockfile en backend-CI toegevoegd op een featurebranch. Nog geen productgedrag of draaiende server; API-contract ongewijzigd.

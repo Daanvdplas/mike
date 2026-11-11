@@ -191,3 +191,89 @@ it('houdt echte zoekresultaten leesbaar en meldt het als modeluitleg niet beschi
   expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
   expect(document.querySelector('mark')?.textContent).toContain('Witness testimony');
 });
+
+it('toont gevalideerde uploadonderbouwing compact naast de uitleg zonder de corpuspassage te herhalen', async () => {
+  const mock = createMockClient(0);
+  const uploadQuote = 'The witness could not identify the defendant. <script>ongewenst()</script>';
+  const uploadText = `Fictional upload 🧪. ${uploadQuote}`;
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    search: async (input) => {
+      const response = await mock.search(input);
+      return {
+        ...response,
+        explanation_status: 'available' as const,
+        input_context: { text_version: `sha256:${'a'.repeat(64)}`, utf16_length: uploadText.length },
+        results: response.results.map((result) => ({
+          ...result,
+          explanation: {
+            text: 'Je document en deze uitspraak bespreken de betrouwbaarheid van getuigenbewijs.',
+            citations: [{ passage_id: result.passage.passage_id, quote: result.passage.text }],
+            input_citations: [{ quote: uploadQuote, start_utf16: uploadText.indexOf(uploadQuote), end_utf16: uploadText.length }],
+            limitations: ['De feiten van beide zaken kunnen verschillen.'],
+          },
+        })),
+      };
+    },
+  }, false);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Hoe betrouwbaar is dit getuigenbewijs?';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const upload = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(upload, 'files', { value: [new File([uploadText], 'mijn-document.txt', { type: 'text/plain' })] });
+    upload.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await act(async () => {
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  const evidence = document.querySelector<HTMLDetailsElement>('.input-evidence');
+  expect(evidence).not.toBeNull();
+  expect(evidence?.open).toBe(false);
+  expect(evidence?.querySelector('summary')?.textContent).toBe('Uit je document');
+  expect(evidence?.querySelector('blockquote')?.textContent).toBe(uploadQuote);
+  expect(evidence?.querySelector('script')).toBeNull();
+  expect(document.querySelector('.model-explanation')?.textContent).toContain('De feiten van beide zaken kunnen verschillen.');
+  expect(document.querySelector('.document-reason')?.textContent).not.toContain('Witness testimony');
+  expect(document.querySelector('.document-reason')?.textContent).not.toContain('niet aan het taalmodel getoond');
+  expect(document.querySelector('mark')?.textContent).toContain('Witness testimony');
+  expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
+});
+
+it('toont geen uploadonderbouwing wanneer de API geen verwerkte documentcontext levert', async () => {
+  const mock = createMockClient(0);
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    search: async (input) => {
+      const response = await mock.search(input);
+      return {
+        ...response,
+        explanation_status: 'available' as const,
+        results: response.results.map((result) => ({
+          ...result,
+          explanation: {
+            text: 'Deze uitspraak bespreekt getuigenbewijs.',
+            citations: [{ passage_id: result.passage.passage_id, quote: result.passage.text }],
+            input_citations: [{ quote: 'Geen verwerkte bron.', start_utf16: 0, end_utf16: 19 }],
+            limitations: [],
+          },
+        })),
+      };
+    },
+  }, false);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Getuigenbewijs';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.input-evidence')).toBeNull();
+  expect(document.querySelector('.model-explanation')?.textContent).toBe('Deze uitspraak bespreekt getuigenbewijs.');
+  expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
+});

@@ -6,6 +6,7 @@ interface SelectedDocument {
   result: SearchResult;
   corpusVersion: string;
   explanationStatus?: SearchResponse['explanation_status'];
+  inputContext?: SearchResponse['input_context'];
 }
 
 export function App({ client, isMock }: { client: SearchClient; isMock: boolean }) {
@@ -108,7 +109,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
             <button className="case-button" type="button" aria-label={`${result.title} — volledig document bekijken`} onClick={(event) => {
               readerOpener.current = event.currentTarget;
               resultsScroll.current = window.scrollY;
-              setSelected({ result, corpusVersion: response.corpus_version, explanationStatus: response.explanation_status });
+              setSelected({ result, corpusVersion: response.corpus_version, explanationStatus: response.explanation_status, inputContext: response.input_context });
             }}>
               <span className="page-heading"><DocumentEmblem /><span>Uitspraak {index + 1}</span></span>
               <span className="case-title">{result.title}</span>
@@ -136,6 +137,7 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
   const { result, corpusVersion } = selected;
   const explanation = selected.explanationStatus !== 'unavailable' ? result.explanation : undefined;
   const explanationText = explanation ? [explanation.text, ...new Set(explanation.limitations.filter((limitation) => !explanation.text.includes(limitation)))].join(' ') : undefined;
+  const inputCitations = selected.inputContext ? explanation?.input_citations ?? [] : [];
   useEffect(() => {
     let cancelled = false;
     heading.current?.focus({ preventScroll: true });
@@ -161,6 +163,10 @@ function DocumentReader({ selected, client, isMock, onClose }: { selected: Selec
         {explanation ? <p className="model-explanation">{explanationText}</p> : selected.explanationStatus ?
           <p className="explanation-status" role="status">De toelichting is tijdelijk niet beschikbaar.</p> :
           <p>{isMock ? 'Dit voorbeeldresultaat verwijst naar de gemarkeerde bronpassage.' : 'De gemarkeerde passage bevat de beste tekstovereenkomst die de zoekmethode in deze uitspraak vond.'}</p>}
+        {inputCitations.length ? <details className="input-evidence">
+          <summary>Uit je document</summary>
+          {inputCitations.map((citation, index) => <blockquote key={index}>{citation.quote}</blockquote>)}
+        </details> : null}
       </section>
       <article className="document-text" aria-labelledby="document-title"><h2 id="document-title">Volledige meerderheidstekst</h2><div className="opinion">{parts.before}<mark id="source-passage" tabIndex={-1}>{parts.match}</mark>{parts.after}</div></article>
     </> : null}

@@ -45,6 +45,7 @@ function field(parent, label, value, className) {
 }
 
 function renderResults(container, result) {
+  const compact = result.eval_id === 'relevance';
   const checks = result.structural_checks;
   const judgments = result.judgments;
   if (result.status !== 'completed' || !Array.isArray(judgments) || judgments.length !== 3 ||
@@ -60,12 +61,14 @@ function renderResults(container, result) {
     const item = element('li', null, 'judgment');
     const heading = element('div', null, 'judgment-heading');
     heading.append(element('h4', row.title), element('span', `${row.grade} / 3`, 'grade'));
-    item.append(heading, element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
+    item.append(heading);
+    if (!compact) item.append(element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
     item.append(element('p', row.reasoning, 'judgment-reason'), element('blockquote', row.quote));
     list.append(item);
   });
   const provenance = element('details', null, 'run-provenance');
-  provenance.append(element('summary', 'Rungegevens en beperkingen'));
+  provenance.append(element('summary', compact ? 'Rundetails' : 'Rungegevens en beperkingen'));
+  if (compact) provenance.append(structural, scale);
   const details = element('dl');
   [
     ['Run', result.run_id], ['Model', result.model],
@@ -77,7 +80,7 @@ function renderResults(container, result) {
   const limitations = element('ul');
   (result.limitations || []).forEach(text => limitations.append(element('li', text)));
   provenance.append(limitations);
-  container.replaceChildren(structural, scale, list, provenance);
+  container.replaceChildren(...(compact ? [element('h4', 'Resultaat'), list, provenance] : [structural, scale, list, provenance]));
 }
 
 async function runEval(evalRecord, button, status, results) {
@@ -85,6 +88,7 @@ async function runEval(evalRecord, button, status, results) {
   running = true;
   document.querySelectorAll('.run-button').forEach(node => { node.disabled = true; });
   button.textContent = 'Bezig…';
+  status.hidden = false;
   status.textContent = 'Zoeken en beoordelen… Dit kan even duren. Houd deze pagina open.';
   status.className = 'run-status';
   results.replaceChildren();
@@ -97,7 +101,7 @@ async function runEval(evalRecord, button, status, results) {
     if (!response.ok) throw new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.');
     if (result.eval_id !== evalRecord.id) throw new Error('De ontvangen run hoort niet bij deze eval.');
     renderResults(results, result);
-    status.textContent = 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.';
+    status.textContent = evalRecord.id === 'relevance' ? 'Uitgevoerd' : 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.';
     status.className = 'run-status completed';
     button.textContent = 'Opnieuw uitvoeren';
   } catch (error) {
@@ -112,6 +116,7 @@ async function runEval(evalRecord, button, status, results) {
 }
 
 function renderRunnable(evalRecord) {
+  const compact = evalRecord.id === 'relevance';
   const section = element('article', null, 'runnable-eval');
   section.id = `run-${evalRecord.id}`;
   const heading = element('div', null, 'run-heading');
@@ -119,15 +124,31 @@ function renderRunnable(evalRecord) {
   title.id = `${section.id}-title`;
   section.setAttribute('aria-labelledby', title.id);
   const mode = evalRecord.input_mode === 'query' ? 'Alleen vraag' : 'Document + vraag';
-  heading.append(title, element('span', mode, 'run-mode'));
+  heading.append(title);
+  if (compact) {
+    const info = element('details', null, 'eval-info');
+    const summary = element('summary', 'i');
+    summary.setAttribute('aria-label', 'Uitleg van deze eval');
+    info.append(summary, element('p', 'Deze eval zoekt drie zaken bij de input. Orq beoordeelt hun relevantie met bronpassages; een hogere score betekent volgens de AI een betere match. Dit is geen juridische garantie.'));
+    heading.append(info);
+  } else {
+    heading.append(element('span', mode, 'run-mode'));
+  }
   section.append(heading);
   const input = element('div', null, 'run-input');
-  if (evalRecord.document_label) {
+  if (compact) {
+    input.append(element('h4', 'Input'), element('p', `Document: ${evalRecord.source_case.name} (vast demodocument)`, 'compact-document'));
+    const query = element('p', evalRecord.query, 'compact-query');
+    query.lang = 'en';
+    input.append(query);
+  } else if (evalRecord.document_label) {
     field(input, 'Document', `${evalRecord.source_case.name} · ${evalRecord.document_label}`);
     input.append(element('p', 'Het volledige vaste demodocument wordt samen met de vraag doorzocht. De bronzaak kan zichzelf terugvinden.', 'input-note'));
   }
-  field(input, 'Exacte zoekvraag · Engels', evalRecord.query, 'run-query');
-  input.querySelector('.run-query p').lang = 'en';
+  if (!compact) {
+    field(input, 'Exacte zoekvraag · Engels', evalRecord.query, 'run-query');
+    input.querySelector('.run-query p').lang = 'en';
+  }
   if (evalRecord.query_nl) {
     const translation = element('details', null, 'english-query');
     translation.append(element('summary', 'Nederlandse leesvertaling'), element('p', evalRecord.query_nl));
@@ -137,14 +158,19 @@ function renderRunnable(evalRecord) {
     input.append(element('p', `${evalRecord.source_case.name} (${evalRecord.source_case.id}) is de herkomst van de vraag. Alleen de vraag gaat naar de zoekfunctie; de bronzaak wordt vóór selectie van de drie resultaten uitgesloten.`, 'input-note'));
   }
   section.append(input);
-  field(section, 'Verwacht gedrag', evalRecord.expected_behavior, 'run-expectation');
-  field(section, 'Waarom deze eval?', evalRecord.why, 'run-purpose');
+  if (compact) {
+    field(section, 'Verwachte output', 'Drie gevonden zaken, elk met een AI-relevantiescore van 0 tot 3, een korte reden en een letterlijk broncitaat.', 'run-expectation');
+  } else {
+    field(section, 'Verwacht gedrag', evalRecord.expected_behavior, 'run-expectation');
+    field(section, 'Waarom deze eval?', evalRecord.why, 'run-purpose');
+  }
   const action = element('div', null, 'run-action');
   const button = element('button', 'Start eval', 'run-button');
   button.type = 'button';
   button.dataset.evalId = evalRecord.id;
   button.setAttribute('aria-label', `Start eval: ${evalRecord.id === 'E06' ? 'E06' : 'algemene relevantie'}`);
   const status = element('p', 'Nog niet uitgevoerd', 'run-status');
+  status.hidden = compact;
   status.id = `${section.id}-status`;
   status.setAttribute('role', 'status');
   button.setAttribute('aria-describedby', status.id);

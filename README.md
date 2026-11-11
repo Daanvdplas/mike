@@ -65,7 +65,7 @@ export ADAMI_BIND_ADDR="127.0.0.1:8001"
 export ADAMI_CORS_ORIGINS="http://localhost:5177,http://127.0.0.1:5177"
 ```
 
-Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000 en blijft tijdelijk gestopt zolang deze featurepreview draait.
+Voer uitsluitend één native modeljob tegelijk uit. Stop de bestaande guard netjes vóór import; start geen import of CLIzoekactie naast een modelserver. De oude demo gebruikt een aparte binary en database op 8000. De featurepreview mag pas starten wanneer die andere modeldemo netjes is gestopt of haar guard vanzelf is afgelopen. Momenteel draait die andere demo nog; de live featurecontrole is daarom uitgesteld.
 
 ```sh
 python3 backend/scripts/resource_guard.py \

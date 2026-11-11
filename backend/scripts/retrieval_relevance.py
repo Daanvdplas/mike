@@ -5,6 +5,7 @@ import getpass
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sys
 from urllib import error, request
@@ -24,10 +25,11 @@ Grade each of the three cases using only its supplied passage:
 3 = directly addresses the specific legal question with closely matching reasoning.
 A matching source case may be present: grade it honestly; this is not a benchmark.
 Return only JSON with exactly this structure:
-{"judgments":[{"case_id":"copied ID","grade":0,"reasoning":"one short sentence",
-"quote":"a short literal substring copied from this case's passage"}]}
-Return exactly one judgment per supplied ID, no other cases. Grade must be integer 0–3.
-Quote must be 10–240 characters copied exactly, without ellipses or rewording.
+{"judgments":{"copied case ID":{"grade":0,"reasoning":"one short sentence",
+"quote_id":"an ID from this case's source_options"}}}
+Return exactly one judgment per supplied case ID. Grade must be integer 0–3.
+Choose a quote_id only from the corresponding case; never quote the uploaded document.
+The application copies the selected literal source text itself.
 Reasoning must be concise (at most 400 characters)."""
 
 
@@ -92,28 +94,46 @@ def passages_from_response(response, expected_mode):
     return passages
 
 
+def source_options(passages):
+    options = {}
+    for case_id, passage in passages.items():
+        fragments = []
+        for sentence in re.split(r"(?<=[.!?])\s+", passage):
+            fragments.extend(sentence[start:start + 220] for start in range(0, len(sentence), 220))
+        quotes = [fragment for fragment in fragments if len(fragment.strip()) >= 10]
+        if not quotes:
+            raise EvaluationError("Source passage has no usable literal quote.")
+        options[case_id] = {f"{case_id}:q{i}": text for i, text in enumerate(quotes, 1)}
+    return options
+
+
 def validate_judgments(value, passages):
     rows = value.get("judgments") if isinstance(value, dict) else None
-    if not isinstance(rows, list) or len(rows) != 3:
-        raise EvaluationError("Judge must return exactly three judgments.")
-    checked = {}
-    for row in rows:
-        if not isinstance(row, dict) or set(row) != {"case_id", "grade", "reasoning", "quote"}:
+    if not isinstance(rows, dict) or set(rows) != set(passages):
+        raise EvaluationError("Judge must return exactly the three supplied case IDs.")
+    options = source_options(passages)
+    checked = []
+    for case_id in passages:
+        row = rows[case_id]
+        if not isinstance(row, dict) or set(row) != {"grade", "reasoning", "quote_id"}:
             raise EvaluationError("Invalid judgment fields.")
-        case_id, grade, reason, quote = (row[k] for k in ["case_id", "grade", "reasoning", "quote"])
-        if not isinstance(case_id, str) or case_id not in passages or case_id in checked:
-            raise EvaluationError("Judge returned an unknown or duplicate case ID.")
+        grade, reason, quote_id = (row[k] for k in ["grade", "reasoning", "quote_id"])
         if type(grade) is not int or not 0 <= grade <= 3:
             raise EvaluationError("Judge grade must be integer 0–3.")
         if not isinstance(reason, str) or not reason.strip() or len(reason) > 400:
             raise EvaluationError("Judge reasoning must be a short, nonempty sentence.")
-        if not isinstance(quote, str) or not 10 <= len(quote) <= 240 or quote not in passages[case_id]:
-            raise EvaluationError("Judge quote must occur verbatim in the corresponding passage.")
-        checked[case_id] = row
-    return [checked[case_id] for case_id in passages]
+        if not isinstance(quote_id, str) or quote_id not in options[case_id]:
+            raise EvaluationError("Judge quote ID must belong to the corresponding case.")
+        quote = options[case_id][quote_id]
+        if quote not in passages[case_id]:
+            raise EvaluationError("Source quote is not verbatim in the corresponding passage.")
+        checked.append({"case_id": case_id, "grade": grade, "reasoning": reason,
+                        "quote_id": quote_id, "quote": quote})
+    return checked
 
 
 def judge(query, document, passages, model, key, base_url):
+    options = source_options(passages)
     payload = {
         "model": model, "temperature": 0, "max_tokens": 1000,
         "response_format": {
@@ -124,16 +144,17 @@ def judge(query, document, passages, model, key, base_url):
                     "type": "object", "additionalProperties": False,
                     "required": ["judgments"],
                     "properties": {"judgments": {
-                        "type": "array", "minItems": 3, "maxItems": 3,
-                        "items": {
+                        "type": "object", "additionalProperties": False,
+                        "required": list(passages),
+                        "properties": {case_id: {
                             "type": "object", "additionalProperties": False,
-                            "required": ["case_id", "grade", "reasoning", "quote"],
+                            "required": ["grade", "reasoning", "quote_id"],
                             "properties": {
-                                "case_id": {"type": "string", "enum": list(passages)},
                                 "grade": {"type": "integer", "enum": [0, 1, 2, 3]},
-                                "reasoning": {"type": "string"}, "quote": {"type": "string"},
+                                "reasoning": {"type": "string"},
+                                "quote_id": {"type": "string", "enum": list(options[case_id])},
                             },
-                        },
+                        } for case_id in passages},
                     }},
                 },
             },
@@ -142,7 +163,8 @@ def judge(query, document, passages, model, key, base_url):
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps({
                 "query": query, "document": document,
-                "cases": [{"case_id": case_id, "passage": text} for case_id, text in passages.items()],
+                "cases": [{"case_id": case_id, "source_options": fragments}
+                          for case_id, fragments in options.items()],
             }, ensure_ascii=False)},
         ],
     }

@@ -32,7 +32,7 @@ Reasoning must be concise (at most 400 characters)."""
 
 
 class EvaluationError(Exception):
-    pass
+    diagnostic = None
 
 
 def fetch_json(req):
@@ -116,7 +116,28 @@ def validate_judgments(value, passages):
 def judge(query, document, passages, model, key, base_url):
     payload = {
         "model": model, "temperature": 0, "max_tokens": 1000,
-        "response_format": {"type": "json_object"},
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "retrieval_relevance", "strict": True,
+                "schema": {
+                    "type": "object", "additionalProperties": False,
+                    "required": ["judgments"],
+                    "properties": {"judgments": {
+                        "type": "array", "minItems": 3, "maxItems": 3,
+                        "items": {
+                            "type": "object", "additionalProperties": False,
+                            "required": ["case_id", "grade", "reasoning", "quote"],
+                            "properties": {
+                                "case_id": {"type": "string", "enum": list(passages)},
+                                "grade": {"type": "integer", "enum": [0, 1, 2, 3]},
+                                "reasoning": {"type": "string"}, "quote": {"type": "string"},
+                            },
+                        },
+                    }},
+                },
+            },
+        },
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps({
@@ -130,14 +151,28 @@ def judge(query, document, passages, model, key, base_url):
         data=json.dumps(payload).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     ))
+    # Persist only model content on invalid output, never request headers or credentials.
+    diagnostic = {"model": response.get("model", model), "choices": []}
+    for choice in response.get("choices", [])[:1]:
+        diagnostic["choices"].append({
+            "finish_reason": choice.get("finish_reason"),
+            "content": choice.get("message", {}).get("content"),
+        })
     try:
         choice = response["choices"][0]
         if choice.get("finish_reason") != "stop":
             raise EvaluationError("Judge response did not finish normally; no retry made.")
         values = json.loads(choice["message"]["content"])
+        checked = validate_judgments(values, passages)
     except (KeyError, IndexError, TypeError, ValueError):
-        raise EvaluationError("Judge returned an invalid JSON completion; no retry made.") from None
-    return validate_judgments(values, passages), response.get("model", model), response.get("usage")
+        failure = EvaluationError("Judge returned an invalid JSON completion; no retry made.")
+        failure.diagnostic = diagnostic
+        raise failure from None
+    except EvaluationError as failure:
+        failure.diagnostic = diagnostic
+        raise
+    return checked, response.get("model", model), response.get("usage")
+
 
 
 def main():
@@ -168,10 +203,19 @@ def main():
     key = os.environ.get("ORQ_API_KEY") or getpass.getpass("Orq API key (not echoed): ")
     if not key.strip():
         raise EvaluationError("Missing Orq API key.")
-    judgments, returned_model, usage = judge(
-        query, document, passages, args.model, key,
-        os.environ.get("ORQ_BASE_URL", ORQ_BASE_URL),
-    )
+    try:
+        judgments, returned_model, usage = judge(
+            query, document, passages, args.model, key,
+            os.environ.get("ORQ_BASE_URL", ORQ_BASE_URL),
+        )
+    except EvaluationError as failure:
+        if failure.diagnostic is not None:
+            diagnostic_file = args.output.with_suffix(".failed.json")
+            with diagnostic_file.open("x", encoding="utf-8") as output:
+                json.dump({"status": "invalid_ai_output", "search_response": response,
+                           "judge_response": failure.diagnostic}, output, indent=2, ensure_ascii=False)
+            print(f"Invalid judge output saved to {diagnostic_file}", file=sys.stderr)
+        raise
     result = {
         "eval": "retrieval_relevance", "status": "ai_judgment_not_legal_gold",
         "requested_model": args.model, "model": returned_model, "usage": usage,

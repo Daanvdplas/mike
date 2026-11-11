@@ -22,6 +22,9 @@ class RelevanceTest(unittest.TestCase):
             self.assertEqual(actual, rows)
             self.assertEqual(model, "mock/model")
             self.assertEqual(call.call_count, 1)
+            schema = json.loads(call.call_args.args[0].data)["response_format"]["json_schema"]
+            self.assertTrue(schema["strict"])
+            self.assertEqual(schema["schema"]["properties"]["judgments"]["minItems"], 3)
         rows[0]["quote"] = "A fabricated source quote."
         with self.assertRaises(evaluation.EvaluationError):
             evaluation.validate_judgments({"judgments": rows}, passages)

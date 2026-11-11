@@ -21,7 +21,7 @@ Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante
 - Invoer: document **en/of** vraag. Uitvoer: precies **drie unieke uitspraken**, met de volledige tekst van het meerderheidsoordeel (majority opinion) en markeerbare bronpassages.
 - De garantie betreft de hoogste scores binnen het volledige afgesproken corpus volgens de vastgelegde zoekmethode; beloof geen absolute juridische relevantie.
 - Volg [OpenAPI](docs/openapi.yaml) voor veldnamen, foutgevallen en tekstposities. Verander die niet stilzwijgend.
-- Zoeken gebruikt lokale embeddings. De expliciet geautoriseerde optionele Orq-sidecar mag brongebonden uitleg toevoegen via de bestaande zoek-API; bronselectie en ranking blijven lokaal en ongewijzigd. Codex/MCP horen niet bij deze scope.
+- Zoeken gebruikt lokale embeddings. De expliciet geautoriseerde optionele Orq-sidecar mag de volledige uitgelezen uploadtekst binnen de gedocumenteerde contextgrens met de gevonden passages vergelijken en brongebonden uitleg toevoegen; bronselectie en ranking blijven lokaal en ongewijzigd. Codex/MCP horen niet bij deze scope.
 - Commit nooit sleutels, uploads, modelcaches of de lokale database. Gebruik geen externe modeldienst zonder taakautorisatie.
 
 ## Architectuurgids onderhouden

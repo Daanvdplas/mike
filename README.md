@@ -175,13 +175,14 @@ Open **http://127.0.0.1:5177/**. De methodekeuze staat bij de invoer; opinion-ch
 
 ## Optionele Orq-uitleg apart proberen
 
-De Orq-uitbreiding draait als kleine Python-stdlib-adapter op `127.0.0.1:18000`, naast de bestaande bewaakte Rust-zoekbackend op 8000. Hij laadt geen tweede embeddingmodel en bouwt geen index. Een taalmodel roept de vaste `search_cases`-tool aan; de adapter stuurt daarbij de oorspronkelijke multipartinvoer ongewijzigd naar de lokale backend. De drie zaak-ID’s, volgorde, scores, bronteksten en versies blijven behouden.
+De Orq-uitbreiding draait als kleine Python-stdlib-adapter naast de bestaande bewaakte Rust-zoekbackend op 8000. De officiële uploadbewuste Orq-demo gebruikt 18000 met frontend 5175. Een aparte QA-preview kan daarnaast op 18001/5176 draaien. Na codewijzigingen moet de server met de bijbehorende extractorconfiguratie worden herstart. Hij laadt geen tweede embeddingmodel en bouwt geen index. Een taalmodel roept de vaste `search_cases`-tool aan; de adapter stuurt daarbij de oorspronkelijke multipartinvoer ongewijzigd naar de lokale backend. De drie zaak-ID’s, volgorde, scores, bronteksten en versies blijven behouden.
 
 Gebruik uitsluitend een serverzijdige `ORQ_API_KEY`, of `ORQ_API_KEY_FILE` naar een privébestand buiten Git. Voorbeeldstart vanuit de aparte checkout, terwijl de bestaande backend draait:
 
 ```sh
 ORQ_API_KEY_FILE=/pad/buiten/de/repo/private-orq-key \
-  python3 backend/scripts/orq_proxy.py --max-model-requests 20
+  ADAMI_DOCUMENT_EXTRACTOR=/pad/naar/de/gebouwde/document_text \
+  python3 backend/scripts/orq_proxy.py --port 18000 --max-model-requests 20
 ```
 
 Model: `openai/gpt-4.1-mini-2025-04-14`, via `https://my.orq.ai/v3/router/responses`. Dit exacte catalogusmodel is met echte tool- en schema-aanroepen gecontroleerd. Een andere keuze kan met `ORQ_MODEL` of `--model`, maar die modeltoegang en functies moeten apart worden gecontroleerd. Normaal zijn er twee providerrequests per zoekopdracht; elke providerrequest heeft 30 seconden timeout en de adapter verwerkt één zoekopdracht tegelijk. Het procesbudget telt maximaal twintig providerrequests standaard en is instelbaar; na uitputting blijven echte zoekresultaten beschikbaar met uitlegstatus `unavailable`. Het budget is geen prijsplafond.
@@ -193,11 +194,15 @@ cd frontend
 VITE_API_BASE_URL=http://127.0.0.1:18000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5175 --strictPort
 ```
 
-Open `http://127.0.0.1:5175/`. De bestaande hoofdmapdemo op 5173 en extra preview op 5174 blijven afzonderlijk werken. De Orq-reader toont één compacte modeltoelichting met noodzakelijke beperkingen boven de volledige tekst; de gevonden passage blijft daarin gemarkeerd, zonder extra quote of spronglink. Het model retourneert alleen bestaande passage-ID’s; de server vult de citaten uit de oorspronkelijke passage in. Onbekende zaken, verkeerde passage-ID’s of ongeldige modeluitvoer maken de uitleg `unavailable`; er worden nooit zaken of citaten verzonnen als terugval.
+Open `http://127.0.0.1:5175/`. Voor een geïsoleerde QA-preview vervang je de poorten in bovenstaande commando’s door 18001 en 5176. De gewone zoekdemos op 5173 en 5174 blijven afzonderlijk werken. De Orq-reader toont één compacte modeltoelichting met noodzakelijke beperkingen boven de volledige tekst; de gevonden passage blijft daarin gemarkeerd, zonder extra quote of spronglink. Het model retourneert alleen bestaande passage-ID’s; de server vult de citaten uit de oorspronkelijke passage in. Onbekende zaken, verkeerde passage-ID’s of ongeldige modeluitvoer maken de uitleg `unavailable`; er worden nooit zaken of citaten verzonnen als terugval.
 
-Alleen de vraag en gevonden bronpassages gaan naar Orq. Uploadinhoud wordt niet aan het taalmodel gegeven; bij uploads meldt iedere uitleg dit expliciet. Deze toelichting bewijst geen juridische relevantie of juistheid. De bestaande UTF-16- en versiecontrole beschermt de volledige bronweergave. Sleutels, uploads en providerresponses worden niet naar Git of de frontend geschreven. `store: false` wordt meegestuurd; dit is geen garantie over logs of bewaarbeleid van de modelgateway/provider.
+De gebruiker heeft verwerking van uploadtekst door Orq expliciet geautoriseerd. Het model krijgt de volledige canonical uitgelezen uploadtekst, de eventuele vraag en de drie gevonden corpuspassages. Een minimale Rust-CLI [`document_text`](backend/src/bin/document_text.rs) roept exact dezelfde `extract_document` aan als de bestaande HTTP-API, zonder Engine, index of embeddingmodel te laden. TXT-whitespace/CRLF blijven behouden; PDF-extractie, onleesbare/scans en 10-MiB/20-MiB-grenzen komen uit dezelfde implementatie. Python roept het hulpje via stdin/stdout aan met een 15-secondenlimiet en geeft de Orq-secretomgeving niet door.
 
-Modelvrije adapterchecks: `python3 -m unittest discover -s backend/scripts -p 'test_orq_proxy.py'`. Echte Orq-aanroepen verbruiken API-budget en horen uitsluitend bij een expliciet geautoriseerde live controle.
+Bouw uitsluitend dit hulpje met `cargo +1.94.1 build --manifest-path backend/Cargo.toml --bin document_text --locked`, onder de bestaande resourceguard en met een toegestane warme `CARGO_TARGET_DIR`; de uitgevoerde bewaakte build gebruikte `~/Library/Caches/adami-case/cargo-final-review`. Zet `ADAMI_DOCUMENT_EXTRACTOR` op het volledige pad naar het resulterende `debug/document_text`. De lopende zoekserver en database worden hierbij niet vervangen.
+
+Voor deze snelle vergelijking geldt naast maximaal 10 MiB bestandsinhoud een aparte standaardlimiet van **48 KiB uitgelezen UTF-8-uploadtekst**. `--max-upload-text-bytes` configureert die grens; de volledige geserialiseerde eerste modelcontext is daarnaast begrensd op 100 KiB en ieder providerrequest op 128 KiB. Een te grote invoer geeft expliciet 413, zonder tekst af te kappen of een gedeeltelijk gelezen document te claimen. De volledige upload wordt in aaneensluitende, niet-overlappende bewijsstukken aan beide modelrequests gegeven. Het model verwijst alleen naar toegestane upload- en corpuspassage-ID’s. De server vult quotes en UTF-16-posities uit de exacte tekst in en bindt die aan een SHA-256-tekstversie. Er is geen apart veld met de volledige uploadtekst in de frontendresponse; ‘Uit je document’ toont alleen de aangehaalde fragmenten. Vraag-only blijft zonder uploadcitaten werken; document-only vergelijkt nu daadwerkelijk de uploadinhoud. Deze toelichting bewijst geen juridische relevantie of juistheid. De bestaande UTF-16- en versiecontrole beschermt de volledige bronweergave. Sleutels en ruwe providerresponses blijven serverzijdig en buiten Git. Alleen de modeluitleg en aangehaalde bronfragmenten worden naar de frontend gestuurd; uploads worden niet opgeslagen. `store: false` wordt meegestuurd; dit is geen garantie over logs of bewaarbeleid van de modelgateway/provider.
+
+Modelvrije adapterchecks: `python3 -m unittest discover -s backend/scripts -p 'test_orq_proxy.py'`; helperchecks: `cargo +1.94.1 test --manifest-path backend/Cargo.toml --bin document_text --locked` onder dezelfde resourcebewaking. Echte Orq-aanroepen verbruiken API-budget en horen uitsluitend bij een expliciet geautoriseerde live controle.
 
 ## Uitgevoerde controle en indicatieve zoekkwaliteit
 
@@ -275,7 +280,7 @@ De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de
 
 ## Verificatie van de selecteerbare zoekmethoden
 
-Onafhankelijk modelvrij gecontroleerd: **82 Rusttests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **19 Pythonchecks**, **25 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **24 Pythonchecks**, **27 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 

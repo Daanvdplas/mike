@@ -11,13 +11,20 @@ import { createMockClient } from './client';
 
 beforeEach(() => { document.body.innerHTML = '<div id="app"></div>'; });
 
-it('kiest head matter en markeert het voorwerk boven de volledige meerderheidstekst', async () => {
+it('combineert head-mattermarkering met uploadbewijs en behoudt de volledige meerderheidstekst', async () => {
   const mock = createMockClient(0);
   const fixture = await mock.search({ query: 'vraag' });
   const headMatter = 'Redactioneel voorwerk over getuigenverklaringen.';
+  const inputQuote = 'The witness could not identify the defendant.';
   const client = {
     search: vi.fn(async () => ({ ...fixture, retrieval_method: 'head_matter' as const,
-      results: fixture.results.map(result => ({ ...result, passage: {
+      mode: 'combined' as const, explanation_status: 'available' as const,
+      input_context: { text_version: `sha256:${'a'.repeat(64)}`, utf16_length: inputQuote.length },
+      results: fixture.results.map(result => ({ ...result, explanation: {
+        text: 'Je document en het redactionele voorwerk bespreken getuigenverklaringen.',
+        citations: [{ passage_id: `${result.case_id}-head`, quote: headMatter }],
+        input_citations: [{ quote: inputQuote, start_utf16: 0, end_utf16: inputQuote.length }], limitations: [],
+      }, passage: {
         passage_id: `${result.case_id}-head`, text: headMatter, start_utf16: 0, end_utf16: headMatter.length,
         source_section: 'head_matter' as const, text_version: 'head-version',
       } })),
@@ -34,14 +41,19 @@ it('kiest head matter en markeert het voorwerk boven de volledige meerderheidste
     const textarea = document.querySelector('textarea')!;
     textarea.value = 'witness testimony';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const upload = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(upload, 'files', { value: [new File([inputQuote], 'upload.txt', { type: 'text/plain' })] });
+    upload.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
-  expect(client.search).toHaveBeenCalledWith(expect.objectContaining({ retrieval_method: 'head_matter' }));
+  expect(client.search).toHaveBeenCalledWith(expect.objectContaining({ retrieval_method: 'head_matter', document: expect.any(File) }));
   expect(document.querySelector('.answer-note')!.textContent).toContain('Head matter');
   await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
   expect(document.querySelector('.head-matter mark')!.textContent).toBe(headMatter);
   expect(document.querySelector('.document-text .opinion')!.textContent).toContain('synthetic');
   expect(document.querySelector('.document-text mark')).toBeNull();
+  expect(document.querySelector('.input-evidence blockquote')!.textContent).toBe(inputQuote);
+  expect(document.querySelector('.model-explanation')!.textContent).toContain('redactionele voorwerk');
 });
 
 it('verstuurt eigen tekst, toont drie uitspraken en opent de volledige gemarkeerde bron', async () => {
@@ -223,4 +235,90 @@ it('houdt echte zoekresultaten leesbaar en meldt het als modeluitleg niet beschi
   expect(document.querySelector('.model-explanation')).toBeNull();
   expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
   expect(document.querySelector('mark')?.textContent).toContain('Witness testimony');
+});
+
+it('toont gevalideerde uploadonderbouwing compact naast de uitleg zonder de corpuspassage te herhalen', async () => {
+  const mock = createMockClient(0);
+  const uploadQuote = 'The witness could not identify the defendant. <script>ongewenst()</script>';
+  const uploadText = `Fictional upload 🧪. ${uploadQuote}`;
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    search: async (input) => {
+      const response = await mock.search(input);
+      return {
+        ...response,
+        explanation_status: 'available' as const,
+        input_context: { text_version: `sha256:${'a'.repeat(64)}`, utf16_length: uploadText.length },
+        results: response.results.map((result) => ({
+          ...result,
+          explanation: {
+            text: 'Je document en deze uitspraak bespreken de betrouwbaarheid van getuigenbewijs.',
+            citations: [{ passage_id: result.passage.passage_id, quote: result.passage.text }],
+            input_citations: [{ quote: uploadQuote, start_utf16: uploadText.indexOf(uploadQuote), end_utf16: uploadText.length }],
+            limitations: ['De feiten van beide zaken kunnen verschillen.'],
+          },
+        })),
+      };
+    },
+  }, false);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Hoe betrouwbaar is dit getuigenbewijs?';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const upload = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(upload, 'files', { value: [new File([uploadText], 'mijn-document.txt', { type: 'text/plain' })] });
+    upload.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await act(async () => {
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  const evidence = document.querySelector<HTMLDetailsElement>('.input-evidence');
+  expect(evidence).not.toBeNull();
+  expect(evidence?.open).toBe(false);
+  expect(evidence?.querySelector('summary')?.textContent).toBe('Uit je document');
+  expect(evidence?.querySelector('blockquote')?.textContent).toBe(uploadQuote);
+  expect(evidence?.querySelector('script')).toBeNull();
+  expect(document.querySelector('.model-explanation')?.textContent).toContain('De feiten van beide zaken kunnen verschillen.');
+  expect(document.querySelector('.document-reason')?.textContent).not.toContain('Witness testimony');
+  expect(document.querySelector('.document-reason')?.textContent).not.toContain('niet aan het taalmodel getoond');
+  expect(document.querySelector('mark')?.textContent).toContain('Witness testimony');
+  expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
+});
+
+it('toont geen uploadonderbouwing wanneer de API geen verwerkte documentcontext levert', async () => {
+  const mock = createMockClient(0);
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    search: async (input) => {
+      const response = await mock.search(input);
+      return {
+        ...response,
+        explanation_status: 'available' as const,
+        results: response.results.map((result) => ({
+          ...result,
+          explanation: {
+            text: 'Deze uitspraak bespreekt getuigenbewijs.',
+            citations: [{ passage_id: result.passage.passage_id, quote: result.passage.text }],
+            input_citations: [{ quote: 'Geen verwerkte bron.', start_utf16: 0, end_utf16: 19 }],
+            limitations: [],
+          },
+        })),
+      };
+    },
+  }, false);
+  await act(async () => {
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Getuigenbewijs';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.input-evidence')).toBeNull();
+  expect(document.querySelector('.model-explanation')?.textContent).toBe('Deze uitspraak bespreekt getuigenbewijs.');
+  expect(document.querySelector('.opinion')?.textContent).toContain('This invented ending');
 });

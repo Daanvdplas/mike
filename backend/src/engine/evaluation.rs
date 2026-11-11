@@ -78,7 +78,6 @@ struct Scenario {
 #[derive(Debug, Deserialize)]
 struct SourceCase {
     id: String,
-    name: String,
     file: String,
     decision_date: String,
 }
@@ -232,7 +231,6 @@ impl EvaluationPlan {
             let source_value: serde_json::Value = serde_json::from_slice(&raw_source)?;
             let source = corpus::parse_case(source_value.clone())?;
             if source.metadata.case_id != scenario.query_case_id
-                || source.metadata.title != scenario.source_case.name
                 || source.metadata.decision_date != scenario.source_case.decision_date
                 || cases
                     .get(&source.metadata.case_id)
@@ -602,7 +600,7 @@ mod tests {
         let sha = corpus::hash(engine.snapshot.cases["1"].text.as_bytes());
         let scenarios: Vec<_> = ["query", "document", "combined"].iter().enumerate().map(|(i, mode)| json!({
             "id":format!("E{i}"),"input_mode":mode,"query_case_id":"1",
-            "source_case":{"id":"1","name":"Case","file":"json/1.json","decision_date":"1892-01-01"},
+            "source_case":{"id":"1","name":"Display alias only","file":"json/1.json","decision_date":"1892-01-01"},
             "document":if *mode == "query" {serde_json::Value::Null} else {json!({"field":"casebody.opinions[0].text","opinion_type":"majority","sha256":sha})},
             "query":if *mode == "document" {serde_json::Value::Null} else {json!({"en":"appeal","nl":"NOT INPUT"})}
         })).collect();

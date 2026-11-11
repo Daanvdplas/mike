@@ -115,6 +115,8 @@ pub struct Aggregate {
     pub recall_at_3: MetricMean,
     pub ndcg_at_3: MetricMean,
     pub mrr_at_3: MetricMean,
+    pub latency_sample_count: usize,
+    pub latency_small_sample: bool,
     pub latency_p50_ms: Option<f64>,
     pub latency_p95_ms: Option<f64>,
 }
@@ -341,26 +343,25 @@ fn validate_scenario(scenario: &MetricScenario) -> Result<(), String> {
     if !valid_mode {
         return Err(format!("invalid input mode for {}", scenario.scenario_id));
     }
-    if let Some(document) = &scenario.document_ref {
-        if document.case_id.is_empty()
+    if let Some(document) = &scenario.document_ref
+        && (document.case_id.is_empty()
             || document.text_version.is_empty()
             || document.sha256.len() != 64
             || !document.sha256.bytes().all(|b| b.is_ascii_hexdigit())
-            || !excluded.contains(&document.case_id)
-        {
-            return Err(format!(
-                "invalid or non-excluded document reference for {}",
-                scenario.scenario_id
-            ));
-        }
+            || !excluded.contains(&document.case_id))
+    {
+        return Err(format!(
+            "invalid or non-excluded document reference for {}",
+            scenario.scenario_id
+        ));
     }
-    if let Some(anchor) = &scenario.query_case_id {
-        if anchor.is_empty() || !excluded.contains(anchor) {
-            return Err(format!(
-                "source anchor must be excluded for {}",
-                scenario.scenario_id
-            ));
-        }
+    if let Some(anchor) = &scenario.query_case_id
+        && (anchor.is_empty() || !excluded.contains(anchor))
+    {
+        return Err(format!(
+            "source anchor must be excluded for {}",
+            scenario.scenario_id
+        ));
     }
     Ok(())
 }
@@ -369,11 +370,7 @@ fn validate_manifest(manifest: &LabelManifest) -> Result<(), String> {
     if !["ai", "synthetic"].contains(&manifest.method.as_str())
         || manifest.created_at.trim().is_empty()
         || manifest.description.trim().is_empty()
-        || (manifest.method == "ai"
-            && !manifest
-                .model
-                .as_ref()
-                .is_some_and(|m| !m.trim().is_empty()))
+        || (manifest.method == "ai" && manifest.model.as_ref().is_none_or(|m| m.trim().is_empty()))
     {
         return Err("label manifest requires explicit synthetic/AI provenance, date, description and AI model".into());
     }
@@ -479,6 +476,8 @@ fn aggregate(rows: &[ScenarioReport], scope: &str, mode: Option<&str>) -> Aggreg
         ),
         ndcg_at_3: mean(primary.iter().filter_map(|r| r.scores.ndcg_at_3).collect()),
         mrr_at_3: mean(primary.iter().filter_map(|r| r.scores.rr_at_3).collect()),
+        latency_sample_count: latencies.len(),
+        latency_small_sample: latencies.len() < 20,
         latency_p50_ms: percentile(0.5),
         latency_p95_ms: percentile(0.95),
     }
@@ -531,6 +530,18 @@ impl EvaluationReport {
                 aggregate.ndcg_at_3.denominator,
                 value(aggregate.mrr_at_3.value),
                 aggregate.mrr_at_3.denominator
+            );
+        }
+        output.push_str("\nSearch latency (nearest-rank percentiles; fewer than 20 samples is a small sample):\n\n| Mode | N | p50 ms | p95 ms | Small sample |\n|---|---:|---:|---:|---|\n");
+        for aggregate in self.aggregates.iter().filter(|a| a.scope == "complete") {
+            let _ = writeln!(
+                output,
+                "| {} | {} | {} | {} | {} |",
+                aggregate.input_mode.as_deref().unwrap_or("all"),
+                aggregate.latency_sample_count,
+                value(aggregate.latency_p50_ms),
+                value(aggregate.latency_p95_ms),
+                aggregate.latency_small_sample
             );
         }
         output.push_str("\nCoverage and limitations:\n\n");
@@ -738,5 +749,87 @@ mod tests {
                 "mutation {mutation}"
             );
         }
+    }
+    #[test]
+    fn latency_reports_sample_size_small_sample_warning_and_nearest_rank() {
+        let r = report(&[scenario()], &[run(&[])], None).unwrap();
+        let json = serde_json::to_value(&r.aggregates[0]).unwrap();
+        assert_eq!(json["latency_sample_count"], 1);
+        assert_eq!(json["latency_small_sample"], true);
+        near(r.aggregates[0].latency_p50_ms, 10.0);
+        near(r.aggregates[0].latency_p95_ms, 10.0);
+        assert!(r.markdown().contains("p95"));
+    }
+    #[test]
+    fn primary_macro_is_equal_weight_and_keeps_undefined_scenarios_out() {
+        let first = scenario();
+        let mut second = scenario();
+        second.scenario_id = "SYNTHETIC-2".into();
+        let mut third = scenario();
+        third.scenario_id = "SYNTHETIC-3".into();
+        let r1 = run(&["a", "b", "c"]);
+        let mut r2 = run(&["b", "c", "a"]);
+        r2.scenario_id = second.scenario_id.clone();
+        r2.latency_ms = 20.0;
+        let mut r3 = run(&[]);
+        r3.scenario_id = third.scenario_id.clone();
+        r3.latency_ms = 30.0;
+        let mut l = labels(&[("a", 2), ("b", 0), ("c", 0), ("d", 0)]);
+        let other: Vec<_> = l
+            .judgments
+            .iter()
+            .cloned()
+            .map(|mut j| {
+                j.scenario_id = second.scenario_id.clone();
+                j
+            })
+            .collect();
+        l.judgments.extend(other);
+        let other: Vec<_> = l
+            .judgments
+            .iter()
+            .take(4)
+            .cloned()
+            .map(|mut j| {
+                j.scenario_id = third.scenario_id.clone();
+                j.relevance_grade = 0;
+                j
+            })
+            .collect();
+        l.judgments.extend(other);
+        let r = report(&[first, second, third], &[r1, r2, r3], Some(&l)).unwrap();
+        assert_eq!(r.aggregates[0].mrr_at_3.denominator, 2);
+        near(r.aggregates[0].mrr_at_3.value, 2.0 / 3.0);
+        near(r.aggregates[0].latency_p50_ms, 20.0);
+        near(r.aggregates[0].latency_p95_ms, 30.0);
+        assert_eq!(r.aggregates[0].no_known_positive_count, 1);
+    }
+    #[test]
+    fn ai_manifest_requires_a_model_and_invalid_latencies_are_rejected() {
+        let mut l = labels(&[("a", 2)]);
+        l.manifest.method = "ai".into();
+        assert!(report(&[scenario()], &[run(&[])], Some(&l)).is_err());
+        for latency in [-1.0, f64::NAN, f64::INFINITY] {
+            let mut r = run(&[]);
+            r.latency_ms = latency;
+            assert!(report(&[scenario()], &[r], None).is_err());
+        }
+    }
+    #[test]
+    fn document_reference_hashes_are_bound_to_judgments() {
+        let mut s = scenario();
+        s.input_mode = "combined".into();
+        s.document_ref = Some(DocumentRef {
+            case_id: "source".into(),
+            text_version: "synthetic-v1".into(),
+            sha256: "a".repeat(64),
+        });
+        let mut r = run(&[]);
+        r.input_mode = "combined".into();
+        let mut l = labels(&[("a", 2)]);
+        l.judgments[0].input_mode = "combined".into();
+        assert!(report(&[s.clone()], &[r.clone()], Some(&l)).is_err());
+        l.judgments[0].document_ref = s.document_ref.clone();
+        assert!(report(&[s], &[r], Some(&l)).is_ok());
     }
 }

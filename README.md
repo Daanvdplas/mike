@@ -280,7 +280,7 @@ De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de
 
 ## Verificatie van de selecteerbare zoekmethoden
 
-Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **24 Pythonchecks**, **27 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **25 Pythonchecks**, **27 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 

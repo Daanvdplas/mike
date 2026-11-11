@@ -57,7 +57,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   }
 
   return <>
-    <header className="app-header">Mike</header>
+    <header className="app-header"><img className="app-logo" src="/mike-wordmark.svg" alt="Mike" /></header>
     <main className="workspace" hidden={Boolean(selected)}>
       <section className="intro" aria-labelledby="intro-title">
         <h1 id="intro-title">Welke uitspraken zoek je?</h1>

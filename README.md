@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: alleen de repo-overdracht en het API-ontwerp zijn aanwezig. Er is nog geen uitvoerbare backend, database, frontend of CI.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de React-frontend werkt lokaal met een gesimuleerde backend. Er is nog geen uitvoerbare backend, database of CI.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 
@@ -18,7 +18,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - PDF/TXT-upload, alleen een vraag of beide; minimaal één bruikbare invoer.
 - Precies drie unieke zaken met metadata, overeenkomstscore en gemarkeerde passage in de volledige tekst van het meerderheidsoordeel.
 - Exact zoeken over alle geïndexeerde passages. De garantie is de hoogste drie scores volgens onze zoekmethode binnen dit corpus; inhoudelijke juridische relevantie wordt apart beoordeeld.
-- De frontend wordt door een aparte agent gebouwd. De voorgenomen mappen zijn `backend/` en `frontend/`; deze bestaan nog niet.
+- De React/TypeScript-frontend staat in `frontend/` en gebruikt Vite. De toekomstige Rust-backend komt in `backend/`; deze map bestaat nog niet.
 - Geen gegenereerd juridisch antwoord of Orq/Codex-aanroep in deze versie. Docker is optioneel en geen voorwaarde voor de eerste demo.
 
 ## Data en hergebruik
@@ -29,6 +29,27 @@ De aangeleverde [CAP-link](https://case.law/caselaw/#florida) heeft een Florida-
 
 `../coa` bevat een herbruikbare Rust-zoekkern en een voorbeeld van eerst zoeken en daarna passages aan een model aanbieden. De nieuwe app neemt gericht zoekonderdelen over; de Codex/MCP-aansturing en COA-specifieke dataset niet. Zie de architectuurgids voor de gecontroleerde codepaden.
 
-## Nu parallel beginnen
+## Frontend lokaal proberen
 
-De frontend-agent kan starten met [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. Een server starten kan nog niet. Zodra implementatie beschikbaar is, worden hier de daadwerkelijk gecontroleerde installatie-, import-, start- en testcommando's toegevoegd.
+Gebruik Node.js 22.12+ (of 20.19+). Vanuit de repository:
+
+```sh
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. De ontwikkelserver luistert alleen lokaal. Typ/plak eigen tekst, voeg een PDF/TXT van maximaal 10 MiB toe, of combineer beide. Versturen toont na een korte laadstatus altijd dezelfde drie verzonnen zaken als klikbare documentvoorbeelden onder de invoerbox, op desktop naast elkaar. Een nieuwe zoekopdracht vervangt de vorige resultaten. Open een document om in een aparte leesweergave de volledige aangeleverde meerderheidstekst met markering te lezen; de terugknop brengt je naar de resultaten. Het blok ‘Waarom dit document?’ toont de exacte gevonden bronpassage en overeenkomstscore, geen gegenereerde juridische verklaring of daadwerkelijke analyse van je invoer in de demostand.
+
+De standaarddemostand leest of verstuurt bestandsinhoud niet en slaat uploads of gesprekken niet op. De bijlage wordt alleen op naam, extensie en grootte gecontroleerd; inhoudelijke PDF/TXT-validatie en echte zoekresultaten vereisen de toekomstige backend. De fixtureteksten zijn kort en bewijzen geen leesbaarheid van lange echte uitspraken.
+
+Gecontroleerde frontendchecks:
+
+```sh
+npm test
+npm run build
+```
+
+`npm test` controleert invoermodi en grenzen, mock/API-uitwisseling, React-interacties en UTF-16-markeringen met versiecontrole. De build voert TypeScript-controle uit en schrijft `frontend/dist/` (genegeerd door Git).
+
+Voor de latere echte API-koppeling: kopieer `frontend/.env.example` naar `frontend/.env.local`, zet `VITE_API_MODE=api`, configureer `VITE_API_BASE_URL` en herstart Vite. Deze modus verstuurt uploads naar die ingestelde backend; er is nog geen backend om deze koppeling end-to-end te proberen. De standaard blijft `mock`. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).

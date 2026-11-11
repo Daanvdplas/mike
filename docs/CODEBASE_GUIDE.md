@@ -2,7 +2,7 @@
 
 ## Huidige stand
 
-Deze bootstrap bevat uitsluitend documentatie, het [API-contract](openapi.yaml) en synthetische [fixtures](examples/search-response.json). Er zijn nog geen Rust-bronbestanden, SQLite-database, frontend, CI of werkende endpoints. Alle uitvoeringsstappen hieronder zijn **voorgenomen ontwerp**. Voeg bij implementatie echte codeverwijzingen en gecontroleerde commando's toe; presenteer dit ontwerp niet als werkende code.
+De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen. Er zijn nog geen Rust-bronbestanden, SQLite-database, CI of werkende backendendpoints. De backendroute hieronder is **voorgenomen ontwerp**; alleen het frontendhoofdstuk beschrijft bestaande uitvoering.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
 
@@ -26,7 +26,37 @@ flowchart LR
   D --> F
 ```
 
-De voorlopige mapverdeling is `backend/` voor de Rust-service en `frontend/` voor de aparte frontend-agent. Die mappen bestaan nog niet. Gedeeld werk zit nu in `docs/`; contractwijzigingen worden afgestemd voordat een agent erop gaat bouwen.
+De React-interface staat in `frontend/`; `backend/` voor de Rust-service is nog gepland. Gedeeld werk zit in `docs/`; contractwijzigingen worden afgestemd voordat een agent erop gaat bouwen.
+
+## Bestaande frontend: invoer, documentvoorbeelden en leesweergave
+
+[`frontend/src/main.tsx`](../frontend/src/main.tsx) kiest bij het starten een client en rendert de React-app. Standaard is dit de lokale mock in [`client.ts`](../frontend/src/client.ts); alleen `VITE_API_MODE=api` kiest de HTTP-client met configureerbare `VITE_API_BASE_URL` (standaard `http://127.0.0.1:8000`). Er zijn geen externe modelaanroepen, accounts of extra UI-libraries.
+
+```mermaid
+flowchart LR
+  U[Eigen tekst en/of bijlage] --> A[React App: invoer en gesprek]
+  A --> V[validateInput: bruikbare invoer, type en grootte]
+  V --> M[Mockclient: vaste JSON-fixtures]
+  M --> R[Drie documentvoorbeelden onder de invoerbox]
+  R --> D[Klik opent aparte reader en haalt detail op]
+  D --> G[Corpus-/tekstversie en exacte UTF-16-uitsnede controleren]
+  G --> T[Volledige tekst met markering en brononderbouwing]
+  T --> B[Terug naar resultaten en oorspronkelijke focus]
+```
+
+[`App` in `app.tsx`](../frontend/src/app.tsx) houdt de invoer, bijlage en laatste succesvolle zoekresponse alleen in browsergeheugen. De naam Mike, huidige vraag en invoerbox blijven het vertrekpunt. Een zoekopdracht blokkeert dubbele verzending tijdens laden en toont daaronder precies drie klikbare documentvoorbeelden. Op desktop staan ze naast elkaar; op smalle schermen onder elkaar. Een volgende succesvolle zoekopdracht vervangt de vorige resultaten. Er is geen stapelende chatgeschiedenis boven de invoerbox. Mislukte zoekopdrachten houden de invoer en eventuele vorige resultaten beschikbaar. Enter verstuurt, Shift+Enter maakt een nieuwe regel.
+
+Klikken op een document opent `DocumentReader` als aparte leesweergave op dezelfde pagina. De invoer en resultaten zijn dan verborgen, niet verwijderd. De reader haalt de zaak pas op bij openen, toont laad-/foutstatus en negeert een nog lopende detailresponse na sluiten. De volledige aanwezige meerderheidstekst blijft onverkort beschikbaar in de gewone paginascroll. ‘Terug naar resultaten’ herstelt focus op het gekozen document en de eerdere scrollpositie; readeropenen verplaatst focus naar de documenttitel. Upload-, document- en terugknoppen hebben toegankelijke namen.
+
+De voorbeelden gebruiken een sober pagina-icoon, zaakmetadata en een excerpt uit de exacte gevonden passage. Ze stellen geen originele PDF, officiële paginering of gerechtszegel voor. In de reader toont ‘Waarom dit document?’ die bronpassage en de overeenkomstscore. Dit is brononderbouwing, geen vergelijking met een aangewezen uploadpassage en geen gegenereerde juridische uitleg. Het huidige contract levert daarvoor geen velden. De mock meldt compact bij de resultaten dat het voorbeelden zijn en geen analyse van de invoer; ook de reader benoemt zijn onderbouwing als voorbeeld. Er zijn geen extra fictieve juridische verklaringen of nieuwe contractvelden toegevoegd.
+
+[`validateInput` in `search.ts`](../frontend/src/search.ts) trimt de vraag en accepteert PDF/TXT-extensies tot en met 10 MiB. Lege bestanden en ongeldige meegegeven bestanden blokkeren ook een geldige vraag. De mock leest de bestandsinhoud niet: een verkeerd benoemde, onleesbare PDF of scan wordt hier niet inhoudelijk herkend. Dat blijft backendwerk. De mock past `mode` wel aan naar `query`, `document` of `combined`, maar geeft voor elke invoer dezelfde drie **synthetische** resultaten. Dit is geen implementatie of validatie van de juridische zoekmethode.
+
+[`getPassageParts` in `search.ts`](../frontend/src/search.ts) vergelijkt corpusversie, tekstversie en zaak-ID en controleert dat de exacte UTF-16-uitsnede overeenkomt met `passage.text`. De bron wordt niet opnieuw genormaliseerd en React rendert tekst veilig met een `<mark>`. Bij oude versies of onjuiste posities toont de UI een fout met het verzoek opnieuw te zoeken; de gebruiker start die nieuwe opdracht zelf.
+
+De HTTP-client gebruikt `FormData` zonder een eigen multipart-Content-Type, volgt de aangeboden `case_url` en toont backendfoutberichten. Deze code is met een onderschepte HTTP-grens getest; een echte backendintegratie is nog niet uitgevoerd. De API-schemas blijven vastgelegd in [OpenAPI](openapi.yaml).
+
+Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend is hiermee uitvoerbaar; backendimport en backendtests ontbreken nog.
 
 ## Corpus, opslag en index
 
@@ -85,7 +115,7 @@ Deze paden liggen buiten deze repo en zijn daarom oriëntatiepunten, geen beschi
 
 ## Verificatie bij implementatie
 
-Er is nog geen projecttestcommando. De implementatie moet aantoonbaar maken:
+Frontendtestcommando's staan hierboven; voor de backend is er nog geen projecttestcommando. De volledige implementatie moet aantoonbaar maken:
 
 - alle drie invoermodi, PDF/TXT en duidelijke fouten bij onbruikbare invoer;
 - precies drie unieke zaken, volledige scoring en deterministische gelijke scores;
@@ -94,8 +124,12 @@ Er is nog geen projecttestcommando. De implementatie moet aantoonbaar maken:
 - onafhankelijke controle van ranking met bekende vectoren én aparte inhoudelijke beoordeling;
 - een echte HTTP-upload, zoeken en ophalen van volledige documenten.
 
-Contract- en fixturechecks moeten later in de echte CI aansluiten op de gekozen projecttools. De bootstrap is handmatig gecontroleerd en onafhankelijk gereviewd; de canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
+De frontendchecks draaien lokaal; CI bestaat nog niet. Backendcontract- en fixturechecks moeten later op de gekozen backendtools aansluiten. De canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: documentpresentatie herzien: laatste zoekresultaten onder de invoerbox, drie pagina-voorbeelden en een aparte volledige reader met terugkeerfocus. Bronpassage en score vormen de onderbouwing; de simulatie voegt geen juridische vergelijkredenen toe.
+
+- 2026-11-11: minimale React/TypeScript-chatfrontend met Vite toegevoegd. Lokale mock en toekomstige HTTP-client zijn gescheiden; eigen tekst/bijlage, laad-/foutstatus, drie synthetische documenten en versiegecontroleerde UTF-16-markeringen zijn lokaal geïmplementeerd. Backend en zoekkwaliteit blijven ongeïmplementeerd.
 
 - 2026-11-11: repo-overdracht en API-ontwerp toegevoegd. Scope vastgelegd als document en/of vraag, exact drie unieke zaken en volledige majority-opinionteksten met UTF-16-markeerposities. Nog geen runtime-implementatie.

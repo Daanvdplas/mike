@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local page for exactly two explicit eval runs; model credentials stay here."""
+"""Local page for the explicit E06 run; model credentials stay here."""
 import argparse
 import getpass
 import hashlib
@@ -19,7 +19,6 @@ import uuid
 import retrieval_relevance as relevance
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO_QUERY = "Find cases about a confession induced by an officer claiming family friendship and promising help if the suspect admits the crime."
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
 
 
@@ -48,12 +47,6 @@ def e06_record(repo):
 def catalog(config):
     row, _ = e06_record(config["repo"])
     return {"evals": [
-        {"id": "relevance", "title": "Relevantie van de drie gevonden uitspraken",
-         "input_mode": "combined", "query": DEMO_QUERY, "query_nl": None,
-         "document_label": config["demo_document"].name,
-         "source_case": {"id": "156130", "name": "Clayton v. State"},
-         "expected_behavior": "Beoordeel de drie echte zoekresultaten op aansluiting bij de bekentenisvraag, met een letterlijke bronpassage.",
-         "why": "Eén AI-beoordeling van de bestaande demo-invoer. De bronzaak kan zichzelf terugvinden.", "runnable": True},
         {"id": "E06", "title": row["title"], "input_mode": "query",
          "query": row["query"]["en"], "query_nl": row["query"]["nl"],
          "document_label": None, "source_case": row["source_case"],
@@ -134,15 +127,8 @@ def run_eval(config, eval_id):
         query, document, mode = row["query"]["en"], None, "query"
         response, manifest, source = excluded_search(config, row, run_dir)
         rubric = {"expected_behavior": row["expected_behavior"], "why": row["why"]}
-    elif eval_id == "relevance":
-        query = DEMO_QUERY
-        document = config["demo_document"].read_text(encoding="utf-8")
-        if not document.strip() or len(document) > relevance.MAX_DOCUMENT_CHARS:
-            raise RunError("Het demodocument ontbreekt of overschrijdt de invoergrens.")
-        mode = "combined"
-        response = relevance.search(config["backend"], query, document)
     else:
-        raise RunError("Alleen relevance en E06 kunnen worden uitgevoerd.")
+        raise RunError("Alleen E06 kan worden uitgevoerd.")
     passages = relevance.passages_from_response(response, mode)
     if eval_id == "E06" and source["case_id"] in passages:
         raise RunError("De bronzaak is niet uitgesloten; deze run is ongeldig.")
@@ -161,7 +147,7 @@ def run_eval(config, eval_id):
     result = {
         "run_id": run_id, "eval_id": eval_id, "status": "completed",
         "input": {"mode": mode, "query": query,
-                  "document_label": config["demo_document"].name if document else None,
+                  "document_label": None,
                   "document_sha256": sha256(document.encode()) if document else None},
         "structural_checks": {"three_unique_results": True,
                               "source_excluded": True if eval_id == "E06" else None},
@@ -177,8 +163,6 @@ def run_eval(config, eval_id):
                         "Bronfragmenten zijn letterlijk gecontroleerd; dat bewijst niet dat de AI-score juist is."],
         "artifact_name": run_id + "/result.json",
     }
-    if eval_id == "relevance":
-        result["limitations"].append("Het demodocument komt uit het corpus en kan zichzelf terugvinden.")
     (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     return result
 
@@ -231,7 +215,7 @@ def handler_class(config, runner=run_eval):
                 self.send_json(403, {"error": {"code": "origin_rejected", "message": "Start de eval vanaf deze lokale pagina."}})
                 return
             path = urlsplit(self.path).path
-            ids = {"/api/evals/relevance/run": "relevance", "/api/evals/E06/run": "E06"}
+            ids = {"/api/evals/E06/run": "E06"}
             if path not in ids:
                 self.send_json(404, {"error": {"code": "unknown_eval", "message": "Deze eval is niet uitvoerbaar."}})
                 return
@@ -265,7 +249,6 @@ def main():
     parser.add_argument("--database", type=Path, default=Path(os.environ.get("ADAMI_DB_PATH", "data/cases.sqlite3")))
     parser.add_argument("--model-cache", type=Path, default=Path(os.environ.get("ADAMI_CACHE_DIR", ".fastembed_cache")))
     parser.add_argument("--corpus", type=Path, default=Path.home() / "Downloads/texas-criminal-reports")
-    parser.add_argument("--demo-document", type=Path, default=Path.home() / "Downloads/adami-demo-test/texas-confession-example.txt")
     parser.add_argument("--outputs", type=Path, default=Path.home() / "Library/Caches/adami-case/web-evals")
     args = parser.parse_args()
     key = os.environ.get("ORQ_API_KEY") or getpass.getpass("Orq API key (not echoed): ")
@@ -275,7 +258,7 @@ def main():
               "orq_base": os.environ.get("ORQ_BASE_URL", relevance.ORQ_BASE_URL),
               "binary": args.binary.resolve(), "database": args.database.resolve(),
               "model_cache": args.model_cache.resolve(), "corpus": args.corpus.resolve(),
-              "demo_document": args.demo_document.resolve(), "outputs": args.outputs.resolve()}
+              "outputs": args.outputs.resolve()}
     server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_class(config))
     print(f"Eval page: http://127.0.0.1:{server.server_port}/", flush=True)
     try:

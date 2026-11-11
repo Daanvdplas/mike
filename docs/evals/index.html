@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Start twee juridische evaluaties en bekijk de echte resultaten, naast het overzicht van 25 ontwerpscenario’s.">
+  <meta name="description" content="Start E06 en bekijk de echte resultaten, naast het overzicht van 25 ontwerpscenario’s.">
   <link rel="icon" href="data:,">
   <title>Mike / Evaluaties</title>
   <style>:root{color-scheme:light;--paper:#f6f9fe;--surface:#ffffff;--ink:#122958;--muted:#51627d;--line:#dce5f1;--accent:#1b3775;--planned:#815416;--planned-bg:#f7efdf}
@@ -37,7 +37,7 @@ button{font:inherit;font-size:12px;line-height:1.4;min-height:42px;padding:10px 
       <p id="catalog-status" role="status">Evalinvoer laden…</p>
       <button id="catalog-retry" type="button" hidden>Opnieuw verbinden</button>
       <div id="runnable-list"></div>
-      <noscript><p>Schakel JavaScript in om de twee evals te starten. De scenario’s hieronder blijven leesbaar.</p></noscript>
+      <noscript><p>Schakel JavaScript in om E06 te starten. De scenario’s hieronder blijven leesbaar.</p></noscript>
     </section>
     <details id="ontwerpen" class="design-catalog"><summary>25 scenario-ontwerpen <span aria-hidden="true">+</span></summary>
     <div class="overview-label"><span>Eval</span><span>Invoer</span></div>
@@ -68,10 +68,10 @@ button{font:inherit;font-size:12px;line-height:1.4;min-height:42px;padding:10px 
 <details class="eval-item" id="E25"><summary><span class="eval-id">E25</span><span class="eval-title">Een lage boete en de grens aan verder hoger beroep</span><span class="eval-mode">Document + vraag</span><span class="chevron" aria-hidden="true"></span></summary><div class="eval-detail"><section class="scenario-input"><h3>Input</h3><div class="input-document"><h4>Document</h4><p class="case-name">Neubauer v. State <span>· 1893-02-03</span></p><blockquote>Where, on an appeal to the County Court from an inferior court, the fine imposed or judgment rendered in a criminal cause shall not exceed $100, exclusive of costs, the judgment shall be final in the County Court.</blockquote><p class="input-note">De invoer is de volledige majority opinion. Hier staat een kort leesfragment.</p></div><div class="input-query"><h4>Exacte zoekvraag · Engels</h4><p class="question-text" lang="en">When is a County Court judgment on appeal from a lower criminal court final because of the fine imposed?</p><details class="english-query"><summary>Nederlandse leesvertaling</summary><p lang="nl">Wanneer is een oordeel van de County Court na beroep vanuit een lagere strafrechter definitief vanwege de opgelegde geldboete?</p></details></div></section><section class="scenario-expectation"><h3>Verwacht gedrag</h3><p>Een relevante match behandelt de toegang tot verder hoger beroep na een eerdere beroepsstap en de betekenis van de geldboete. De andere kwestie in het document, de foutieve naam van het appelgerecht in de recognizance, is niet de focus van deze vraag.</p></section><section class="scenario-purpose"><h3>Waarom deze test?</h3><p>Test of de vraag binnen een kort document met twee afzonderlijke ontvankelijkheidsgronden het juiste criterium selecteert.</p></section><details class="provenance"><summary>Bron en tekstverwijzing</summary><p class="case-name">Neubauer v. State <span>· 1893-02-03</span></p><p class="source-path"><code>json/0513-01.json</code> · zaak-ID <code>156042</code></p><blockquote>Where, on an appeal to the County Court from an inferior court, the fine imposed or judgment rendered in a criminal cause shall not exceed $100, exclusive of costs, the judgment shall be final in the County Court.</blockquote><p class="source-path">Volledige invoertekst: <code>casebody.opinions[0].text</code><br>SHA-256: <code>f4558896d8f46b15320dbee780bfc341bbea23ed217a131aca694b55d230e024</code></p></details><p class="scenario-status">Ontwerpbeschrijving · kandidaatmatches en relevantielabels nog niet beoordeeld.</p></div></details></section>
     <p class="overview-note">Ontwerpbeschrijvingen op basis van echte zaken. E06 kun je hierboven uitvoeren. De overige 24 zijn nog niet runbaar; vaste kandidaatlabels en benchmarkmetingen ontbreken.</p></details>
     <details id="afspraken" class="full-spec"><summary>Afspraken en volledige opdracht <span aria-hidden="true">↗</span></summary><div class="spec-layout"><nav aria-label="Hoofdstukken van de opdracht"><ul><li><a href="#bron-status-en-leeswijzer">Status en leeswijzer</a></li><li><a href="#bron-doel-en-afbakening">Doel en afbakening</a></li><li><a href="#bron-corpus-en-brongebruik">Corpus en brongebruik</a></li><li><a href="#bron-scenarioselectie-en-relevantie">Scenarioselectie en relevantie</a></li><li><a href="#bron-dataset-en-bewijs">Dataset en bewijs</a></li><li><a href="#bron-beoordeling-en-dekking">Beoordeling en dekking</a></li><li><a href="#bron-voorkomen-van-datalekken">Voorkomen van datalekken</a></li><li><a href="#bron-diagnostiek-voor-moeilijke-gevallen">Diagnostiek voor moeilijke gevallen</a></li><li><a href="#bron-evaluatiescript-en-meetafspraken">Evaluatiescript en meetafspraken</a></li><li><a href="#bron-oplevering-en-acceptatie">Oplevering en acceptatie</a></li></ul></nav><div class="specification"><h3 id="bron-status-en-leeswijzer">Status en leeswijzer</h3>
-<p><strong>Status: ontwerp.</strong> Er zijn <strong>25 concrete ontwerpscenario’s</strong> beschikbaar in <a href="../evals/scenarios.json">evals/scenarios.json</a>. De lokale <a href="../evals/index.html">evalviewer</a> toont per scenario de invoer, het verwachte juridische gedrag en de brononderbouwing. Daarnaast kan de lokale evalserver precies twee evaluaties uitvoeren: de bestaande algemene relevantie-eval en scenario <strong>E06</strong> uit deze lijst. De overige 24 ontwerpen zijn niet uitvoerbaar. Vaste kandidaatlabels, een volledige benchmarkrunner en benchmarkmetingen ontbreken. Deze zichtbare ontwerpen zijn ontwikkelmateriaal, geen verborgen testset.</p>
+<p><strong>Status: ontwerp.</strong> Er zijn <strong>25 concrete ontwerpscenario’s</strong> beschikbaar in <a href="../evals/scenarios.json">evals/scenarios.json</a>. De lokale <a href="../evals/index.html">evalviewer</a> toont per scenario de invoer, het verwachte juridische gedrag en de brononderbouwing. Daarnaast kan de lokale evalserver uitsluitend scenario <strong>E06</strong> uit deze lijst uitvoeren. De overige 24 ontwerpen zijn niet uitvoerbaar. Vaste kandidaatlabels, een volledige benchmarkrunner en benchmarkmetingen ontbreken. Deze zichtbare ontwerpen zijn ontwikkelmateriaal, geen verborgen testset.</p>
 <p>Een testgeval bestaat uit drie afzonderlijke onderdelen: de aangeboden invoer, onafhankelijk beoordeelde verwachte matches en de werkelijk gevonden resultaten na een run. Een juridisch bevestigd label is geen geslaagde run. Een afgeronde run is niet automatisch geslaagd. Beoordeelde relevante matches kunnen minder of meer dan drie zaken omvatten; onbekende kandidaten zijn niet automatisch irrelevant.</p>
-<p>De twee knoppen <strong>Start eval</strong> voeren ieder één echte zoekopdracht en één Orq-beoordeling uit; openen van de pagina start geen modelaanroep. De algemene relevantie-eval gebruikt het vaste Clayton-demodocument plus de bekentenisvraag; de bronzaak kan zichzelf terugvinden. E06 gebruikt uitsluitend de exacte Engelse vraag uit de scenariocatalogus en sluit Nixon (<code>156133</code>) vóór selectie van de top drie uit. Herkomsttekst uit Nixon wordt niet als zoekdocument meegestuurd. Verwacht gedrag en reden uit de catalogus dienen als beoordelingscriteria; Kelley is geen verplicht verwacht resultaat. De server bewaart de werkelijke invoer, zoekresultaten, grades, letterlijke citaten en versies per run buiten Git.</p>
-<p>Deze twee evaluaties gebruiken uitsluitend <strong>AI-beoordelingen, zonder menselijke controle</strong>. De pagina toont per gevonden zaak grade 0–3, reden en een letterlijke bronpassage. <strong>Uitgevoerd</strong> betekent technisch afgerond, ook bij grade 0; het bewijst geen juridische juistheid of geslaagde zoekkwaliteit. Er is geen vaste goldset en er worden geen Recall/nDCG/MRR- of accuracyclaims berekend. De overige afspraken hieronder beschrijven het ontwerp van een toekomstige, onafhankelijk gelabelde benchmark. Een volledige ‘Run set’ is niet beschikbaar. Zonder lokale evalserver blijft de pagina een leesbaar scenario-overzicht. Verborgen testvragen en labels horen later niet in een voor ontwikkelaars toegankelijke viewer of gegenereerd bestand.</p>
+<p>De knop <strong>Start eval</strong> voert één echte zoekopdracht en één Orq-beoordeling uit; openen van de pagina start geen modelaanroep. E06 gebruikt uitsluitend de exacte Engelse vraag uit de scenariocatalogus en sluit Nixon (<code>156133</code>) vóór selectie van de top drie uit. Herkomsttekst uit Nixon wordt niet als zoekdocument meegestuurd. Verwacht gedrag en reden uit de catalogus dienen als beoordelingscriteria; Kelley is geen verplicht verwacht resultaat. De server bewaart de werkelijke invoer, zoekresultaten, grades, letterlijke citaten en versies per run buiten Git.</p>
+<p>Deze eval gebruikt uitsluitend <strong>AI-beoordelingen, zonder menselijke controle</strong>. De pagina toont per gevonden zaak grade 0–3, reden en een letterlijke bronpassage. <strong>Uitgevoerd</strong> betekent technisch afgerond, ook bij grade 0; het bewijst geen juridische juistheid of geslaagde zoekkwaliteit. Er is geen vaste goldset en er worden geen Recall/nDCG/MRR- of accuracyclaims berekend. De overige afspraken hieronder beschrijven het ontwerp van een toekomstige, onafhankelijk gelabelde benchmark. Een volledige ‘Run set’ is niet beschikbaar. Zonder lokale evalserver blijft de pagina een leesbaar scenario-overzicht. Verborgen testvragen en labels horen later niet in een voor ontwikkelaars toegankelijke viewer of gegenereerd bestand.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Tabel uit de opdracht"><table><thead><tr>
 <th>Invoervorm</th>
 <th>Modus</th>
@@ -161,7 +161,7 @@ judgment_status: &quot;verified&quot;</code></pre>
 <p>Lever dataset, labelvoorstellen, schema, manifest, beoordelingslog, dekkingsoverzicht en script met gebruiksinstructies. Test document-only, query-only en combined met hun eigen invoer en labels; beide invoeren leeg is een aparte negatieve contracttest, geen retrievalscenario. Voeg abstracte metriekvoorbeelden toe met verwachte scores, inclusief lege rankings, ongeldige IDs, selfmatches, ontbrekende scenario’s, nul positieve labels en onvolledige beoordelingen.</p>
 <p>Acceptatie vereist 20–30 basisscenario’s met minstens vijf per invoermodus, de minima per moeilijke categorie en stressvariant, exacte invoer en modusgebonden labels, controleerbaar bewijs, onafhankelijke labelcontrole, verborgen testfamilies en reproduceerbare diagnostiek. Voor een juridische goldstandard controleert een juridisch deskundige ook moeilijke paren en betekenisbehoud van varianten; AI-only labels blijven voorlopig. Meld ontbrekende corpusdekking expliciet.</p>
 <p>Leg kwaliteitsdoelen voor het zoeksysteem vast op een afzonderlijke ontwikkelset, vóór de verborgen test. Levering van een correcte benchmark is een andere acceptatiebeslissing dan voldoende zoekkwaliteit. Publiceer uitsluitend werkelijk gemeten scores en onderbouw of het systeem de vooraf vastgelegde doelen haalt.</p></div></div></details>
-    <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht en <a href="scenarios.json">scenarios.json</a>. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>Opdracht SHA-256 <code class="source-hash">b92a67fdc021d7c003d461dbed8659f3bdf179325066056458202505bb24c8ba</code></p><p>Scenario’s SHA-256 <code class="source-hash">11a6b4b539339aa6b6f5a02fb8a68c1229c759953739f2515bfed396c6e886bd</code></p></details></footer>
+    <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht en <a href="scenarios.json">scenarios.json</a>. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>Opdracht SHA-256 <code class="source-hash">44c405fd45e8626b5935ecada94d9f692aa7057c3607dff309ccce8302610fa8</code></p><p>Scenario’s SHA-256 <code class="source-hash">11a6b4b539339aa6b6f5a02fb8a68c1229c759953739f2515bfed396c6e886bd</code></p></details></footer>
   </main>
   <script>// Native details provide the complete experience without JavaScript.
 const evalItems = [...document.querySelectorAll('.eval-item')];
@@ -189,7 +189,7 @@ function revealAnchor() {
 window.addEventListener('hashchange', revealAnchor);
 revealAnchor();
 
-// Runs are explicit: loading this page only fetches the two input descriptions.
+// Runs are explicit: loading this page only fetches the E06 input description.
 const runnableList = document.getElementById('runnable-list');
 const catalogStatus = document.getElementById('catalog-status');
 const catalogRetry = document.getElementById('catalog-retry');
@@ -210,7 +210,6 @@ function field(parent, label, value, className) {
 }
 
 function renderResults(container, result) {
-  const compact = result.eval_id === 'relevance';
   const checks = result.structural_checks;
   const judgments = result.judgments;
   if (result.status !== 'completed' || !Array.isArray(judgments) || judgments.length !== 3 ||
@@ -227,13 +226,12 @@ function renderResults(container, result) {
     const heading = element('div', null, 'judgment-heading');
     heading.append(element('h4', row.title), element('span', `${row.grade} / 3`, 'grade'));
     item.append(heading);
-    if (!compact) item.append(element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
+    item.append(element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
     item.append(element('p', row.reasoning, 'judgment-reason'), element('blockquote', row.quote));
     list.append(item);
   });
   const provenance = element('details', null, 'run-provenance');
-  provenance.append(element('summary', compact ? 'Rundetails' : 'Rungegevens en beperkingen'));
-  if (compact) provenance.append(structural, scale);
+  provenance.append(element('summary', 'Rungegevens en beperkingen'));
   const details = element('dl');
   [
     ['Run', result.run_id], ['Model', result.model],
@@ -245,7 +243,7 @@ function renderResults(container, result) {
   const limitations = element('ul');
   (result.limitations || []).forEach(text => limitations.append(element('li', text)));
   provenance.append(limitations);
-  container.replaceChildren(...(compact ? [element('h4', 'Resultaat'), list, provenance] : [structural, scale, list, provenance]));
+  container.replaceChildren(structural, scale, list, provenance);
 }
 
 async function runEval(evalRecord, button, status, results) {
@@ -266,7 +264,7 @@ async function runEval(evalRecord, button, status, results) {
     if (!response.ok) throw new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.');
     if (result.eval_id !== evalRecord.id) throw new Error('De ontvangen run hoort niet bij deze eval.');
     renderResults(results, result);
-    status.textContent = evalRecord.id === 'relevance' ? 'Uitgevoerd' : 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.';
+    status.textContent = 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.';
     status.className = 'run-status completed';
     button.textContent = 'Opnieuw uitvoeren';
   } catch (error) {
@@ -281,7 +279,6 @@ async function runEval(evalRecord, button, status, results) {
 }
 
 function renderRunnable(evalRecord) {
-  const compact = evalRecord.id === 'relevance';
   const section = element('article', null, 'runnable-eval');
   section.id = `run-${evalRecord.id}`;
   const heading = element('div', null, 'run-heading');
@@ -290,30 +287,11 @@ function renderRunnable(evalRecord) {
   section.setAttribute('aria-labelledby', title.id);
   const mode = evalRecord.input_mode === 'query' ? 'Alleen vraag' : 'Document + vraag';
   heading.append(title);
-  if (compact) {
-    const info = element('details', null, 'eval-info');
-    const summary = element('summary', 'i');
-    summary.setAttribute('aria-label', 'Uitleg van deze eval');
-    info.append(summary, element('p', 'Deze eval zoekt drie zaken bij de input. Orq beoordeelt hun relevantie met bronpassages; een hogere score betekent volgens de AI een betere match. Dit is geen juridische garantie.'));
-    heading.append(info);
-  } else {
-    heading.append(element('span', mode, 'run-mode'));
-  }
+  heading.append(element('span', mode, 'run-mode'));
   section.append(heading);
   const input = element('div', null, 'run-input');
-  if (compact) {
-    input.append(element('h4', 'Input'), element('p', `Document: ${evalRecord.source_case.name} (vast demodocument)`, 'compact-document'));
-    const query = element('p', evalRecord.query, 'compact-query');
-    query.lang = 'en';
-    input.append(query);
-  } else if (evalRecord.document_label) {
-    field(input, 'Document', `${evalRecord.source_case.name} · ${evalRecord.document_label}`);
-    input.append(element('p', 'Het volledige vaste demodocument wordt samen met de vraag doorzocht. De bronzaak kan zichzelf terugvinden.', 'input-note'));
-  }
-  if (!compact) {
-    field(input, 'Exacte zoekvraag · Engels', evalRecord.query, 'run-query');
-    input.querySelector('.run-query p').lang = 'en';
-  }
+  field(input, 'Exacte zoekvraag · Engels', evalRecord.query, 'run-query');
+  input.querySelector('.run-query p').lang = 'en';
   if (evalRecord.query_nl) {
     const translation = element('details', null, 'english-query');
     translation.append(element('summary', 'Nederlandse leesvertaling'), element('p', evalRecord.query_nl));
@@ -323,19 +301,14 @@ function renderRunnable(evalRecord) {
     input.append(element('p', `${evalRecord.source_case.name} (${evalRecord.source_case.id}) is de herkomst van de vraag. Alleen de vraag gaat naar de zoekfunctie; de bronzaak wordt vóór selectie van de drie resultaten uitgesloten.`, 'input-note'));
   }
   section.append(input);
-  if (compact) {
-    field(section, 'Verwachte output', 'Drie gevonden zaken, elk met een AI-relevantiescore van 0 tot 3, een korte reden en een letterlijk broncitaat.', 'run-expectation');
-  } else {
-    field(section, 'Verwacht gedrag', evalRecord.expected_behavior, 'run-expectation');
-    field(section, 'Waarom deze eval?', evalRecord.why, 'run-purpose');
-  }
+  field(section, 'Verwacht gedrag', evalRecord.expected_behavior, 'run-expectation');
+  field(section, 'Waarom deze eval?', evalRecord.why, 'run-purpose');
   const action = element('div', null, 'run-action');
   const button = element('button', 'Start eval', 'run-button');
   button.type = 'button';
   button.dataset.evalId = evalRecord.id;
-  button.setAttribute('aria-label', `Start eval: ${evalRecord.id === 'E06' ? 'E06' : 'algemene relevantie'}`);
+  button.setAttribute('aria-label', `Start eval: ${evalRecord.id}`);
   const status = element('p', 'Nog niet uitgevoerd', 'run-status');
-  status.hidden = compact;
   status.id = `${section.id}-status`;
   status.setAttribute('role', 'status');
   button.setAttribute('aria-describedby', status.id);
@@ -356,9 +329,9 @@ async function loadCatalog() {
     const response = await fetch('/api/evals');
     if (!response.ok) throw new Error('Catalogus niet beschikbaar');
     const catalog = await response.json();
-    const evals = ['relevance', 'E06'].map(id => catalog.evals.find(row => row.id === id && row.runnable));
-    if (evals.some(row => !row)) throw new Error('Twee uitvoerbare evals ontbreken');
-    runnableList.replaceChildren(...evals.map(renderRunnable));
+    const evalRecord = catalog.evals.find(row => row.id === 'E06' && row.runnable);
+    if (!evalRecord) throw new Error('E06 is niet beschikbaar');
+    runnableList.replaceChildren(renderRunnable(evalRecord));
     catalogStatus.hidden = true;
     revealAnchor();
   } catch {

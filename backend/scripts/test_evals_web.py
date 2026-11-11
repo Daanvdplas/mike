@@ -1,6 +1,5 @@
 """One lightweight web-route check; no native model or external API calls."""
 import json
-from pathlib import Path
 import threading
 import unittest
 from urllib import error, request
@@ -11,7 +10,7 @@ import evals_web
 class EvalsWebTest(unittest.TestCase):
     def test_catalog_and_one_run_share_the_local_page_without_exposing_files(self):
         calls = []
-        config = {"repo": evals_web.REPO, "demo_document": Path("demo.txt"), "key": "synthetic"}
+        config = {"repo": evals_web.REPO, "key": "synthetic"}
         def run(_config, eval_id):
             calls.append(eval_id)
             return {"eval_id": eval_id, "status": "completed"}
@@ -22,13 +21,20 @@ class EvalsWebTest(unittest.TestCase):
         try:
             with request.urlopen(base + "/api/evals") as response:
                 data = json.load(response)
-            self.assertEqual([row["id"] for row in data["evals"]], ["relevance", "E06"])
-            self.assertEqual(data["evals"][1]["input_mode"], "query")
-            self.assertIsNone(data["evals"][1]["document_label"])
+            self.assertEqual([row["id"] for row in data["evals"]], ["E06"])
+            self.assertEqual(data["evals"][0]["input_mode"], "query")
+            self.assertIsNone(data["evals"][0]["document_label"])
             req = request.Request(base + "/api/evals/E06/run", data=b"{}",
                                   headers={"Origin": base, "Content-Type": "application/json"})
             with request.urlopen(req) as response:
                 self.assertEqual(json.load(response)["status"], "completed")
+            self.assertEqual(calls, ["E06"])
+            removed = request.Request(base + "/api/evals/relevance/run", data=b"{}",
+                                      headers={"Origin": base, "Content-Type": "application/json"})
+            with self.assertRaises(error.HTTPError) as rejected:
+                request.urlopen(removed)
+            self.assertEqual(rejected.exception.code, 404)
+            rejected.exception.close()
             self.assertEqual(calls, ["E06"])
             with self.assertRaises(error.HTTPError) as rejected:
                 request.urlopen(base + "/.git/config")

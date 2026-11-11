@@ -156,7 +156,7 @@ Een extra API-preview kan naast de gewone frontend afzonderlijk op 5174 worden g
 
 ```sh
 cd frontend
-VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174 --strictPort
+VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174 --strictPort
 ```
 
 Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
@@ -167,11 +167,11 @@ Start na de bewaakte backend op 8000 de frontend vanuit de schone main-checkout.
 
 ```sh
 cd frontend
-VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 \
+VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18000 \
 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5176 --strictPort
 ```
 
-Open **http://127.0.0.1:5176/**. De methodekeuze staat bij de invoer; opinion-chunks blijft standaard. Een head-matterresultaat opent de gemarkeerde redactionele context plus de volledige majority opinion. De mockmodus biedt uitsluitend de bestaande opinion-fixtures en levert geen verzonnen A-resultaten.
+Open **http://127.0.0.1:5176/**. Mike gebruikt standaard opinion-chunks; de zoekmethode wordt uitsluitend op de evaluatiepagina gekozen. Een head-matterresultaat opent de gemarkeerde redactionele context plus de volledige majority opinion. De mockmodus biedt uitsluitend de bestaande opinion-fixtures en levert geen verzonnen A-resultaten.
 
 ## Optionele Orq-uitleg apart proberen
 
@@ -230,7 +230,7 @@ De lokale vergelijkingskiezer biedt alle 25 canonieke scenario’s afzonderlijk.
 
 De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Een eventuele AI-beoordeling staat uit totdat je die expliciet aanvinkt.
 
-De vaste **B1**-kaart bewaart haar vooraf geregistreerde protocol uit commit `f3d80b6`: één beroepsborgstellingsvraag, zonder document of bronuitsluiting, met Cummings (156040) en Neubauer (156042) als ongeordende verwachte zaken. De afzonderlijke referentieknop behoudt dit protocol zonder A/B-keuze. Haar oorspronkelijke corpus-/pipeline-/modelcontext blijft strikt gebonden aan de oude baseline. De nieuwe dual-index heeft een andere context en levert daarom expliciet een contextfout, geen stil aangepaste referentie of geslaagde B1-run. Andere gevonden zaken blijven onbeoordeeld; dit is geen volledige juridische goldset of precisieclaim. Dezelfde kaart biedt daarnaast A/B/beide voor `B1-compare`: een afzonderlijke lokale vergelijking met exact de fixturevraag en fixturehash, geen upload of uitsluiting en het actuele indexmanifest. Deze variant krijgt een eigen run-ID en `not_scored`; zij claimt geen vooraf geregistreerd B1-oordeel en verandert de referentie niet.
+**B1** gebruikt één normale startknop met keuze A, B of beide. De exacte oorspronkelijke vraag en twee verwachte zaken (Cummings156040 en Neubauer156042) zijn behouden. Per methode wordt werkelijk 0–2 geteld: `passed` is uitsluitend waar als beide in de echte top drie staan. De huidige v2-fixture bindt expliciet alle135 bronrecords, secties/passages/vectoren, model en indexmanifest. Oudev1 staat alleen in `docs/evals/archive/deterministic_b1_v1.json`. V2 is een gemigreerde referentie na eerdere diagnostische runs, geen nieuwe preregistratie of juridische goldset. B1 heeft geen AI-beoordelaar; verwachte IDs worden nooit zoekinvoer.
 
 ```sh
 python3 backend/scripts/evals_web.py \
@@ -284,7 +284,7 @@ De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de
 
 ## Verificatie van de selecteerbare zoekmethoden
 
-Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **33 Pythonchecks**, **32 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **35 Pythonchecks**, **32 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 
@@ -304,4 +304,4 @@ De serverallowlist bevat `openai/gpt-4.1-mini-2025-04-14` (bestaande standaard) 
 
 Mike stuurt de keuze alleen via `X-Orq-Model`; de oorspronkelijke query-/documentmultipart gaat ongewijzigd naar Rust. `explanation_requested_model` registreert de keuze en `explanation_model` de werkelijk door de provider gemelde model-ID. Ontbrekende provideridentiteit blijft `null` en wordt als onbekend getoond. E06 gebruikt JSON `{"model":"..."}` en bewaart `requested_model` en de werkelijk gemelde `model` in het runartefact. De key blijft uitsluitend op de server en komt niet in deze browserverzoeken of resultaten.
 
-De afzonderlijke modelkeuzevalidatie gebruikte previews op 5177/18002 en 8800 met opgeslagen echte retrieval. Dat controleerde modeldoorgifte en brongebonden uitvoer, zonder een nieuwe embeddingindex te claimen. Het lokale main-profiel op 5176 zoekt rechtstreeks via Rust; daar is geen generatiemodelkiezer. De optionele Orq-sidecar blijft afzonderlijk configureerbaar.
+De afzonderlijke modelkeuzevalidatie gebruikte previews op 5177/18002 en 8800 met opgeslagen echte retrieval. Dat controleerde modeldoorgifte en brongebonden uitvoer, zonder een nieuwe embeddingindex te claimen. Het main-profiel op5176 gebruikt de bestaande echte Orq-uitlegverbinding op18000, die de actuele Rustbackend8000 hergebruikt. Een server zonder `/api/models` toont volgens het capabilitycontract geen modelkiezer. Sleutels worden niet verplaatst.

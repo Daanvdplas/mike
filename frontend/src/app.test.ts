@@ -21,6 +21,7 @@ it('kiest een catalogusmodel en toont het werkelijk teruggegeven model', async (
   }, false);
   const select = document.querySelector<HTMLSelectElement>('#explanation-model');
   expect(select).not.toBeNull();
+  expect(document.querySelector('select[aria-label="Zoekmethode"]')).toBeNull();
   await act(async () => {
     select!.value = 'catalog/second'; select!.dispatchEvent(new Event('change', { bubbles: true }));
     const textarea = document.querySelector('textarea')!;
@@ -28,10 +29,11 @@ it('kiest een catalogusmodel en toont het werkelijk teruggegeven model', async (
   });
   await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
   await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ model: 'catalog/second' })));
+  expect(search.mock.calls[0][0].retrieval_method).toBeUndefined();
   await vi.waitFor(() => expect(document.querySelector('.answer-model')?.textContent).toContain('provider/actual-model'));
 });
 
-it('combineert head-mattermarkering met uploadbewijs en behoudt de volledige meerderheidstekst', async () => {
+it('behoudt sectiegebonden markering en uploadbewijs zonder zoekmethodekiezer op Mike', async () => {
   const mock = createMockClient(0);
   const fixture = await mock.search({ query: 'vraag' });
   const headMatter = 'Redactioneel voorwerk over getuigenverklaringen.';
@@ -52,12 +54,8 @@ it('combineert head-mattermarkering met uploadbewijs en behoudt de volledige mee
     getCase: async (url: string) => ({ ...await mock.getCase(url), head_matter: headMatter, head_matter_text_version: 'head-version' }),
   };
   await mountApp(document.querySelector('#app')!, client, false);
-  const selector = document.querySelector<HTMLSelectElement>('select[aria-label="Zoekmethode"]');
-  expect(selector).not.toBeNull();
-  expect(selector!.value).toBe('opinion_chunks');
+  expect(document.querySelector('select[aria-label="Zoekmethode"]')).toBeNull();
   await act(async () => {
-    selector!.value = 'head_matter';
-    selector!.dispatchEvent(new Event('change', { bubbles: true }));
     const textarea = document.querySelector('textarea')!;
     textarea.value = 'witness testimony';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -66,7 +64,7 @@ it('combineert head-mattermarkering met uploadbewijs en behoudt de volledige mee
     upload.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
-  expect(client.search).toHaveBeenCalledWith(expect.objectContaining({ retrieval_method: 'head_matter', document: expect.any(File) }));
+  expect(client.search).toHaveBeenCalledWith(expect.objectContaining({ document: expect.any(File) }));
   expect(document.querySelector('.answer-note')!.textContent).toContain('Head matter');
   await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
   expect(document.querySelector('.head-matter mark')!.textContent).toBe(headMatter);

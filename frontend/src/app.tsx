@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SearchClient } from './client';
-import { getPassageParts, validateInput, type CaseDetail, type ModelCatalog, type RetrievalMethod, type SearchResponse, type SearchResult } from './search';
+import { getPassageParts, validateInput, type CaseDetail, type ModelCatalog, type SearchResponse, type SearchResult } from './search';
 
 interface SelectedDocument {
   result: SearchResult;
@@ -12,7 +12,6 @@ interface SelectedDocument {
 export function App({ client, isMock }: { client: SearchClient; isMock: boolean }) {
   const [query, setQuery] = useState('');
   const [document, setDocument] = useState<File>();
-  const [retrievalMethod, setRetrievalMethod] = useState<RetrievalMethod>('opinion_chunks');
   const [response, setResponse] = useState<SearchResponse>();
   const [selected, setSelected] = useState<SelectedDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,7 +58,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (pending.current) return;
-    const input = { query, document, retrieval_method: retrievalMethod, ...(model ? { model } : {}) };
+    const input = { query, document, ...(model ? { model } : {}) };
     try { validateInput(input); }
     catch (cause) { setError(message(cause)); textarea.current?.focus(); return; }
     restoreInputFocus.current = event.currentTarget.contains(window.document.activeElement);
@@ -89,12 +88,6 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
       <div className="composer-area">
         <p className="status" role="status" aria-live="polite">{busy ? (isMock ? 'Voorbeeldzaken ophalen…' : 'Uitspraken zoeken…') : response ? (isMock ? 'Drie voorbeeldzaken beschikbaar.' : 'Drie uitspraken beschikbaar.') : ''}</p>
         <p className="error" role="alert" hidden={!error}>{error}</p>
-        <label className="method-choice">Zoekmethode
-          <select aria-label="Zoekmethode" value={retrievalMethod} disabled={busy} onChange={event => setRetrievalMethod(event.currentTarget.value as RetrievalMethod)}>
-            <option value="opinion_chunks">Oordeelpassages (B)</option>
-            <option value="head_matter" disabled={isMock}>Head matter · redactioneel voorwerk (A)</option>
-          </select>
-        </label>
         <form className="composer" noValidate onSubmit={submit} aria-busy={busy}>
           <label className="visually-hidden" htmlFor="query">Vraag of tekst</label>
           <textarea id="query" ref={textarea} rows={3} value={query} disabled={busy} placeholder="Typ je vraag of plak hier tekst…" aria-invalid={Boolean(error)}

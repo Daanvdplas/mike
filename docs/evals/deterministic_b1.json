@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "fixture_version": "appeal-bond-b1-v1",
+  "schema_version": 2,
+  "fixture_version": "appeal-bond-b1-v2",
   "id": "B1",
   "title": "Beroepsborgstelling met een opgeheven rechtbank",
   "input_mode": "query",
@@ -39,11 +39,12 @@
   ],
   "expected_order": "unordered",
   "success_rule": "Both expected case IDs occur in exactly three unique valid corpus results. Rank may vary. The third result is unjudged.",
-  "reference_status": "Agent-proposed, independently checked against the supplied sources; not human legal gold or exhaustive relevance labels.",
+  "reference_status": "Migrated two-target reference on the current dual index; not a new preregistration or human legal gold.",
   "context": {
-    "corpus_version": "sha256:d3f2794d2875fa3f3bddcd43eb55d273c2fd99e41cb6eee3a2723eacf10bf16a",
+    "corpus_version": "sha256:4844ddfc18ec1605f28d8be42f8308d1b9dda343a0421cd558c2f9f0891f4541",
     "ranking_version": "cosine-max-v1",
-    "index_pipeline": "majority-lf-trim-v1|chars1600-overlap160-token480-v1|question-prefix-v1|cosine-max-v1",
+    "index_pipeline": "majority-and-head-matter-lf-trim-v1|chars1600-overlap160-token480-v1|question-prefix-v1|cosine-max-v1",
+    "index_manifest_sha256": "cc92634b885b0009cab6a69e4d06f694170bc80dc041730884ce8e67b73f765f",
     "embedding": {
       "model": "Qdrant/bge-small-en-v1.5-onnx-Q",
       "dimensions": 384,
@@ -52,6 +53,20 @@
       "pooling": "Cls",
       "query_prefix": "Represent this sentence for searching relevant passages: ",
       "artifacts_sha256": "44dd8d1cf7f64e80fe20cc79177a5c2792b65593e15d130f95a83c617d2a463d"
+    },
+    "snapshot": {
+      "case_count": 135,
+      "cases_sha256": "f72fd09172c09fc36f6a1229d05327901f8ba6e3f2525f302cd9e7415d10cd30",
+      "sections": {
+        "majority": {
+          "passage_count": 578,
+          "sha256": "612a244f4cc328109a499e7a81c7a574ba74b640e45606e299ff4d4a70327853"
+        },
+        "head_matter": {
+          "passage_count": 790,
+          "sha256": "271fe7e9e0fd10fb84f0f7d81a0c4e86919d3eb7fc50f22c174b3eaf5c6e8d13"
+        }
+      }
     }
   },
   "origin": {
@@ -59,5 +74,10 @@
     "file": "/Users/R0GUE/Library/Caches/adami-case/final-review/preregistered-fresh-evaluation.json",
     "sha256": "8a8379d210c27e4d836d83da02ea35a6c1e646cedea3185906669d99f6d95bb6"
   },
-  "registration": "Query and both expected IDs committed before the first run of this two-target eval. Do not adjust them after observing retrieval output."
+  "registration": "The original query and targets are unchanged. This v2 context is bound after prior diagnostic runs on this index; no new preregistration is claimed.",
+  "migration": {
+    "source_fixture": "archive/deterministic_b1_v1.json",
+    "source_fixture_sha256": "08dc5060135102f698f66e095ab6d729c22b067875ead5dc2ee5679a182fbca7",
+    "prior_diagnostic_run": "1794412670-408b4d4e"
+  }
 }

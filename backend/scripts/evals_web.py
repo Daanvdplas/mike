@@ -24,7 +24,9 @@ DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
 
 
 class RunError(Exception):
-    pass
+    def __init__(self, message, code="run_failed", retryable=True):
+        super().__init__(message)
+        self.code, self.retryable = code, retryable
 
 
 def sha256(data):
@@ -64,8 +66,7 @@ def catalog(config):
                 "expected_behavior": row["expected_behavior"], "why": row["why"], "runnable": True} for row in rows]
     fixed = [{"id": "B1", "title": fixture["title"], "input_mode": "query", "query": fixture["query"],
               "document_label": None, "expected_cases": [{"case_id": item["case_id"], "title": item["title"]} for item in fixture["expected_cases"]],
-              "comparison_variant": {"id": "B1-compare", "title": "Zoekmethodes vergelijken op de B1-vraag", "input_mode": "query", "query": fixture["query"],
-                                     "document_label": None, "expected_behavior": "Lokale zoekresultaten naast elkaar; geen score op de vooraf vastgelegde B1-referentie.", "runnable": True}, "runnable": True},
+              "fixture_version": fixture["fixture_version"], "runnable": True},
              next(row for row in records if row["id"] == "E06")]
     return {"retrieval_methods": ["opinion_chunks", "head_matter"], "judge_available": bool(config.get("key")), "evals": fixed, "diagnostic_evals": records}
 
@@ -122,28 +123,45 @@ def local_search(config, query, document, mode, method, excluded_case_ids):
 
 
 def run_b1(config, run_id, run_dir, started):
+    if config.get("judge_enabled"):
+        raise RunError("B1 gebruikt geen AI-beoordelaar.", retryable=False)
     fixture, fixture_hash = b1.load_fixture(config["repo"])
     try:
         manifest, cases = b1.verified_index(fixture, config["database"], config["corpus"])
-        response = relevance.search(config["backend"], fixture["query"], None)
-        (run_dir / "search.json").write_text(json.dumps(response, ensure_ascii=False, indent=2))
-        scored = b1.score(fixture, response, cases)
-    except ValueError as failure:
-        raise RunError(str(failure)) from None
-    result = {
-        "run_id": run_id, "eval_id": "B1", "status": "completed", **scored,
-        "input": {"mode": "query", "query": fixture["query"], "document_label": None},
-        "fixture_version": fixture["fixture_version"], "fixture_sha256": fixture_hash,
-        "reference_status": fixture["reference_status"],
-        "corpus_version": response["corpus_version"], "ranking_version": response["ranking_version"],
-        "retrieval_manifest": manifest, "search_response": response,
-        "excluded_case_ids": [], "structural_checks": {"three_unique_results": True, "valid_corpus_ids": True},
-        "duration_seconds": round(time.monotonic() - started, 3),
-        "limitations": ["Vooraf vastgelegde, door agents voorgestelde referenties; geen menselijke juridische goldset.",
-                        "Alleen aanwezigheid van deze twee verwachte zaken wordt getoetst; andere matches zijn onbeoordeeld.",
-                        "Geen AI-beoordelaar, geen precisie- of algemene juridische kwaliteitsmeting."],
-        "artifact_name": run_id + "/result.json",
-    }
+    except b1.IndexContextError as failure:
+        raise RunError(str(failure), "index_context_mismatch", False) from None
+    inputs = {"mode": "query", "query": fixture["query"], "document_label": None, "document_sha256": None}
+    input_hash = sha256(json.dumps(inputs, sort_keys=True, ensure_ascii=False).encode())
+    provenance = {"fixture_version": fixture["fixture_version"], "fixture_sha256": fixture_hash,
+                  "reference_status": fixture["reference_status"], "evaluation_kind": "migrated_target_check",
+                  "index_snapshot": fixture["context"]["snapshot"],
+                  "index_manifest_sha256": b1.digest(b1.canonical(manifest)),
+                  "index_pipeline_sha256": sha256(manifest["pipeline"].encode())}
+    runs = []
+    for method in config.get("retrieval_methods", ["opinion_chunks"]):
+        method_started = time.monotonic()
+        response, returned_manifest, _ = local_search(config, fixture["query"], None, "query", method, [])
+        if returned_manifest != manifest:
+            raise RunError("De zoekengine gebruikt een andere index dan de B1-v2-snapshot.", "index_context_mismatch", False)
+        try:
+            scored = b1.score(fixture, response, cases, method)
+        except ValueError as failure:
+            raise RunError(str(failure), "invalid_search_result", False) from None
+        (run_dir / f"search-{method}.json").write_text(json.dumps(response, ensure_ascii=False, indent=2))
+        runs.append({"run_id": f"{run_id}-{method}", "eval_id": "B1", "status": "completed", **provenance, **scored,
+                     "retrieval_method": method, "input": inputs, "input_sha256": input_hash,
+                     "corpus_version": response["corpus_version"], "ranking_version": response["ranking_version"],
+                     "retrieval_manifest": manifest, "search_response": response, "excluded_case_ids": [], "eligible_case_count": len(cases),
+                     "structural_checks": {"three_unique_results": True, "valid_corpus_ids": True, "source_excluded": False},
+                     "judge_status": "not_requested", "judgments": [], "model": None, "requested_model": None,
+                     "duration_seconds": round(time.monotonic() - method_started, 3), "artifact_name": f"{run_id}/result.json",
+                     "limitations": ["Twee overgenomen, agentvoorgestelde referentiezaken; geen menselijke juridische goldset.",
+                                     "De nieuwe indexbinding is geen nieuwe preregistratie. Andere matches blijven onbeoordeeld.",
+                                     "0–2 telt verwachte zaken; de cosinusscore is geen juridische kwaliteitsscore."]})
+    shared = sorted(set.intersection(*(set(row["case_id"] for row in run["search_response"]["results"]) for run in runs)))
+    result = {"run_id": run_id, "eval_id": "B1", "status": "completed", **provenance, "input": inputs, "input_sha256": input_hash,
+              "runs": runs, "comparison": {"shared_case_ids": shared, "overlap_count": len(shared)} if len(runs) > 1 else None,
+              "duration_seconds": round(time.monotonic() - started, 3), "artifact_name": f"{run_id}/result.json"}
     (run_dir / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     return result
 
@@ -159,24 +177,15 @@ def run_eval(config, eval_id):
     methods = config.get("retrieval_methods", ["opinion_chunks"])
     judge_enabled = config.get("judge_enabled", False)
     rubric = source = source_manifest = scenario_hash = None
-    reference = {}
-    if eval_id == "B1-compare":
-        if judge_enabled:
-            raise RunError("De B1-vergelijkingsvariant gebruikt geen AI-beoordelaar.")
-        fixture, fixture_hash = b1.load_fixture(config["repo"])
-        query, document, mode = fixture["query"], None, "query"
-        reference = {"reference_fixture_sha256": fixture_hash, "reference_fixture_version": fixture["fixture_version"],
-                     "evaluation_kind": "diagnostic_variant", "scoring_status": "not_scored"}
-    else:
-        rows, scenario_hash = scenario_catalog(config["repo"])
-        row = next((item for item in rows if item["id"] == eval_id), None)
-        if row is None:
-            raise RunError("Dit scenario staat niet in de canonieke catalogus.")
-        source_manifest, source, source_text = indexed_source(config, row)
-        mode = row["input_mode"]
-        query = row["query"]["en"] if row["query"] else None
-        document = source_text if row["document"] else None
-        rubric = {"expected_behavior": row["expected_behavior"], "why": row["why"]}
+    rows, scenario_hash = scenario_catalog(config["repo"])
+    row = next((item for item in rows if item["id"] == eval_id), None)
+    if row is None:
+        raise RunError("Dit scenario staat niet in de canonieke catalogus.")
+    source_manifest, source, source_text = indexed_source(config, row)
+    mode = row["input_mode"]
+    query = row["query"]["en"] if row["query"] else None
+    document = source_text if row["document"] else None
+    rubric = {"expected_behavior": row["expected_behavior"], "why": row["why"]}
     if judge_enabled and not config.get("key"):
         raise RunError("AI-beoordeling is niet beschikbaar zonder modelcredential.")
     inputs = {"mode": mode, "query": query,
@@ -209,9 +218,7 @@ def run_eval(config, eval_id):
                       "Gelijke invoer en index maken methodes vergelijkbaar; overlap is geen kwaliteitsmeting."]
         if judge_enabled:
             limitations.append("AI-beoordeling, geen menselijke juridische referentie of Recall/nDCG-meting.")
-        if eval_id == "B1-compare":
-            limitations.append("Nieuwe variant op de B1-vraag en actuele index; geen uitvoering of score van de vooraf vastgelegde B1-referentie.")
-        runs.append({"run_id": f"{run_id}-{method}", "eval_id": eval_id, "status": "completed", **reference,
+        runs.append({"run_id": f"{run_id}-{method}", "eval_id": eval_id, "status": "completed",
                      "retrieval_method": method, "input": inputs, "input_sha256": input_hash,
                      "structural_checks": {"three_unique_results": True, "source_excluded": bool(source)},
                      "judge_status": "completed" if judge_enabled else "not_requested",
@@ -223,8 +230,8 @@ def run_eval(config, eval_id):
                      "search_response": response, "duration_seconds": round(time.monotonic() - method_started, 3),
                      "limitations": limitations, "artifact_name": f"{run_id}/result.json"})
     shared = sorted(set.intersection(*(set(hit["case_id"] for hit in run["search_response"]["results"]) for run in runs)))
-    result = {"run_id": run_id, "eval_id": eval_id, "status": "not_scored" if reference else "completed",
-              "execution_status": "completed", **reference, "input": inputs,
+    result = {"run_id": run_id, "eval_id": eval_id, "status": "completed",
+              "execution_status": "completed", "input": inputs,
               "input_sha256": input_hash, "runs": runs,
               "comparison": {"shared_case_ids": shared, "overlap_count": len(shared)} if len(runs) > 1 else None,
               "duration_seconds": round(time.monotonic() - started, 3), "artifact_name": f"{run_id}/result.json"}
@@ -289,7 +296,7 @@ def handler_class(config, runner=run_eval):
             path = urlsplit(self.path).path
             try:
                 rows, _ = scenario_catalog(config["repo"])
-                ids = {f"/api/evals/{eval_id}/run": eval_id for eval_id in ["B1", "B1-compare", *(row["id"] for row in rows)]}
+                ids = {f"/api/evals/{eval_id}/run": eval_id for eval_id in ["B1", *(row["id"] for row in rows)]}
             except (OSError, ValueError, KeyError, TypeError, RunError):
                 self.send_json(503, {"error": {"code": "catalog_unavailable", "message": "De evalcatalogus kon niet worden geladen."}})
                 return
@@ -303,12 +310,10 @@ def handler_class(config, runner=run_eval):
                 options = json.loads(self.rfile.read(length))
                 if not isinstance(options, dict) or set(options) - {"retrieval_methods", "judge", "model"}:
                     raise ValueError()
-                if ids[path] == "B1" and options:
+                if ids[path] == "B1" and set(options) - {"retrieval_methods"}:
                     raise ValueError()
                 methods = options.get("retrieval_methods", ["opinion_chunks"])
                 judge_enabled = options.get("judge", "model" in options)
-                if ids[path] == "B1-compare" and (judge_enabled or "model" in options):
-                    raise ValueError()
                 if (not isinstance(methods, list) or not 1 <= len(methods) <= 2
                         or any(method not in {"opinion_chunks", "head_matter"} for method in methods)
                         or len(set(methods)) != len(methods) or type(judge_enabled) is not bool):
@@ -334,7 +339,7 @@ def handler_class(config, runner=run_eval):
                     run_config["model"] = selected_model
                 self.send_json(200, runner(run_config, ids[path]))
             except (RunError, relevance.EvaluationError) as failure:
-                self.send_json(502, {"error": {"code": "run_failed", "message": str(failure)}})
+                self.send_json(502, {"error": {"code": getattr(failure, "code", "run_failed"), "message": str(failure), "retryable": getattr(failure, "retryable", True)}})
             except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
                 self.send_json(503, {"error": {"code": "run_unavailable", "message": "De run is niet voltooid. Controleer de lokale bron, Rustbinary en indexconfiguratie."}})
             finally:

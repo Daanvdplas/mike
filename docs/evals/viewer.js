@@ -40,37 +40,6 @@ function field(parent, label, value, className) {
   parent.append(container);
 }
 
-function renderDeterministicResults(container, result) {
-  if (result.status !== 'completed' || result.expected_count !== 2 ||
-      !Array.isArray(result.results) || result.results.length !== 3 ||
-      !result.structural_checks?.three_unique_results || !result.structural_checks?.valid_corpus_ids ||
-      new Set(result.results.map(row => row.case_id)).size !== 3) {
-    throw new Error('De run bevat geen geldige drie unieke corpusresultaten.');
-  }
-  const summary = element('div', null, 'result-summary');
-  summary.append(element('h4', `${result.passed ? 'Geslaagd' : 'Niet geslaagd'} — ${result.hit_count} van 2 verwachte zaken gevonden`));
-  const expected = element('ul');
-  result.expectations.forEach(row => expected.append(element('li',
-    `${row.title} (${row.case_id}) · ${row.found ? `gevonden op rang ${row.rank}` : 'niet gevonden in de top 3'}`)));
-  summary.append(expected);
-  const list = element('ol', null, 'judgments');
-  result.results.forEach(row => {
-    const item = element('li', null, 'judgment');
-    item.append(element('h4', `${row.rank}. ${row.title}`),
-      element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
-    if (row.assessment === 'expected') item.append(element('p', 'Vooraf verwachte zaak'));
-    list.append(item);
-  });
-  const details = element('details', null, 'run-provenance');
-  details.append(element('summary', 'Rundetails'),
-    element('p', `Fixture ${result.fixture_version} · ${result.fixture_sha256}`),
-    element('p', `Corpus ${result.corpus_version} · ${result.ranking_version}`),
-    element('p', `Lokaal resultaatbestand: ${result.artifact_name}`));
-  (result.limitations || []).forEach(text => details.append(element('p', text)));
-  container.replaceChildren(summary, list, details);
-}
-
-
 const methodNames = {opinion_chunks: 'Oordeelpassages (B)', head_matter: 'Head matter (A)'};
 
 function renderMethod(run) {
@@ -78,7 +47,7 @@ function renderMethod(run) {
   const checks = run.structural_checks;
   if (run.status !== 'completed' || !methodNames[run.retrieval_method] || !Array.isArray(hits) || hits.length !== 3 ||
       new Set(hits.map(row => row.case_id)).size !== 3 || !checks?.three_unique_results ||
-      (run.eval_id !== 'B1-compare' && (!checks.source_excluded || hits.some(row => (run.excluded_case_ids || []).includes(row.case_id))))) {
+      (run.eval_id !== 'B1' && (!checks.source_excluded || hits.some(row => (run.excluded_case_ids || []).includes(row.case_id))))) {
     throw new Error('De run bevat geen geldige drie unieke resultaten. Probeer opnieuw.');
   }
   const judged = run.judge_status === 'completed';
@@ -92,6 +61,18 @@ function renderMethod(run) {
   section.append(element('p', '3 unieke uitspraken' +
     (checks.source_excluded ? ' · Bronzaak uitgesloten' : ' · Geen bronuitsluiting'), 'run-checks'));
   section.append(element('p', judged ? 'AI-relevantie: 0 niet relevant · 1 zijdelings · 2 bruikbaar · 3 sterk.' : 'Lokale overeenkomstscores · geen AI-relevantiebeoordeling.', 'grade-scale'));
+  if (run.eval_id === 'B1') {
+    if (run.expected_count !== 2 || !Number.isInteger(run.hit_count) || run.hit_count < 0 || run.hit_count > 2 ||
+        !Array.isArray(run.expectations) || run.expectations.length !== 2 ||
+        run.hit_count !== run.expectations.filter(row => row.found === true).length || run.passed !== (run.hit_count === 2)) {
+      throw new Error('De B1-uitvoer bevat geen geldige referentietelling.');
+    }
+    const summary = element('div', null, 'result-summary');
+    summary.append(element('h4', `${run.passed ? 'Geslaagd' : 'Niet geslaagd'} — ${run.hit_count} van 2 verwachte zaken gevonden`));
+    const expected = element('ul');
+    run.expectations.forEach(row => expected.append(element('li', `${row.title} (${row.case_id}) · ${row.found ? `gevonden op rang ${row.rank}` : 'niet gevonden in de top 3'}`)));
+    summary.append(expected); section.append(summary);
+  }
   if (judged) {
     const useful = run.judgments.filter(row => row.grade >= 2).length;
     const summary = element('div', null, 'result-summary');
@@ -119,6 +100,7 @@ function renderMethod(run) {
     ['Gekozen beoordelingsmodel', run.requested_model || 'Niet aangevraagd'],
     ['Gebruikt beoordelingsmodel', run.judge_status === 'completed' ? (run.model || 'Niet teruggegeven door provider') : 'Niet aangevraagd'],
     ['Duur', `${Number(run.duration_seconds).toFixed(1)} seconden`],
+    ...(run.eval_id === 'B1' ? [['B1-protocol', run.fixture_version], ['Fixture SHA-256', run.fixture_sha256], ['Contextmigratie', run.reference_status]] : []),
     ['Invoer SHA-256', run.input_sha256], ['Corpus', run.corpus_version], ['Ranking', run.ranking_version],
     ['Embeddingmodel', JSON.stringify(run.retrieval_manifest?.embedding || {})],
     ['Lokaal resultaatbestand', run.artifact_name],
@@ -132,8 +114,7 @@ function renderMethod(run) {
 }
 
 function renderResults(container, result) {
-  if (result.eval_id === 'B1') { renderDeterministicResults(container, result); return; }
-  const completed = result.status === 'completed' || (result.eval_id === 'B1-compare' && result.status === 'not_scored' && result.execution_status === 'completed');
+  const completed = result.status === 'completed';
   if (!completed || !Array.isArray(result.runs) || !result.runs.length || result.runs.length > 2 ||
       new Set(result.runs.map(run => run.retrieval_method)).size !== result.runs.length) {
     throw new Error('De ontvangen vergelijking is ongeldig.');
@@ -172,7 +153,7 @@ function renderResults(container, result) {
 
 function updateRunControls() {
   document.querySelectorAll('.run-button').forEach(node => {
-    node.disabled = running || (node.dataset.judgeEnabled === 'true' && node.dataset.modelReady !== 'true');
+    node.disabled = running || node.dataset.nonRetryable === 'true' || (node.dataset.judgeEnabled === 'true' && node.dataset.modelReady !== 'true');
   });
   document.querySelectorAll('.eval-model-select').forEach(node => {
     node.disabled = running || node.dataset.enabled !== 'true' || !node.options.length;
@@ -200,7 +181,7 @@ async function runEval(evalRecord, button, status, results, selector, judge, mod
   const methods = selector?.value === 'both' ? ['opinion_chunks', 'head_matter'] : [selector?.value || 'opinion_chunks'];
   const judgeEnabled = judge?.checked || false;
   running = true;
-  document.querySelectorAll('.run-button, .method-selector, .scenario-selector, .judge-choice input').forEach(node => { node.disabled = true; });
+  document.querySelectorAll('.run-button, .method-selector, .judge-choice input').forEach(node => { node.disabled = true; });
   button.textContent = 'Bezig…';
   status.hidden = false;
   status.textContent = judgeEnabled ? 'Zoeken en beoordelen… Houd deze pagina open.' : 'Lokaal zoeken en resultaten vergelijken…';
@@ -210,12 +191,12 @@ async function runEval(evalRecord, button, status, results, selector, judge, mod
   try {
     const response = await fetch(`/api/evals/${encodeURIComponent(evalRecord.id)}/run`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(evalRecord.id === 'B1' ? {} : {retrieval_methods: methods, judge: judgeEnabled, ...(judgeEnabled && modelSelect ? {model: modelSelect.value} : {})}),
+      body: JSON.stringify(evalRecord.id === 'B1' ? {retrieval_methods: methods} : {retrieval_methods: methods, judge: judgeEnabled, ...(judgeEnabled && modelSelect ? {model: modelSelect.value} : {})}),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.');
-    if (result.eval_id !== evalRecord.id || (evalRecord.id !== 'B1' && (!Array.isArray(result.runs) ||
-        JSON.stringify(result.runs.map(run => run.retrieval_method)) !== JSON.stringify(methods)))) {
+    if (!response.ok) throw Object.assign(new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.'), {retryable: result.error?.retryable !== false});
+    if (result.eval_id !== evalRecord.id || (!Array.isArray(result.runs) ||
+        JSON.stringify(result.runs.map(run => run.retrieval_method)) !== JSON.stringify(methods))) {
       throw new Error('De ontvangen run hoort niet bij deze eval of zoekmethode.');
     }
     renderResults(results, result);
@@ -224,30 +205,32 @@ async function runEval(evalRecord, button, status, results, selector, judge, mod
     status.className = 'run-status completed';
     button.textContent = 'Opnieuw uitvoeren';
   } catch (error) {
-    status.textContent = `Niet uitgevoerd: ${error.message}. Je kunt het opnieuw proberen.`;
+    const retryable = error.retryable !== false;
+    status.textContent = `Niet uitgevoerd: ${error.message}` + (retryable ? ' Je kunt het opnieuw proberen.' : '');
     status.className = 'run-status failed';
-    button.textContent = 'Opnieuw proberen';
+    button.textContent = retryable ? 'Opnieuw proberen' : 'Start eval';
+    button.dataset.nonRetryable = String(!retryable);
   } finally {
     running = false;
     results.setAttribute('aria-busy', 'false');
-    document.querySelectorAll('.run-button, .method-selector, .scenario-selector').forEach(node => { node.disabled = false; });
+    document.querySelectorAll('.run-button, .method-selector').forEach(node => { node.disabled = false; });
     document.querySelectorAll('.judge-choice input').forEach(node => { node.disabled = node.dataset.available !== 'true'; });
     updateRunControls();
   }
 }
 
-function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
+function addRunControls(content, evalRecord, judgeAvailable, scopeId) {
   let selector, judge, modelSelect, modelStatus, modelPicker;
-  if (evalRecord.id !== 'B1') {
+  {
     const choices = element('div', null, 'run-choices');
     const label = element('label', 'Zoekmethode');
     selector = element('select', null, 'method-selector');
-    selector.setAttribute('aria-label', `Zoekmethode voor ${kind === 'diagnostic' ? 'scenario ' : ''}${evalRecord.id}`);
+    selector.setAttribute('aria-label', `Zoekmethode voor ${evalRecord.id}`);
     [['opinion_chunks', methodNames.opinion_chunks], ['head_matter', methodNames.head_matter], ['both', 'Vergelijk beide']].forEach(([value, text]) => {
       const option = element('option', text); option.value = value; selector.append(option);
     });
     label.append(selector); choices.append(label);
-    if (evalRecord.id !== 'B1-compare') {
+    if (evalRecord.id !== 'B1') {
       const judgeLabel = element('label', null, 'judge-choice');
       judge = element('input'); judge.type = 'checkbox'; judge.checked = false;
       judge.disabled = !judgeAvailable; judge.dataset.available = String(judgeAvailable);
@@ -266,9 +249,9 @@ function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
     modelPicker.append(modelLabel, modelSelect, modelStatus); content.append(modelPicker);
   }
   const action = element('div', null, 'run-action');
-  const button = element('button', evalRecord.id === 'B1-compare' ? 'Start vergelijking' : 'Start eval', 'run-button');
-  button.type = 'button'; button.dataset.evalId = evalRecord.id; button.dataset.kind = kind;
-  button.setAttribute('aria-label', `Start ${kind === 'diagnostic' ? 'scenario' : 'eval'}: ${evalRecord.id}`);
+  const button = element('button', 'Start eval', 'run-button');
+  button.type = 'button'; button.dataset.evalId = evalRecord.id; button.dataset.kind = 'fixed';
+  button.setAttribute('aria-label', `Start eval: ${evalRecord.id}`);
   const status = element('p', '', 'run-status'); status.hidden = true; status.id = `${scopeId}-status`; status.setAttribute('role', 'status');
   button.setAttribute('aria-describedby', status.id);
   const results = element('div', null, 'run-results'); results.id = `${scopeId}-results`; results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
@@ -284,11 +267,11 @@ function addRunControls(content, evalRecord, judgeAvailable, scopeId, kind) {
   action.append(button, status); content.append(action, results);
 }
 
-function renderRunnable(evalRecord, judgeAvailable, diagnostic = false) {
+function renderRunnable(evalRecord, judgeAvailable) {
   const section = element('details', null, 'runnable-eval');
-  section.id = `${diagnostic ? 'compare' : 'run'}-${evalRecord.id}`;
+  section.id = `run-${evalRecord.id}`;
   const heading = element('summary', null, 'run-heading');
-  const title = element('h3', diagnostic ? `${evalRecord.id} · ${evalRecord.title}` : evalRecord.title);
+  const title = element('h3', evalRecord.title);
   title.id = `${section.id}-title`; section.setAttribute('aria-labelledby', title.id);
   const chevron = element('span', null, 'chevron'); chevron.setAttribute('aria-hidden', 'true'); heading.append(title, chevron); section.append(heading);
   const content = element('div', null, 'runnable-content');
@@ -296,8 +279,8 @@ function renderRunnable(evalRecord, judgeAvailable, diagnostic = false) {
   const toggle = element('summary', 'i'); toggle.setAttribute('aria-label', 'Uitleg en beoordeling van deze eval');
   const explanation = element('div', null, 'eval-info-content');
   if (evalRecord.id === 'B1') {
-    explanation.append(element('p', 'De oorspronkelijke referentiecontrole gebruikt de vooraf vastgelegde corpus- en modelcontext. Beide verwachte zaak-ID’s moeten in de top drie staan; hun volgorde mag wisselen.'),
-      element('p', 'Deze door agents voorgestelde referenties zijn geen menselijke juridische goldset. Bij een andere index geeft de vaste controle een contextfout; de afzonderlijke zoekvariant hieronder wijzigt de referentie niet.'));
+    explanation.append(element('p', 'Deze controle vergelijkt de drie zoekresultaten met twee vooraf gekozen uitspraken, op de actuele index en per gekozen zoekmethode. Beide zaken moeten gevonden worden; hun volgorde mag wisselen.'),
+      element('p', 'De overige gevonden zaak is onbeoordeeld. Deze door agents voorgestelde referenties zijn geen menselijke juridische goldset.'));
   } else {
     explanation.append(element('p', 'Vergelijk lokale zoekmethodes op dezelfde invoer en index. De bronzaak wordt vóór de top drie uitgesloten. Overlap en overeenkomstscore bewijzen geen juridische relevantie.'),
       element('p', 'Optionele AI-beoordeling: 0 niet relevant, 1 zijdelings, 2 bruikbaar, 3 sterk. Scores 2 en 3 tellen als bruikbaar; dit is geen menselijke juridische referentie.'));
@@ -313,12 +296,7 @@ function renderRunnable(evalRecord, judgeAvailable, diagnostic = false) {
   const mode = {query: 'Alleen vraag', document: 'Alleen document', combined: 'Document + vraag'}[evalRecord.input_mode];
   input.append(element('p', mode + (evalRecord.source_excluded ? ' · Bronzaak uitgesloten' : ''), 'input-note')); content.append(input);
   field(content, 'Verwachte output', evalRecord.id === 'B1' ? evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.' : evalRecord.expected_behavior, 'run-expectation');
-  addRunControls(content, evalRecord, judgeAvailable, section.id, diagnostic ? 'diagnostic' : 'fixed');
-  if (evalRecord.id === 'B1') {
-    const variant = element('section', null, 'b1-variant'); variant.id = 'run-B1-compare';
-    variant.append(element('h4', 'Zoekmethodes vergelijken · nieuwe variant'), element('p', 'Dezelfde B1-vraag, met de actuele zoekindex. Geen score van de vooraf vastgelegde referentiecontrole.', 'input-note'));
-    addRunControls(variant, evalRecord.comparison_variant, false, variant.id, 'variant'); content.append(variant);
-  }
+  addRunControls(content, evalRecord, judgeAvailable, section.id);
   section.append(content); return section;
 }
 
@@ -331,23 +309,8 @@ async function loadCatalog() {
     if (!response.ok) throw new Error('Catalogus niet beschikbaar');
     const catalog = await response.json();
     const records = ['B1', 'E06'].map(id => catalog.evals.find(row => row.id === id && row.runnable));
-    const evals = catalog.diagnostic_evals.filter(row => row.runnable);
-    if (records.some(row => !row) || !evals.length || new Set(evals.map(row => row.id)).size !== evals.length) throw new Error('Uitvoerbare evals ontbreken of staan dubbel');
+    if (records.some(row => !row)) throw new Error('De twee evals zijn niet beschikbaar');
     runnableList.replaceChildren(...records.map(row => renderRunnable(row, catalog.judge_available === true)));
-    const diagnosticList = document.getElementById('diagnostic-list');
-    if (!diagnosticList) throw new Error('De lokale vergelijkingskiezer ontbreekt');
-    const choices = element('label', 'Scenario', 'eval-selection');
-    const selector = element('select', null, 'method-selector scenario-selector'); selector.setAttribute('aria-label', 'Evaluatie kiezen');
-    const cards = new Map();
-    evals.forEach(record => {
-      const option = element('option', `${record.id} · ${record.title}`); option.value = record.id; selector.append(option);
-      cards.set(record.id, renderRunnable(record, catalog.judge_available === true, true));
-    });
-    choices.append(selector); const active = element('div');
-    const choose = () => active.replaceChildren(cards.get(selector.value)); selector.addEventListener('change', choose);
-    const initial = location.hash.startsWith('#compare-') ? location.hash.slice(9) : '';
-    if (cards.has(initial)) selector.value = initial;
-    choose(); diagnosticList.replaceChildren(choices, active);
     catalogStatus.hidden = true;
     revealAnchor();
   } catch {

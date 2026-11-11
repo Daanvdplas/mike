@@ -15,6 +15,25 @@ import evals_web
 
 
 class EvalsWebTest(unittest.TestCase):
+    def test_primary_b1_accepts_each_method_and_both_without_a_judge(self):
+        calls = []
+        def run(config, eval_id):
+            calls.append((eval_id, config['retrieval_methods'], config['judge_enabled']))
+            return {'eval_id': eval_id, 'status': 'completed'}
+        server = evals_web.ThreadingHTTPServer(('127.0.0.1', 0), evals_web.handler_class({'repo': evals_web.REPO, 'key': ''}, run))
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        base = f'http://127.0.0.1:{server.server_port}'
+        try:
+            for methods in [['opinion_chunks'], ['head_matter'], ['opinion_chunks', 'head_matter']]:
+                req = request.Request(base + '/api/evals/B1/run', data=json.dumps({'retrieval_methods': methods}).encode(), headers={'Origin': base, 'Content-Type': 'application/json'})
+                try:
+                    with request.urlopen(req) as response: self.assertEqual(json.load(response)['status'], 'completed')
+                except error.HTTPError as failure:
+                    failure.close(); self.fail('The normal B1 action must accept local method selection.')
+            self.assertEqual(calls, [('B1', methods, False) for methods in [['opinion_chunks'], ['head_matter'], ['opinion_chunks', 'head_matter']]])
+        finally:
+            server.shutdown(); server.server_close(); thread.join()
+
     def test_judge_model_choices_are_validated_without_blocking_local_retrieval(self):
         alternate = 'openai/gpt-4.1-2025-04-14'
         config = {'repo': evals_web.REPO, 'key': 'synthetic'}
@@ -36,7 +55,7 @@ class EvalsWebTest(unittest.TestCase):
             with request.urlopen(req('E06', {'model': alternate})) as response:
                 self.assertEqual(json.load(response)['status'], 'completed')
             self.assertEqual(calls[-1][-1], alternate)
-            for eval_id, payload in [('E06', {'judge': True, 'model': 'unknown'}), ('E06', {'model': None}), ('B1', {'model': alternate}), ('B1-compare', {'model': alternate})]:
+            for eval_id, payload in [('E06', {'judge': True, 'model': 'unknown'}), ('E06', {'model': None}), ('B1', {'model': alternate}), ('B1', {'judge': False})]:
                 with self.subTest(eval_id=eval_id, payload=payload), self.assertRaises(error.HTTPError) as rejected:
                     request.urlopen(req(eval_id, payload))
                 self.assertEqual(rejected.exception.code, 400); rejected.exception.close()
@@ -50,35 +69,32 @@ class EvalsWebTest(unittest.TestCase):
         finally:
             server.shutdown(); server.server_close(); thread.join()
 
-    def test_b1_comparison_uses_only_fixed_query_and_reports_no_baseline_score(self):
+    def test_primary_b1_scores_real_targets_per_method_on_the_bound_index(self):
         fixture, fixture_hash = evals_web.b1.load_fixture(evals_web.REPO)
+        ids = ['156040', '156042', '156000', '156001']
+        cases = {key: {'metadata': {'case_id': key, 'title': key, 'text_version': 'test-version'}, 'text': key, 'head_matter': key, 'head_matter_text_version': 'test-version'} for key in ids}
+        manifest = {'format_version': 3, 'corpus_version': fixture['context']['corpus_version'], 'pipeline': fixture['context']['index_pipeline'], 'embedding': fixture['context']['embedding']}
         with tempfile.TemporaryDirectory() as temporary:
-            config = {'repo': evals_web.REPO, 'outputs': Path(temporary), 'backend': 'http://unused',
-                      'retrieval_methods': ['opinion_chunks', 'head_matter'], 'judge_enabled': False, 'key': ''}
+            config = {'repo': evals_web.REPO, 'outputs': Path(temporary), 'backend': 'http://unused', 'database': Path('/unused'), 'corpus': Path('/unused'), 'retrieval_methods': ['opinion_chunks', 'head_matter'], 'judge_enabled': False}
             calls = []
             def search(_url, query, document, method, excluded):
                 calls.append((query, document, method, excluded))
-                return {'response': {'mode': 'query', 'retrieval_method': method, 'corpus_version': 'new-index', 'ranking_version': 'cosine-max-v1',
-                                     'results': [{'case_id': str(i), 'title': f'Case {i}', 'score': .9 - i / 10,
-                                                  'passage': {'text': f'Exact source passage {i}.', 'source_section': 'head_matter' if method == 'head_matter' else 'majority'}} for i in range(3)]},
-                        'index_manifest': {'corpus_version': 'new-index', 'embedding': {'model': 'same-local-model'}},
-                        'excluded_case_ids': [], 'eligible_case_count': 135}
-            with patch.object(evals_web.relevance, 'search', side_effect=search), patch.object(evals_web.relevance, 'judge') as judge:
-                result = evals_web.run_eval(config, 'B1-compare')
-            self.assertEqual(calls, [(fixture['query'], None, method, []) for method in ['opinion_chunks', 'head_matter']])
-            self.assertEqual(result['status'], 'not_scored')
-            self.assertEqual(result['reference_fixture_sha256'], fixture_hash)
-            self.assertNotIn('passed', result)
-            self.assertNotIn('hit_count', result)
-            self.assertTrue(all(run['reference_fixture_sha256'] == fixture_hash and run['judgments'] == [] for run in result['runs']))
-            judge.assert_not_called()
-            with self.assertRaises(evals_web.RunError):
-                evals_web.run_eval({**config, 'judge_enabled': True}, 'B1-compare')
+                order = ids[:3] if method == 'opinion_chunks' else [ids[0], ids[2], ids[3]]
+                rows = [{**cases[key]['metadata'], 'score': .8, 'passage': {'source_section': 'majority' if method == 'opinion_chunks' else 'head_matter', 'text_version': 'test-version', 'text': key, 'start_utf16': 0, 'end_utf16': len(key)}} for key in order]
+                return {'response': {'mode': 'query', 'retrieval_method': method, 'corpus_version': manifest['corpus_version'], 'ranking_version': 'cosine-max-v1', 'results': rows}, 'index_manifest': manifest, 'excluded_case_ids': [], 'eligible_case_count': 135}
+            with patch.object(evals_web.b1, 'verified_index', return_value=(manifest, cases)), patch.object(evals_web.relevance, 'search', side_effect=search), patch.object(evals_web.relevance, 'judge') as judge:
+                result = evals_web.run_eval(config, 'B1')
+            self.assertEqual(calls, [(fixture['query'], None, method, []) for method in config['retrieval_methods']])
+            self.assertEqual([run['hit_count'] for run in result['runs']], [2, 1])
+            self.assertEqual([run['passed'] for run in result['runs']], [True, False])
+            self.assertTrue(all(run['fixture_sha256'] == fixture_hash for run in result['runs']))
+            self.assertEqual(result['runs'][0]['input_sha256'], result['runs'][1]['input_sha256'])
+            self.assertEqual(result['fixture_version'], 'appeal-bond-b1-v2'); judge.assert_not_called()
 
     def test_b1_context_mismatch_stops_before_search_without_rebinding_fixture(self):
         with tempfile.TemporaryDirectory() as temporary:
             config = {'repo': evals_web.REPO, 'outputs': Path(temporary), 'database': Path('/unused.sqlite'), 'corpus': Path('/unused'), 'backend': 'http://unused'}
-            with patch.object(evals_web.b1, 'verified_index', side_effect=ValueError('De index wijkt af van de vooraf vastgelegde corpusversie.')), \
+            with patch.object(evals_web.b1, 'verified_index', side_effect=evals_web.b1.IndexContextError('De index wijkt af van de vooraf vastgelegde corpusversie.')), \
                     patch.object(evals_web.relevance, 'search') as search:
                 with self.assertRaisesRegex(evals_web.RunError, 'vooraf vastgelegde corpusversie'):
                     evals_web.run_eval(config, 'B1')
@@ -223,15 +239,10 @@ class EvalsWebTest(unittest.TestCase):
             with request.urlopen(req) as response:
                 self.assertEqual(json.load(response)['status'], 'completed')
             self.assertEqual(calls, [('E06', ['opinion_chunks', 'head_matter'], False)])
-            variant = request.Request(base + '/api/evals/B1-compare/run', data=body, headers={'Origin': base, 'Content-Type': 'application/json'})
-            with request.urlopen(variant) as response:
-                self.assertEqual(json.load(response)['status'], 'completed')
-            self.assertEqual(calls[-1], ('B1-compare', ['opinion_chunks', 'head_matter'], False))
-            variant = request.Request(base + '/api/evals/B1-compare/run', data=b'{"judge":true}', headers={'Origin': base, 'Content-Type': 'application/json'})
-            with self.assertRaises(error.HTTPError) as rejected:
-                request.urlopen(variant)
-            self.assertEqual(rejected.exception.code, 400)
-            rejected.exception.close()
+            b1body = json.dumps({'retrieval_methods': ['opinion_chunks', 'head_matter']}).encode()
+            primary = request.Request(base + '/api/evals/B1/run', data=b1body, headers={'Origin': base, 'Content-Type': 'application/json'})
+            with request.urlopen(primary) as response: self.assertEqual(json.load(response)['status'], 'completed')
+            self.assertEqual(calls[-1], ('B1', ['opinion_chunks', 'head_matter'], False))
             req = request.Request(base + '/api/evals/E06/run', data=b'{"retrieval_methods":["unknown"]}', headers={'Origin': base, 'Content-Type': 'application/json'})
             with self.assertRaises(error.HTTPError) as rejected:
                 request.urlopen(req)
@@ -265,7 +276,7 @@ class EvalsWebTest(unittest.TestCase):
             with request.urlopen(req) as response:
                 self.assertEqual(json.load(response)["status"], "completed")
             self.assertEqual(calls, ["E06"])
-            for options in ({'retrieval_methods': ['head_matter']}, {'judge': False}):
+            for options in ({'model': 'anything'}, {'judge': False}):
                 fixed = request.Request(base + '/api/evals/B1/run', data=json.dumps(options).encode(), headers={'Origin': base, 'Content-Type': 'application/json'})
                 with self.assertRaises(error.HTTPError) as rejected:
                     request.urlopen(fixed)

@@ -38,7 +38,7 @@ export function createApiClient(baseUrl: string, fetcher: typeof fetch = fetch):
       const form = new FormData();
       if (query) form.append('query', query);
       if (document) form.append('document', document);
-      form.append('retrieval_method', method);
+      if (method !== 'opinion_chunks') form.append('retrieval_method', method);
       const response = await request<SearchResponse>('/api/search', {
         method: 'POST', body: form,
         ...(input.model ? { headers: { 'X-Orq-Model': input.model } } : {}),

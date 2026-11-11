@@ -11,6 +11,26 @@ import { createMockClient } from './client';
 
 beforeEach(() => { document.body.innerHTML = '<div id="app"></div>'; });
 
+it('kiest een catalogusmodel en toont het werkelijk teruggegeven model', async () => {
+  const mock = createMockClient(0);
+  const search = vi.fn(async (input) => ({ ...await mock.search(input), explanation_requested_model: input.model, explanation_model: 'provider/actual-model' }));
+  await mountApp(document.querySelector('#app')!, {
+    ...mock,
+    getModels: async () => ({ models: [{ id: 'catalog/first', label: 'Eerste model' }, { id: 'catalog/second', label: 'Tweede model' }], default_model: 'catalog/first' }),
+    search,
+  }, false);
+  const select = document.querySelector<HTMLSelectElement>('#explanation-model');
+  expect(select).not.toBeNull();
+  await act(async () => {
+    select!.value = 'catalog/second'; select!.dispatchEvent(new Event('change', { bubbles: true }));
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'Mijn vraag'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  await vi.waitFor(() => expect(search).toHaveBeenCalledWith(expect.objectContaining({ model: 'catalog/second' })));
+  await vi.waitFor(() => expect(document.querySelector('.answer-model')?.textContent).toContain('provider/actual-model'));
+});
+
 it('verstuurt eigen tekst, toont drie uitspraken en opent de volledige gemarkeerde bron', async () => {
   await mountApp(document.querySelector('#app')!, createMockClient(0), true);
   const textarea = document.querySelector('textarea')!;

@@ -18,6 +18,7 @@ import uuid
 
 import retrieval_relevance as relevance
 import deterministic_b1 as b1
+from orq_models import ModelCatalog, UnsupportedModel
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
@@ -203,6 +204,7 @@ def run_eval(config, eval_id):
 
 
 def handler_class(config, runner=run_eval):
+    models = config.get("models") or ModelCatalog(config.get("model", DEFAULT_MODEL))
     lock = threading.Lock()
     static = config["repo"] / "docs/evals"
 
@@ -221,6 +223,12 @@ def handler_class(config, runner=run_eval):
 
         def do_GET(self):
             path = urlsplit(self.path).path
+            if path == "/api/models":
+                if not config.get("key"):
+                    self.send_json(503, {"error": {"code": "model_unavailable", "message": "De evalserver heeft geen Orq-credential."}})
+                else:
+                    self.send_json(200, models.payload())
+                return
             if path == "/api/evals":
                 try:
                     self.send_json(200, catalog(config))
@@ -254,8 +262,21 @@ def handler_class(config, runner=run_eval):
             if path not in ids:
                 self.send_json(404, {"error": {"code": "unknown_eval", "message": "Deze eval is niet uitvoerbaar."}})
                 return
-            if self.headers.get("Content-Type", "").split(';')[0] != "application/json" or self.headers.get("Content-Length") != "2" or self.rfile.read(2) != b"{}":
-                self.send_json(400, {"error": {"code": "invalid_input", "message": "Deze knop voert alleen de vastgelegde eval-invoer uit."}})
+            try:
+                size = int(self.headers.get("Content-Length", "-1"))
+                if self.headers.get("Content-Type", "").split(';')[0] != "application/json" or not 0 < size <= 4096:
+                    raise ValueError()
+                payload = json.loads(self.rfile.read(size))
+                if not isinstance(payload, dict) or set(payload) - {"model"} or (ids[path] == "B1" and payload):
+                    raise ValueError()
+                if "model" in payload and not isinstance(payload["model"], str):
+                    raise UnsupportedModel("Kies een model-ID uit de serverlijst.")
+                selected_model = models.select(payload.get("model")) if ids[path] == "E06" else None
+            except UnsupportedModel as failure:
+                self.send_json(400, {"error": {"code": "unsupported_model", "message": str(failure)}})
+                return
+            except (ValueError, UnicodeError):
+                self.send_json(400, {"error": {"code": "invalid_input", "message": "Gebruik alleen de vastgelegde eval-invoer met een optionele E06-modelkeuze."}})
                 return
             if not lock.acquire(blocking=False):
                 self.send_json(409, {"error": {"code": "busy", "message": "Er loopt al een eval. Wacht tot die klaar is."}})
@@ -264,7 +285,7 @@ def handler_class(config, runner=run_eval):
                 if ids[path] == "E06" and not config.get("key"):
                     self.send_json(503, {"error": {"code": "model_unavailable", "message": "De evalserver heeft geen modelcredential."}})
                     return
-                self.send_json(200, runner(config, ids[path]))
+                self.send_json(200, runner({**config, "model": selected_model} if ids[path] == "E06" else config, ids[path]))
             except (RunError, relevance.EvaluationError) as failure:
                 self.send_json(502, {"error": {"code": "run_failed", "message": str(failure)}})
             except (OSError, ValueError, KeyError, TypeError, sqlite3.Error, subprocess.SubprocessError):
@@ -294,7 +315,7 @@ def main():
               "orq_base": os.environ.get("ORQ_BASE_URL", relevance.ORQ_BASE_URL),
               "binary": args.binary.resolve(), "database": args.database.resolve(),
               "model_cache": args.model_cache.resolve(), "corpus": args.corpus.resolve(),
-              "outputs": args.outputs.resolve()}
+              "outputs": args.outputs.resolve(), "models": ModelCatalog(args.model, os.environ.get("ORQ_MODELS"))}
     server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_class(config))
     print(f"Eval page: http://127.0.0.1:{server.server_port}/", flush=True)
     try:

@@ -108,7 +108,8 @@ function renderResults(container, result) {
   provenance.append(element('summary', 'Rundetails'), structural, scale);
   const details = element('dl');
   [
-    ['Run', result.run_id], ['Model', result.model],
+    ['Run', result.run_id], ['Gekozen model', result.requested_model || 'Niet vastgelegd'],
+    ['Gebruikt model', result.model || 'Niet teruggegeven door provider'],
     ['Duur', `${Number(result.duration_seconds).toFixed(1)} seconden`],
     ['Corpus', result.corpus_version], ['Zoekmethode', result.ranking_version],
     ['Lokaal resultaatbestand', result.artifact_name],
@@ -120,10 +121,40 @@ function renderResults(container, result) {
   container.replaceChildren(summary, list, provenance);
 }
 
-async function runEval(evalRecord, button, status, results) {
+function updateRunControls() {
+  document.querySelectorAll('.run-button').forEach(node => { node.disabled = running || node.dataset.modelReady === 'false'; });
+  document.querySelectorAll('.eval-model-select').forEach(node => { node.disabled = running || !node.options.length; });
+}
+
+async function loadModels(select, status, button) {
+  button.dataset.modelReady = 'false';
+  button.disabled = true;
+  updateRunControls();
+  try {
+    const response = await fetch('/api/models');
+    if (!response.ok) throw new Error('Modellen laden is mislukt. Vernieuw de pagina om het opnieuw te proberen.');
+    const catalog = await response.json();
+    if (!Array.isArray(catalog.models) || !catalog.models.length) throw new Error('Er zijn geen beoordelingsmodellen beschikbaar.');
+    if (!catalog.models.some(model => model.id === catalog.default_model)) throw new Error('De server geeft geen geldige modelkeuze.');
+    select.replaceChildren(...catalog.models.map(model => {
+      const option = element('option', model.label);
+      option.value = model.id;
+      return option;
+    }));
+    select.value = catalog.default_model;
+    status.hidden = true;
+    button.dataset.modelReady = 'true';
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    updateRunControls();
+  }
+}
+
+async function runEval(evalRecord, button, status, results, modelSelect) {
   if (running) return;
   running = true;
-  document.querySelectorAll('.run-button').forEach(node => { node.disabled = true; });
+  updateRunControls();
   button.textContent = 'Bezig…';
   status.hidden = false;
   status.textContent = evalRecord.id === 'B1' ? 'Zoeken en vergelijken met de twee vaste verwachte zaken…' : 'Zoeken en beoordelen… Dit kan even duren. Houd deze pagina open.';
@@ -132,7 +163,8 @@ async function runEval(evalRecord, button, status, results) {
   results.setAttribute('aria-busy', 'true');
   try {
     const response = await fetch(`/api/evals/${encodeURIComponent(evalRecord.id)}/run`, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(modelSelect ? {model: modelSelect.value} : {}),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error?.message || 'De eval kon niet worden uitgevoerd.');
@@ -148,7 +180,7 @@ async function runEval(evalRecord, button, status, results) {
   } finally {
     running = false;
     results.setAttribute('aria-busy', 'false');
-    document.querySelectorAll('.run-button').forEach(node => { node.disabled = false; });
+    updateRunControls();
   }
 }
 
@@ -196,6 +228,22 @@ function renderRunnable(evalRecord) {
   button.type = 'button';
   button.dataset.evalId = evalRecord.id;
   button.setAttribute('aria-label', `Start eval: ${evalRecord.id}`);
+  let modelSelect;
+  if (evalRecord.id !== 'B1') {
+    const picker = element('div', null, 'eval-model-picker');
+    const label = element('label', 'Beoordelingsmodel');
+    modelSelect = element('select', null, 'eval-model-select');
+    modelSelect.id = `${section.id}-model`;
+    label.htmlFor = modelSelect.id;
+    modelSelect.disabled = true;
+    const modelStatus = element('p', 'Modellen laden…', 'model-status');
+    modelStatus.setAttribute('role', 'status');
+    modelStatus.id = `${modelSelect.id}-status`;
+    modelSelect.setAttribute('aria-describedby', modelStatus.id);
+    picker.append(label, modelSelect, modelStatus);
+    content.append(picker);
+    void loadModels(modelSelect, modelStatus, button);
+  }
   const status = element('p', '', 'run-status');
   status.hidden = true;
   status.id = `${section.id}-status`;
@@ -204,7 +252,7 @@ function renderRunnable(evalRecord) {
   const results = element('div', null, 'run-results');
   results.id = `${section.id}-results`;
   results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
-  button.addEventListener('click', () => runEval(evalRecord, button, status, results));
+  button.addEventListener('click', () => runEval(evalRecord, button, status, results, modelSelect));
   action.append(button, status);
   content.append(action, results);
   section.append(content);

@@ -217,3 +217,13 @@ E06 gebruikt uitsluitend de exacte Engelse vraag uit `docs/evals/scenarios.json`
 Resultaten, bron-/modelversies en eventuele foutdiagnose blijven lokaal buiten Git onder `~/Library/Caches/adami-case/web-evals/`. De pagina onderscheidt een technisch voltooide run van de AI-scores: een afgeronde run kan zwakke of niet-relevante matches bevatten. Fouten worden getoond en niet als geslaagd ingevuld. Stop de evalserver met Ctrl+C in de eigen terminal. De bestaande docsservers blijven ongemoeid.
 
 De losse commandlinetool `backend/scripts/retrieval_relevance.py` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.
+
+## Orq-model kiezen
+
+Mike toont bij de optionele uitlegsidecar een keuze **Model voor toelichting**. De E06-kaart gebruikt **Beoordelingsmodel**. Beide lijsten komen van `GET /api/models` op hun eigen server. De gewone Rust-API biedt die route niet; daar blijft lokaal zoeken zonder modelkiezer beschikbaar. B1 heeft geen modelkeuze en doet geen Orq-aanroep.
+
+De serverallowlist bevat `openai/gpt-4.1-mini-2025-04-14` (bestaande standaard) en `openai/gpt-4.1-2025-04-14`. Beide exacte IDs zijn in de actuele geauthenticeerde Orq-catalogus aangetroffen. Die catalogus geeft geen tool-/schema-capabilities, daarom worden niet alle catalogusmodellen aangeboden. Met `ORQ_MODELS` kun je een kommagescheiden subset van deze ondersteunde IDs kiezen; `ORQ_MODEL`/`--model` moet daarin staan. Een onbekend gekozen model geeft 400 vóór zoeken of een providerrequest. Provider-/modeltoegangsfouten zijn zichtbaar en schakelen niet over naar een ander model.
+
+Mike stuurt de keuze alleen via `X-Orq-Model`; de oorspronkelijke query-/documentmultipart gaat ongewijzigd naar Rust. `explanation_requested_model` registreert de keuze en `explanation_model` de werkelijk door de provider gemelde model-ID. Ontbrekende provideridentiteit blijft `null` en wordt als onbekend getoond. E06 gebruikt JSON `{"model":"..."}` en bewaart `requested_model` en de werkelijk gemelde `model` in het runartefact. De key blijft uitsluitend op de server en komt niet in deze browserverzoeken of resultaten.
+
+Voor deze wijziging worden aparte previews gebruikt: Mike op 5177 met sidecar18002 en de evalpagina op 8800. Browser-/Orq-validatie gebruikt expliciet opgeslagen echte retrieval tijdens de gelijktijdige indexbouw; dit valideert de modeldoorgifte en brongebonden uitvoer, niet de nog te integreren nieuwe embeddingindex.

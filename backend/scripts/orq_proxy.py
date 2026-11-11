@@ -18,6 +18,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from orq_models import ModelCatalog, ModelIdentityError, UnsupportedModel, provider_model
+
 ENDPOINT = 'https://my.orq.ai/v3/router/responses'
 DEFAULT_MODEL = 'openai/gpt-4.1-mini-2025-04-14'
 MAX_BODY = 12 * 1024 * 1024
@@ -40,7 +42,7 @@ class UpstreamError(Exception):
 
 def extended_contract(contract, port=18001):
     result = copy.deepcopy(contract)
-    result.setdefault('info', {})['version'] = '1.2.0'
+    result.setdefault('info', {})['version'] = '1.3.0'
     schemas = result['components']['schemas']
     schemas['Explanation'] = {
         'type': 'object', 'additionalProperties': False,
@@ -58,6 +60,10 @@ def extended_contract(contract, port=18001):
     schemas['SearchResponse']['properties']['input_context'] = {'$ref': '#/components/schemas/InputContext'}
     schemas['SearchResult']['allOf'][1]['properties']['explanation'] = {'$ref': '#/components/schemas/Explanation'}
     schemas['SearchResponse']['properties']['explanation_status'] = {'type': 'string', 'enum': ['available', 'unavailable']}
+    schemas['SearchResponse']['properties']['explanation_model'] = {'type': ['string', 'null']}
+    schemas['SearchResponse']['properties']['explanation_requested_model'] = {'type': 'string'}
+    result.setdefault('paths', {}).setdefault('/api/search', {}).setdefault('post', {}).setdefault('parameters', []).append({'name': 'X-Orq-Model', 'in': 'header', 'required': False, 'schema': {'type': 'string'}, 'description': 'Optional server-allowlisted explanation model; GET /api/models lists supported IDs.'})
+    result['paths']['/api/models'] = {'get': {'summary': 'Supported explanation models', 'responses': {'200': {'description': 'Server allowlist with models[id,label] and default_model.'}}}}
     result.setdefault('servers', []).append({'url': f'http://127.0.0.1:{port}', 'description': 'Optional Orq explanation adapter with upload context'})
     return result
 
@@ -191,9 +197,11 @@ def explain_search(body, content_type, provider, retrieve, model, extractor=None
     base = {'model': model, 'store': False, 'instructions': INSTRUCTIONS, 'tools': [tool], 'parallel_tool_calls': False, 'max_output_tokens': 2200}
     if len(json.dumps({**base, 'input': history}, ensure_ascii=False).encode()) > 100 * 1024:
         raise UpstreamError(413, {'error': {'code': 'document_too_large', 'message': 'De volledige vergelijkcontext is te groot voor deze modelstap; er is geen tekst afgekapt.'}})
+    actual_model = None
     phase = 'provider_tool'
     try:
         first = provider({**base, 'input': history, 'tool_choice': {'type': 'function', 'name': 'search_cases'}})
+        actual_model = provider_model(first, model)
         phase = 'validate_tool'
         if first.get('status') != 'completed':
             raise ExplanationError('incomplete_model_response')
@@ -207,6 +215,7 @@ def explain_search(body, content_type, provider, retrieve, model, extractor=None
         history += first['output'] + [{'type': 'function_call_output', 'call_id': call_id, 'output': json.dumps(search, ensure_ascii=False)}]
         phase = 'provider_explanation'
         second = provider({**base, 'input': history, 'tool_choice': 'none', 'text': {'format': {'type': 'json_schema', 'name': 'case_explanations', 'strict': True, 'schema': output_schema(context)}}})
+        actual_model = provider_model(second, model)
         phase = 'validate_explanation'
         if second.get('status') != 'completed' or any(item.get('type') == 'function_call' for item in second.get('output', [])):
             raise ExplanationError('incomplete_final_response')
@@ -216,6 +225,8 @@ def explain_search(body, content_type, provider, retrieve, model, extractor=None
         explanations = validated_explanations(json.loads(texts[0]), search, context)
     except UpstreamError:
         raise
+    except ModelIdentityError as error:
+        raise UpstreamError(502, {'error': {'code': 'model_unavailable', 'message': str(error)}}) from None
     except Exception as error:
         reason = str(error) if isinstance(error, ExplanationError) else type(error).__name__
         print(f'Orq explanation unavailable: phase={phase} reason={reason}', file=sys.stderr, flush=True)
@@ -223,6 +234,8 @@ def explain_search(body, content_type, provider, retrieve, model, extractor=None
             search = retrieve(body, content_type)
         result = copy.deepcopy(search)
         result['explanation_status'] = 'unavailable'
+        result['explanation_requested_model'] = model
+        result['explanation_model'] = actual_model
         if context.get('input_context'):
             result['input_context'] = context['input_context']
         return result
@@ -230,6 +243,8 @@ def explain_search(body, content_type, provider, retrieve, model, extractor=None
     for item in result['results']:
         item['explanation'] = explanations[item['case_id']]
     result['explanation_status'] = 'available'
+    result['explanation_requested_model'] = model
+    result['explanation_model'] = actual_model
     if context.get('input_context'):
         result['input_context'] = context['input_context']
     return result
@@ -256,7 +271,7 @@ class OrqProvider:
                     raise ValueError('Provider output too large')
                 return json.loads(raw)
         except HTTPError as error:
-            raise ExplanationError(f'provider_http_{error.code}') from None
+            raise UpstreamError(502, {'error': {'code': 'model_unavailable', 'message': f'De aanroep van het gekozen Orq-model is mislukt (HTTP {error.code}). Er is geen ander model gebruikt.'}}) from None
         except (URLError, TimeoutError):
             raise ExplanationError('provider_transport_error') from None
 
@@ -279,9 +294,10 @@ def backend_request(backend, path, body=None, content_type=None):
         raise UpstreamError(503, {'error': {'code': 'index_unavailable', 'message': 'De lokale zoekbackend is niet bereikbaar.'}}) from None
 
 
-def handler_class(backend, provider, model):
+def handler_class(backend, provider, model, models=None):
+    models = models or ModelCatalog(model)
     active = threading.BoundedSemaphore(1)
-    origins = {'http://127.0.0.1:' + str(port) for port in (5173, 5174, 5175, 5176)} | {'http://localhost:' + str(port) for port in (5173, 5174, 5175, 5176)}
+    origins = {'http://127.0.0.1:' + str(port) for port in (5173, 5174, 5175, 5176, 5177, 5178)} | {'http://localhost:' + str(port) for port in (5173, 5174, 5175, 5176, 5177, 5178)}
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -302,9 +318,12 @@ def handler_class(backend, provider, model):
             if self.headers.get('Origin') in origins:
                 self.send_header('Access-Control-Allow-Origin', self.headers['Origin'])
             self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Orq-Model')
             self.end_headers()
         def do_GET(self):
+            if self.path == '/api/models':
+                self.send_json(200, models.payload())
+                return
             if self.path not in ('/api/health', '/openapi.json') and not re.fullmatch(r'/api/cases/[A-Za-z0-9_.%\-]+', self.path):
                 self.send_json(404, {'error': {'code': 'case_not_found', 'message': 'Niet gevonden.'}})
                 return
@@ -319,6 +338,11 @@ def handler_class(backend, provider, model):
                 return
             if self.path != '/api/search':
                 self.send_json(404, {'error': {'code': 'case_not_found', 'message': 'Niet gevonden.'}})
+                return
+            try:
+                selected_model = models.select(self.headers.get('X-Orq-Model'))
+            except UnsupportedModel as error:
+                self.send_json(400, {'error': {'code': 'unsupported_model', 'message': str(error)}})
                 return
             try:
                 size = int(self.headers.get('Content-Length', '-1'))
@@ -337,7 +361,7 @@ def handler_class(backend, provider, model):
                     raise InputError('Incomplete body')
                 content_type = self.headers.get('Content-Type', '')
                 started = time.monotonic()
-                result = explain_search(body, content_type, provider, lambda raw, content: backend_request(backend, '/api/search', raw, content), model)
+                result = explain_search(body, content_type, provider, lambda raw, content: backend_request(backend, '/api/search', raw, content), selected_model)
                 self.send_json(200, result)
                 print('Search completed:', result['explanation_status'], 'seconds:', round(time.monotonic() - started, 2), flush=True)
             except InputError:
@@ -371,7 +395,8 @@ def main():
         key = Path(os.environ['ORQ_API_KEY_FILE']).read_text().strip()
     if not key:
         parser.error('Set ORQ_API_KEY or a private ORQ_API_KEY_FILE outside the repository')
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_class(args.backend.rstrip('/'), OrqProvider(key, args.max_model_requests), args.model))
+    models = ModelCatalog(args.model, os.environ.get('ORQ_MODELS'))
+    server = ThreadingHTTPServer(('127.0.0.1', args.port), handler_class(args.backend.rstrip('/'), OrqProvider(key, args.max_model_requests), args.model, models))
     print(f'Orq adapter ready on http://127.0.0.1:{args.port}; existing search backend: {args.backend}; model: {args.model}', flush=True)
     try:
         server.serve_forever()

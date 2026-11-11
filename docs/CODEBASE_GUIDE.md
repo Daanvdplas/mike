@@ -2,7 +2,7 @@
 
 ## Huidige stand
 
-De Rust-backend en gemergde React-frontend zijn beschikbaar op deze featurebranch. De statisch gequantiseerde BGE-index is onder de resourceguard berekend: 135 zaken en 578 passages. De gezamenlijke live UI/API-controle wordt nog afgerond. De oorspronkelijke MiniLM-meting van 0/15 blijft bewaard als indicatieve AI-evaluatie; zij is geen menselijke juridische referentie. Er is geen A/B/C-uitbreiding of top-vijfcontract ingevoerd.
+De Rust-backend en gemergde React-frontend zijn beschikbaar op deze featurebranch. De statisch gequantiseerde BGE-index is onder de resourceguard berekend: 135 zaken en 578 passages. De gezamenlijke live UI/API-controle is onafhankelijk afgerond: de API-preview draait op 5174, de bewaakte backend op 8000 en de standaardmock op 5173 blijft ongewijzigd. De oorspronkelijke MiniLM-meting van 0/15 blijft bewaard als indicatieve AI-evaluatie; zij is geen menselijke juridische referentie. Er is geen A/B/C-uitbreiding of top-vijfcontract ingevoerd.
 
 ## Resourcecheckpoint vóór nieuwe modelmetingen
 
@@ -14,9 +14,9 @@ De variabele-lengteproef met CPU-arena uit stopte op 1568,56 MiB. Daarom is als 
 
 [resource_guard.py](../backend/scripts/resource_guard.py) start precies één eigen procesgroep, meet elke seconde de gezamenlijke RSS van die groep en leest de macOS-geheugendruk en swap. Het script start alleen bij normale druk (`kern.memorystatus_vm_pressure_level = 1`) en stopt de eigen groep bij RSS vanaf 1536 MiB, niet-normale druk, swapgroei vanaf 128 MiB of de tijdslimiet. Meetfouten stoppen de job eveneens; andere gebruikersprocessen worden niet gesignaleerd. Gewone modelchecks en imports blijven begrensd op maximaal 600 seconden. Alleen `--serve-preview` met precies een concreet pad naar `texas-case-finder` gevolgd door `serve` staat een bewaakte preview tot 7200 seconden toe; shell-/Cargo-wrappers en PATH-aliassen zijn uitgesloten. Geheugen-, druk-, swap- en stopgedrag veranderen daarbij niet. Het JSON-verslag bevat proces-ID's, monsters, piek-RSS en stopreden; logs en verslagen horen buiten Git. Modelchecks moeten één voor één draaien, met `--test-threads=1`.
 
-De twee native-boundsregressies zijn rood en daarna groen uitgevoerd. De standaard Rust-run slaagde met vijftien deterministische tests; zes echte modelchecks blijven genegeerd. De Python-beleidstests beschermen de geheugen- en timeoutgrenzen; drie extra regressies testen de expliciete previewtoestemming en afwijzing van wrappers/aliassen. Zij starten geen model of systeemprobe en draaien ook in de backend-CI. De kleine modelsmoke en volledige import zijn onder de guard uitgevoerd; de gezamenlijke live demo en indicatieve AI-evaluatie worden afzonderlijk beoordeeld. Deze technische controles bewijzen geen juridische relevantie. De oude kwaliteitsscore 0/15 blijft een bewaarde, ongewijzigde baseline.
+De twee native-boundsregressies zijn rood en daarna groen uitgevoerd. De standaard Rust-run slaagde met vijftien deterministische tests; zes echte modelchecks blijven genegeerd. De Python-beleidstests beschermen de geheugen- en timeoutgrenzen; drie extra regressies testen de expliciete previewtoestemming en afwijzing van wrappers/aliassen. Zij starten geen model of systeemprobe en draaien ook in de backend-CI. De kleine modelsmoke en volledige import zijn onder de guard uitgevoerd; de gezamenlijke live demo is onafhankelijk gecontroleerd en de afzonderlijke AI-doelmatchindicatie is vastgelegd. Deze technische controles bewijzen geen juridische relevantie. De oude kwaliteitsscore 0/15 blijft een bewaarde, ongewijzigde baseline.
 
-De repo bevat het API-contract, synthetische fixtures, de geteste Axum-router en PDF/TXT-extractie, en de data-/zoekengine met corpusimport en SQLite-opslag. De server/CLI-koppeling bestaat. Deterministische tests en een echte TCP-doorloop met ontbrekende database zijn gecontroleerd; de nieuwe BGE-index is vooraf berekend en de gezamenlijke UI/API-eindcontrole loopt nog. Frontendimplementatie valt buiten deze backendwijziging.
+De repo bevat het API-contract, synthetische fixtures, de geteste Axum-router en PDF/TXT-extractie, en de data-/zoekengine met corpusimport en SQLite-opslag. De server/CLI-koppeling bestaat. Deterministische tests en een echte TCP-doorloop met ontbrekende database zijn gecontroleerd; de nieuwe BGE-index is vooraf berekend en de gezamenlijke UI/API-eindcontrole is afgerond. Frontendimplementatie valt buiten deze backendwijziging.
 
 De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen.
 
@@ -46,7 +46,7 @@ PDF-parsing en enginewerk draaien via `spawn_blocking`; een mutex bewaakt de eng
 
 [chunk.rs](../backend/src/engine/chunk.rs) maakt overlappende passages met oorspronkelijke byte- en UTF-16-grenzen. Een kandidaat beslaat maximaal 1600 Unicode-tekens en wordt kleiner zolang de echte tokenizer meer dan 480 tokens telt, inclusief speciale tokens. De normale overlap is 160 tekens; bij korte passages blijft voorwaartse voortgang gegarandeerd. Er wordt geen tekst stil afgekapt. Zowel lange vragen als documenten worden volledig verdeeld; hun passagevectoren krijgen een opnieuw genormaliseerd gemiddelde.
 
-[embedding.rs](../backend/src/engine/embedding.rs) hergebruikt het lokale fastembed-/cachepatroon uit COA, met nu `BGESmallENV15Q` voor Engels. De gekozen BGE-small-en-v1.5-variant gebruikt CLS-pooling en 384 dimensies. Alleen vraagpassages krijgen de instructie `Represent this sentence for searching relevant passages: `; corpus- en documentpassages niet. Het tokenbudget telt die instructie mee en truncatie staat uit. Een procesbrede gedeelde ONNX-omgeving maakt meerdere modelinitialisaties mogelijk, ook na import en het laten vallen van de vorige sessie; de directe `ort`-dependency gebruikt dezelfde reeds transitief gelockte versie. Modeltruncatie staat uit; iedere embeddinginvoer wordt vooraf tegen het tokenbudget gecontroleerd. De configuratie registreert SDK, model, dimensies, limiet en SHA-256 van de daadwerkelijk gebruikte model-/tokenizerbestanden en cacherevisie. De modelcache is een instelbaar pad buiten Git. Juridische geschiktheid van dit model is nog niet inhoudelijk beoordeeld.
+[embedding.rs](../backend/src/engine/embedding.rs) hergebruikt het lokale fastembed-/cachepatroon uit COA, met nu `BGESmallENV15Q` voor Engels. De gekozen BGE-small-en-v1.5-variant gebruikt CLS-pooling en 384 dimensies. Alleen vraagpassages krijgen de instructie `Represent this sentence for searching relevant passages: `; corpus- en documentpassages niet. Het tokenbudget telt die instructie mee en truncatie staat uit. Een procesbrede gedeelde ONNX-omgeving maakt meerdere modelinitialisaties mogelijk, ook na import en het laten vallen van de vorige sessie; de directe `ort`-dependency gebruikt dezelfde reeds transitief gelockte versie. Modeltruncatie staat uit; iedere embeddinginvoer wordt vooraf tegen het tokenbudget gecontroleerd. De configuratie registreert SDK, model, dimensies, limiet en SHA-256 van de daadwerkelijk gebruikte model-/tokenizerbestanden en cacherevisie. De modelcache is een instelbaar pad buiten Git. De zoekkwaliteit heeft uitsluitend een indicatieve AI-evaluatie, zonder menselijke juridische ijking.
 
 [storage.rs](../backend/src/engine/storage.rs) bewaart bronrecords, passages, vectorbytes en manifest in SQLite. Een herimport vervangt de index in één transactie. `Engine::load` leest uitsluitend een bestaande database en accepteert pas een snapshot na controle van alle 135 afgesproken case-identiteiten, volledige passagebedekking, tekstversies, UTF-16-grenzen, vectoraantallen/-dimensies, eindige niet-nulvectoren en integriteit van het volledige manifest. De vaste identiteitenhash is afgeleid van de lexicografisch gesorteerde case-ID's uit het aangeleverde corpus. De huidige modelconfiguratie moet exact overeenkomen; gewijzigde bestanden of configuratie vereisen herimport. De engine doet bij laden geen impliciete herindexering.
 
@@ -104,9 +104,9 @@ De voorbeelden gebruiken een sober pagina-icoon, zaakmetadata en een excerpt uit
 
 [`getPassageParts` in `search.ts`](../frontend/src/search.ts) vergelijkt corpusversie, tekstversie en zaak-ID en controleert dat de exacte UTF-16-uitsnede overeenkomt met `passage.text`. De bron wordt niet opnieuw genormaliseerd en React rendert tekst veilig met een `<mark>`. Bij oude versies of onjuiste posities toont de UI een fout met het verzoek opnieuw te zoeken; de gebruiker start die nieuwe opdracht zelf.
 
-De HTTP-client gebruikt `FormData` zonder een eigen multipart-Content-Type, volgt de aangeboden `case_url` en toont backendfoutberichten. Deze code is met een onderschepte HTTP-grens getest; een echte backendintegratie is nog niet uitgevoerd. De API-schemas blijven vastgelegd in [OpenAPI](openapi.yaml).
+De HTTP-client gebruikt `FormData` zonder een eigen multipart-Content-Type, volgt de aangeboden `case_url` en toont backendfoutberichten. Naast de tests met onderschepte HTTP-grens is de echte browser/backendintegratie uitgevoerd: query/TXT/PDF/combinatie, drie volledige brondocumenten met markeringen en herstel na een 422-fout. De API-schemas blijven vastgelegd in [OpenAPI](openapi.yaml).
 
-Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend is hiermee uitvoerbaar; de gezamenlijke API/UI-doorloop is nog niet afgerond. Backendimport en backendtests staan in de andere hoofdstukken beschreven.
+Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De devserver bindt aan `127.0.0.1:5173`; Vite wisselt niet stilzwijgend naar een andere poort. Tests in [`search.test.ts`](../frontend/src/search.test.ts) controleren invoermodi, bestandgrenzen, mock/details, multipart en versie-/Unicode-markeringen; [`app.test.ts`](../frontend/src/app.test.ts) controleert de React-route van eigen tekst naar drie documenten onder de invoerbox, volledige veilige bronweergave en brononderbouwing, terugkeerfocus, vervanging van de vorige resultaten en herstel na invoer-/zoekfouten. De productiebuild voert ook TypeScript-controle uit. De lokale frontend en gezamenlijke API/UI-doorloop zijn hiermee gecontroleerd; de echte API-preview gebruikt expliciet poort 5174. Backendimport en backendtests staan in de andere hoofdstukken beschreven.
 
 ## Corpus, opslag en index
 
@@ -163,34 +163,33 @@ Deze paden liggen buiten deze repo en zijn daarom oriëntatiepunten, geen beschi
 - Een gemiddelde documentvector kan deelonderwerpen vervagen. De beste passage per zaak kan lange uitspraken bevoordelen. Beoordeel beide met inhoudelijke voorbeelden.
 - Overeenkomende scores en tekstmarkeringen bewijzen geen juridische juistheid, volledigheid of toepasselijkheid.
 
-## Verificatie bij implementatie
+## Uitgevoerde verificatie en AI-indicatie
 
-De bouwchecks staan in README en CI. De deterministische engine-/HTTP-tests en afzonderlijke lokale modelchecks staan hierboven beschreven. Onafhankelijke review en HTTP-integratie moeten de volledige oplevering aantoonbaar maken:
+De codehead `9ef3bf9` is onafhankelijk gecontroleerd met een eigen Cargo-target: 45 Rust-tests, vijf Python-policytests, fmt, clippy, build en Linux-CI groen. De standaardtests laden geen model; zes echte model-/diagnosticchecks blijven afzonderlijke jobs. Twee onafhankelijk geschreven f64-referentietests controleren de exacte rankingmethode.
 
-De frontendchecks staan in het frontendhoofdstuk. De gezamenlijke UI/API-doorloop wordt pas uitgevoerd na de resourceveilige backendvrijgave.
+De echte einddoorloop omvatte 26 HTTP-controles en één Playwright-browsercontext met vijf succesvolle zoek-POSTs en vijftien zaakdetail-GETs. Query, TXT, PDF en gecombineerde invoer werken; per zoekactie waren alle drie volledige documenten, scores en exacte markeringen beschikbaar. Een onleesbaar bestand gaf 422, waarna een volgende geldige zoekopdracht werkte. Desktop en mobiele weergave zijn visueel bekeken; er was geen horizontale overflow. Bron-/tekstversies, JavaScript-UTF-16-uitsneden, CORS en de bewaakte preview zijn gecontroleerd. [Technisch bewijs en artefacten staan op issue 16](https://github.com/Daanvdplas/adami-case/issues/16#issuecomment-6795249357).
 
-- alle drie invoermodi, PDF/TXT en duidelijke fouten bij onbruikbare invoer;
-- precies drie unieke zaken, volledige scoring en deterministische gelijke scores;
-- dezelfde corpus- en tekstversies, met UTF-16-posities die exact de aangeboden passage selecteren;
-- herhaalbare import en dezelfde beschikbare index na herstart;
-- onafhankelijke controle van ranking met bekende vectoren én aparte inhoudelijke beoordeling;
-- een echte HTTP-upload, zoeken en ophalen van volledige documenten.
+De nieuwe vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor vraag, 4/5 voor document en 4/5 voor beide. De oude MiniLM-set met 0/15 is bewaard. De verschillende sets en onvolledige AI-relevantielabels leveren geen causale A/B-vergelijking, accuracy, recall of menselijke juridische validatie. [De evaluatie en beperkingen staan op issue 15](https://github.com/Daanvdplas/adami-case/issues/15#issuecomment-6795249012).
 
-Contract- en fixturechecks moeten bij implementatie aansluiten op deze backend-CI. De documentatiebootstrap is handmatig gecontroleerd en onafhankelijk gereviewd; de canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
+De volledige import piekte op 1105,86 MiB; de afgeronde HTTP-guardmeting op 705,64 MiB. Tijdens de gecontroleerde UI-preview bleef de gemelde RSS onder ongeveer 422 MiB, met normale geheugendruk en geen swapgroei. Dit zijn waarnemingen van deze runs, geen algemene geheugen- of kwaliteitsgarantie. De demo blijft maximaal twee uur onder dezelfde watchdog draaien. Start-/stopcommando’s, bestaande index en modelcache staan in README; de frontend gebruikt API-modus op 5174 met backend op 8000 en expliciete CORS-origins.
+
+De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige documentatieclaims zijn handmatig en onafhankelijk gecheckt; zij vormen nog geen volledige mechanische documentatie-mergegate.
 
 ## Recente architectuurwijzigingen
 
+- 2026-11-11: volledige Rust/SQLite/BGE-demo en browserkoppeling gecontroleerd; afzonderlijke API-preview op 5174 en bewaakte backend op 8000. Oude AI-baseline bewaard en nieuwe indicatie zonder juridische-accuracyclaim gerapporteerd.
+
 - 2026-11-11: begrensde statisch gequantiseerde BGE-index vooraf berekend; native batch één en CPU-arena uit na geheugenproeven. API blijft Rust/top drie met dezelfde scoring. Preview kan alleen expliciet via de ongewijzigde geheugenbewaking tot twee uur draaien.
 
-- 2026-11-11: engine en API gekoppeld via dezelfde zelfstandige CLI/server. Echte TCP-readiness bij ontbrekende database gecontroleerd; volledige corpusdoorloop en onafhankelijke eindreview nog gaande.
+- 2026-11-11: engine en API gekoppeld via dezelfde zelfstandige CLI/server. Echte TCP-readiness bij ontbrekende database gecontroleerd; volledige corpus- en live UI/API-controle inmiddels afgerond.
 
 - 2026-11-11: operationele grenzen expliciet afgestemd: query 1 MiB, multipart 12 MiB en PDF-tekst 20 MiB; documentlimiet blijft 10 MiB. Geen truncatie; parserpanics worden onleesbare-documentfouten.
 
-- 2026-11-11: geteste HTTP-router, CORS, OpenAPI-response en PDF/TXT-extractie toegevoegd. Echte engine/serverkoppeling volgt; geen modelkwaliteit of TCP-doorloop geclaimd.
+- 2026-11-11: geteste HTTP-router, CORS, OpenAPI-response en PDF/TXT-extractie toegevoegd. Engine/serverkoppeling en echte TCP-doorloop zijn later in dezelfde PR toegevoegd; zoekkwaliteit blijft afzonderlijk en indicatief.
 
 
 - 2026-11-11: twee onafhankelijke modelvrije referentietests toegevoegd voor de gekozen rankingmethode en numerieke foutgevallen. Alle dertien deterministische enginetests geslaagd in een eigen reviewtarget; dit is geen juridische kwaliteitsgarantie.
-- 2026-11-11: zelfstandige data-/zoekengine toegevoegd met gerichte COA-hergebruikverwijzingen, SQLite-snapshot, volledige corpusidentiteitscontrole, tokenbewuste Unicodepassages en exacte top drie. Elf deterministische tests en de lokale modelgrenscheck uitgevoerd; HTTP-service en inhoudelijke kwaliteitsvalidatie volgen afzonderlijk.
+- 2026-11-11: zelfstandige data-/zoekengine toegevoegd met gerichte COA-hergebruikverwijzingen, SQLite-snapshot, volledige corpusidentiteitscontrole, tokenbewuste Unicodepassages en exacte top drie. Elf deterministische tests en de lokale modelgrenscheck uitgevoerd; De HTTP-service en indicatieve AI-evaluatie zijn later in dezelfde PR apart gecontroleerd.
 
 - 2026-11-11: zelfstandige Rust-library, vaste dependency-lockfile en backend-CI toegevoegd op een featurebranch. Nog geen productgedrag of draaiende server; API-contract ongewijzigd.
 

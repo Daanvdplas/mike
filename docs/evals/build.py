@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import html
+import json
 from pathlib import Path
 import re
 import sys
@@ -114,81 +115,90 @@ def markdown(source):
     return "\n".join(output)
 
 
+def scenario_catalog():
+    catalog = json.loads((HERE / "scenarios.json").read_text())
+    if catalog.get("schema_version") != 1 or catalog.get("status") != "ontwerp":
+        raise ValueError("De scenariocatalogus moet schema 1 en status ontwerp gebruiken.")
+    scenarios = catalog.get("scenarios")
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ValueError("De scenariocatalogus bevat geen ontwerpbeschrijvingen.")
+    ids = set()
+    for position, scenario in enumerate(scenarios, 1):
+        if scenario.get("id") != f"E{position:02d}" or scenario["id"] in ids:
+            raise ValueError("Scenario’s moeten unieke, opeenvolgende E01-identificaties hebben.")
+        ids.add(scenario["id"])
+        for field in ("title", "expected_behavior", "why"):
+            if not isinstance(scenario.get(field), str) or not scenario[field].strip():
+                raise ValueError(f"Ontbrekende scenario-inhoud: {field}")
+        mode = scenario.get("input_mode")
+        document, query = scenario.get("document"), scenario.get("query")
+        if mode not in {"document", "query", "combined"}:
+            raise ValueError("Onbekende scenario-invoermodus.")
+        if (document is not None) != (mode in {"document", "combined"}) or (query is not None) != (mode in {"query", "combined"}):
+            raise ValueError("Scenario-invoer komt niet overeen met de invoermodus.")
+        if scenario.get("status") != "ontwerp" or scenario.get("judgment_status") != "nog niet beoordeeld":
+            raise ValueError("Deze viewer toont ontwerpen, geen beoordeelde benchmarklabels.")
+        source = scenario.get("source_case", {})
+        for field in ("id", "name", "file", "decision_date"):
+            if not isinstance(source.get(field), str) or not source[field].strip():
+                raise ValueError(f"Ontbrekende bronmetadata: {field}")
+        if document is not None and any(not isinstance(document.get(field), str) or not document[field].strip() for field in ("excerpt", "field", "sha256")):
+            raise ValueError("Documentinvoer mist exact fragment of herkomst.")
+        if query is not None and any(not isinstance(query.get(language), str) or not query[language].strip() for language in ("nl", "en")):
+            raise ValueError("Vraaginvoer mist Nederlandse uitleg of Engelse uitvoervraag.")
+        evidence = scenario.get("source_evidence")
+        if not isinstance(evidence, list) or not evidence or any(not entry.get("text") for entry in evidence):
+            raise ValueError("Een scenario mist bronbewijs.")
+    return catalog
+
+
+def render_scenario(scenario):
+    escape = html.escape
+    source = scenario["source_case"]
+    mode = scenario["input_mode"]
+    mode_label = {"document": "Document", "query": "Vraag", "combined": "Document + vraag"}[mode]
+    identity = f'{escape(source["name"])} <span>· {escape(source["decision_date"])}</span>'
+    inputs = []
+    if scenario["document"] is not None:
+        document = scenario["document"]
+        inputs.append(f'''<div class="input-document"><h4>Document</h4><p class="case-name">{identity}</p><blockquote>{escape(document["excerpt"])}</blockquote><p class="input-note">De invoer is de volledige majority opinion. Hier staat een kort leesfragment.</p></div>''')
+    if scenario["query"] is not None:
+        query = scenario["query"]
+        inputs.append(f'''<div class="input-query"><h4>Exacte zoekvraag · Engels</h4><p class="question-text" lang="en">{escape(query["en"])}</p><details class="english-query"><summary>Nederlandse leesvertaling</summary><p lang="nl">{escape(query["nl"])}</p></details></div>''')
+    provenance_label = "Bron en tekstverwijzing" if scenario["document"] is not None else "Herkomst van de vraag · niet meegestuurd als document"
+    quotes = "".join(f'<blockquote>{escape(entry["text"])}</blockquote>' for entry in scenario["source_evidence"])
+    provenance = f'<p class="case-name">{identity}</p><p class="source-path"><code>{escape(source["file"])}</code> · zaak-ID <code>{escape(source["id"])}</code></p>{quotes}'
+    if scenario["document"] is not None:
+        provenance += f'<p class="source-path">Volledige invoertekst: <code>{escape(scenario["document"]["field"])}</code><br>SHA-256: <code>{escape(scenario["document"]["sha256"])}</code></p>'
+    return f'''<details class="eval-item" id="{escape(scenario["id"])}"><summary><span class="eval-id">{escape(scenario["id"])}</span><span class="eval-title">{escape(scenario["title"])}</span><span class="eval-mode">{mode_label}</span><span class="chevron" aria-hidden="true"></span></summary><div class="eval-detail"><section class="scenario-input"><h3>Input</h3>{"".join(inputs)}</section><section class="scenario-expectation"><h3>Verwacht gedrag</h3><p>{escape(scenario["expected_behavior"])}</p></section><section class="scenario-purpose"><h3>Waarom deze test?</h3><p>{escape(scenario["why"])}</p></section><details class="provenance"><summary>{provenance_label}</summary>{provenance}</details><p class="scenario-status">Ontwerpbeschrijving · kandidaatmatches en relevantielabels nog niet beoordeeld.</p></div></details>'''
+
+
 def render(source):
     content = sections(source)
     status = content["Status en leeswijzer"]
-    if "**Status: gepland.**" not in status:
-        raise ValueError("De viewer ondersteunt nu uitsluitend een geplande evaluatieset; pas de presentatie bewust aan bij nieuwe status.")
+    if "**Status: ontwerp.**" not in status:
+        raise ValueError("De viewer ondersteunt ontwerpbeschrijvingen; pas bronstatus en presentatie bewust samen aan.")
     modes = table_rows(status)[1:]
     if len(modes) != 3 or any(len(row) != 4 for row in modes):
         raise ValueError("De bron moet drie invoervormen met vier kolommen bevatten.")
-    challenges = table_rows(content["Scenarioselectie en relevantie"])[1:]
-    if len(challenges) != 3 or any(len(row) != 4 for row in challenges):
-        raise ValueError("De bron moet drie moeilijke categorieën met vier kolommen bevatten.")
     goal_match = re.search(r"\*\*(\d+) basisscenario", content["Doel en afbakening"])
     if not goal_match:
         raise ValueError("Het streefgetal voor basisscenario’s ontbreekt in de bron.")
-    target = goal_match.group(1)
-    paragraphs = content["Scenarioselectie en relevantie"].split("\n\n")
-    variants = next((p for p in paragraphs if p.startswith("Voeg bij vraagbevattende")), None)
-    masking = next((p for p in content["Diagnostiek voor moeilijke gevallen"].split("\n\n") if p.startswith("Maak voor minstens")), None)
-    if not variants or not masking:
-        raise ValueError("Bronafspraken voor parafrases, issuewissels of naam-/citatiemaskering ontbreken.")
-
-    def count(pattern, text):
-        match = re.search(pattern, text)
-        if not match:
-            raise ValueError("Een minimumaantal ontbreekt in de canonieke bron.")
-        value = match.group(1)
-        numbers = {"een": "1", "twee": "2", "drie": "3", "vier": "4", "vijf": "5", "zes": "6", "zeven": "7", "acht": "8", "negen": "9", "tien": "10"}
-        return numbers.get(value, value)
-
-    def item(identifier, title, minimum, body, source_section):
-        return f'''<details class="eval-item" id="{identifier}"><summary><span class="eval-title">{inline(title)}</span><span class="eval-minimum">{inline(minimum)}</span><span class="chevron" aria-hidden="true"></span></summary><div class="eval-detail">{body}<div class="detail-footer"><span>Testgeval en verwachte matches nog te maken.</span><a href="#bron-{slug(source_section)}">Bijbehorende afspraken <span aria-hidden="true">↗</span></a></div></div></details>'''
-
-    def description(label, text):
-        return f'<div><dt>{label}</dt><dd>{inline(text)}</dd></div>'
-
-    mode_minimum = count(r"Neem minstens (\w+) basisscenario", content["Doel en afbakening"])
-    mode_items = []
-    for label, mode_code, offered, expectation in modes:
-        mode = mode_code.strip("`")
-        if mode not in {"document", "query", "combined"}:
-            raise ValueError("Onbekende invoermodus in de bron.")
-        body = '<dl class="test-fields">' + description("Input", offered) + description("Verwachte matches", expectation) + description("Resultaat", "Nog niet uitgevoerd. Later zie je hier de drie gevonden zaken en hun bronpassages.") + '</dl>'
-        mode_items.append(item(f"eval-{mode}", label, f"Min. {mode_minimum}", body, "Status en leeswijzer"))
-
-    challenge_items = []
-    for title, question, expected, minimum in challenges:
-        body = '<dl class="test-fields">' + description("Testopzet", question) + description("Verwachte beoordeling", expected) + description("Input", "Een passend document, een vraag of beide; de concrete bron en vraag zijn nog niet gekozen.") + '</dl>'
-        challenge_items.append(item(f"eval-{slug(title)}", title, minimum.replace(" basisscenario’s", ""), body, "Scenarioselectie en relevantie"))
-
-    para_minimum = count(r"minstens \*\*(\w+) parafrases", variants)
-    switch_minimum = count(r"minstens \*\*(\w+) combined", variants)
-    mask_minimum = count(r"minstens (\w+) geschikte", masking)
-    leakage = content["Voorkomen van datalekken"]
-    hidden = next((p for p in leakage.split("\n\n") if p.startswith("Splits ontwikkel-")), None)
-    if not hidden:
-        raise ValueError("De afspraak voor verborgen testfamilies ontbreekt.")
-    hidden_minimum = count(r"minstens (\w+) onafhankelijke", hidden)
-    paraphrase, _, switches = variants.partition(" Voeg bij minstens")
-    variant_items = [
-        item("eval-parafrase", "Dezelfde vraag, anders verwoord", f"Min. {para_minimum} varianten", '<dl class="test-fields">' + description("Input", "Een andere formulering van dezelfde juridische vraag, met hetzelfde document als dat bij de oorspronkelijke test hoort.") + description("Verwachting", "Dezelfde juridische betekenis en onafhankelijk gecontroleerde gelijkblijvende relevantielabels.") + '</dl><p class="source-note">' + inline(paraphrase) + '</p>', "Scenarioselectie en relevantie"),
-        item("eval-issuewissel", "Andere vraag bij hetzelfde document", f"Min. {switch_minimum} varianten", '<dl class="test-fields">' + description("Input", "Hetzelfde document met een tweede echte rechtsvraag.") + description("Verwachting", "De resultaten sluiten aan op de gewijzigde vraag. De kandidaatmatches worden hiervoor opnieuw beoordeeld.") + '</dl><p class="source-note">' + inline("Voeg bij minstens" + switches) + '</p>', "Scenarioselectie en relevantie"),
-        item("eval-maskering", "Zonder zaaknamen en citaties", f"Min. {mask_minimum} varianten", '<dl class="test-fields">' + description("Input", "De aanwezige invoer en index met gemaskeerde namen en verwijzingen; geen document toevoegen bij een vraag zonder document.") + description("Verwachting", "De zoekfunctie blijft juridisch bruikbare zaken vinden zonder makkelijke herkenningspunten.") + '</dl><p class="source-note">' + inline(masking) + '</p>', "Diagnostiek voor moeilijke gevallen"),
-        item("eval-verborgen", "Vooraf apart gehouden tests", f"Min. {hidden_minimum} bronfamilies", '<dl class="test-fields">' + description("Input", "Onafhankelijke testfamilies die niet beschikbaar zijn tijdens het afstellen van de zoekmethode.") + description("Verwachting", "De kwaliteit wordt gemeten op vooraf afgeschermde vragen en labels; die worden niet in deze viewer meegeleverd.") + '</dl><p class="source-note">' + inline(hidden) + '</p>', "Voorkomen van datalekken"),
-    ]
+    catalog = scenario_catalog()
+    scenarios = catalog["scenarios"]
+    count_match = re.search(r"\*\*(\d+) concrete ontwerpscenario", status)
+    if count_match and len(scenarios) != int(count_match.group(1)):
+        raise ValueError("Het scenarioaantal wijkt af van de canonieke statusbeschrijving.")
     source_navigation = "".join(f'<li><a href="#bron-{slug(title)}">{html.escape(title)}</a></li>' for title in content)
     replacements = {
         "STYLE": (HERE / "viewer.css").read_text(),
         "SCRIPT": (HERE / "viewer.js").read_text(),
-        "TARGET": target,
-        "MODE_ITEMS": "\n".join(mode_items),
-        "CHALLENGE_ITEMS": "\n".join(challenge_items),
-        "VARIANT_ITEMS": "\n".join(variant_items),
+        "SCENARIO_COUNT": str(len(scenarios)),
+        "SCENARIO_ITEMS": "\n".join(render_scenario(scenario) for scenario in scenarios),
         "SOURCE_NAVIGATION": source_navigation,
         "SPECIFICATION": markdown(source),
         "HASH": hashlib.sha256(source.encode()).hexdigest(),
+        "CATALOG_HASH": hashlib.sha256((HERE / "scenarios.json").read_bytes()).hexdigest(),
     }
     result = (HERE / "template.html").read_text()
     for name, value in replacements.items():

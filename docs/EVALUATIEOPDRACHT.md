@@ -2,7 +2,7 @@
 
 ## Status en leeswijzer
 
-**Status: gepland.** De opdracht is uitgewerkt. De concrete testgevallen, relevantielabels en evaluatierunner moeten nog worden gemaakt. De lokale [evalviewer](evals/index.html) toont het plan en de opbouw van een test, geen uitgevoerde evaluaties.
+**Status: ontwerp.** Er zijn **25 concrete ontwerpscenario’s** beschikbaar in [evals/scenarios.json](evals/scenarios.json). De lokale [evalviewer](evals/index.html) toont per scenario de invoer, het verwachte juridische gedrag en de brononderbouwing. Dit zijn nog geen beoordeelde kandidaatmatches, vaste relevantielabels of uitgevoerde evaluaties; de benchmarkset en runner moeten nog worden gebouwd. Deze zichtbare ontwerpen zijn ontwikkelmateriaal, geen verborgen testset.
 
 Een testgeval bestaat uit drie afzonderlijke onderdelen: de aangeboden invoer, onafhankelijk beoordeelde verwachte matches en de werkelijk gevonden resultaten na een run. Een juridisch bevestigd label is geen geslaagde run. Een afgeronde run is niet automatisch geslaagd. Beoordeelde relevante matches kunnen minder of meer dan drie zaken omvatten; onbekende kandidaten zijn niet automatisch irrelevant.
 

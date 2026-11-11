@@ -1,6 +1,7 @@
 """Protect the documentation source and freshness contract, not retrieval quality."""
 
 from pathlib import Path
+import json
 import shutil
 import subprocess
 import sys
@@ -41,6 +42,21 @@ class DocumentationBuildTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Unieke afspraak voor deze test.", self.output.read_text())
         self.assertNotEqual(self.output.read_bytes(), original)
+        self.assertEqual(self.run_build("--check").returncode, 0)
+
+    def test_catalog_title_change_is_visible_escaped_and_detected_as_stale(self):
+        self.assertEqual(self.run_build().returncode, 0)
+        original = self.output.read_bytes()
+        catalog_path = self.root / "evals" / "scenarios.json"
+        catalog = json.loads(catalog_path.read_text())
+        catalog["scenarios"][0]["title"] = '<script>untrusted catalog title</script>'
+        catalog_path.write_text(json.dumps(catalog))
+        self.assertEqual(self.run_build("--check").returncode, 1)
+        self.assertEqual(self.output.read_bytes(), original)
+        self.assertEqual(self.run_build().returncode, 0)
+        rendered = self.output.read_text()
+        self.assertIn('&lt;script&gt;untrusted catalog title&lt;/script&gt;', rendered)
+        self.assertNotIn('<script>untrusted catalog title</script>', rendered)
         self.assertEqual(self.run_build("--check").returncode, 0)
 
     def test_raw_source_html_is_text_not_executable_markup(self):

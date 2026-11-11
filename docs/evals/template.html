@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Een compact overzicht van de geplande juridische evaluaties. Klik op een onderdeel voor de input en verwachte beoordeling.">
+  <meta name="description" content="Alle juridische ontwerpscenario’s in één compact overzicht. Klik op een eval voor de concrete input en het verwachte gedrag.">
   <link rel="icon" href="data:,">
   <title>Evaluaties · Adami</title>
   <style>{{STYLE}}</style>
@@ -13,14 +13,12 @@
   <a class="skip-link" href="#overzicht">Ga naar de evaluaties</a>
   <div class="app-bar"><a class="brand" href="#overzicht">ADAMI <span>/</span> <span>Evaluaties</span></a><nav aria-label="Project"><a href="#afspraken">Afspraken</a><a href="../../README.md">Project <span aria-hidden="true">↗</span></a></nav></div>
   <main id="overzicht">
-    <header class="page-header"><div><h1>Evaluaties <span class="status-pill">Gepland</span></h1><p>{{TARGET}} basisscenario’s gepland. Klik op een onderdeel voor de details.</p></div><details class="availability"><summary>Uitvoeren</summary><p>De testgevallen, gecontroleerde labels en lokale runner zijn nog niet gebouwd. Uitvoeren komt later.</p></details></header>
-    <div class="overview-label"><span>Geplande onderdelen</span><span>Minimum</span></div>
-    <section class="eval-group" aria-labelledby="invoer-titel"><h2 id="invoer-titel">Invoervormen</h2>{{MODE_ITEMS}}</section>
-    <section class="eval-group" aria-labelledby="juridisch-titel"><h2 id="juridisch-titel">Juridische uitdagingen</h2>{{CHALLENGE_ITEMS}}</section>
-    <section class="eval-group" aria-labelledby="varianten-titel"><h2 id="varianten-titel">Extra controles</h2>{{VARIANT_ITEMS}}</section>
-    <p class="overview-note">Dit zijn onderdelen van het plan, nog geen uitgewerkte testgevallen. Moeilijkheden mogen overlappen; varianten tellen apart.</p>
+    <header class="page-header"><div><h1>Evaluaties <span class="status-pill">Ontwerp</span></h1><p>{{SCENARIO_COUNT}} evals. Klik op een eval voor de input en het verwachte gedrag.</p></div></header>
+    <div class="overview-label"><span>Eval</span><span>Invoer</span></div>
+    <section class="eval-list" aria-label="Alle ontwerpscenario’s">{{SCENARIO_ITEMS}}</section>
+    <p class="overview-note">Ontwerpbeschrijvingen op basis van echte zaken. Relevante kandidaatmatches moeten nog onafhankelijk worden beoordeeld.</p>
     <details id="afspraken" class="full-spec"><summary>Afspraken en volledige opdracht <span aria-hidden="true">↗</span></summary><div class="spec-layout"><nav aria-label="Hoofdstukken van de opdracht"><ul>{{SOURCE_NAVIGATION}}</ul></nav><div class="specification">{{SPECIFICATION}}</div></div></details>
-    <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>SHA-256 <code class="source-hash">{{HASH}}</code></p></details></footer>
+    <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht en <a href="scenarios.json">scenarios.json</a>. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>Opdracht SHA-256 <code class="source-hash">{{HASH}}</code></p><p>Scenario’s SHA-256 <code class="source-hash">{{CATALOG_HASH}}</code></p></details></footer>
   </main>
   <script>{{SCRIPT}}</script>
 </body>

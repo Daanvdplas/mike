@@ -2,7 +2,7 @@
 
 ## Huidige stand
 
-De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen. De [evaluatieviewer](evals/index.html) toont de geplande evaluaties; de benchmarkset en runner ontbreken nog. Er zijn nog geen Rust-bronbestanden, SQLite-database of werkende backendendpoints. De backendroute hieronder is **voorgenomen ontwerp**; de frontend- en viewerhoofdstukken beschrijven bestaande uitvoering.
+De React/TypeScript-frontend in [`frontend/`](../frontend/) werkt lokaal met Vite en synthetische [fixtures](examples/search-response.json). De frontend heeft een chatinvoer, PDF/TXT-bijlage, drie klikbare documentvoorbeelden onder de invoerbox en een aparte leesweergave met exacte tekstmarkeringen. De [evaluatieviewer](evals/index.html) toont 25 concrete ontwerpbeschrijvingen; vaste kandidaatlabels en de runner ontbreken nog. Er zijn nog geen Rust-bronbestanden, SQLite-database of werkende backendendpoints. De backendroute hieronder is **voorgenomen ontwerp**; de frontend- en viewerhoofdstukken beschrijven bestaande uitvoering.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
 
@@ -60,15 +60,15 @@ Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De d
 
 ## Evaluatiedocumentatie en viewer
 
-[EVALUATIEOPDRACHT.md](EVALUATIEOPDRACHT.md) is de canonieke specificatie van de geplande evals. [evals/index.html](evals/index.html) is de gegenereerde, klikbare leesweergave voor mensen. De viewer hoort bij de projectdocumentatie en staat los van de React-productinterface en de synthetische productfixtures.
+[EVALUATIEOPDRACHT.md](EVALUATIEOPDRACHT.md) is de canonieke specificatie van de beoordelingsafspraken. [evals/scenarios.json](evals/scenarios.json) bevat 25 concrete ontwerpbeschrijvingen met invoermodus, bronzaak, exact invoerfragment, Engelse zoekvraag waar van toepassing, verwacht juridisch gedrag en onderbouwing. [evals/index.html](evals/index.html) is de gegenereerde, klikbare leesweergave uit beide bronnen. De viewer hoort bij de projectdocumentatie en staat los van de React-productinterface en de synthetische productfixtures.
 
-Het compacte overzicht groepeert de geplande onderdelen onder Invoervormen, Juridische uitdagingen en Extra controles. Een klik op een onderdeel opent de invoer en het verwachte gedrag; de volledige opdracht staat afzonderlijk onder Afspraken. Zo blijft de eerste weergave kort en zijn details op verzoek beschikbaar.
+Het startoverzicht toont alle 25 ontwerp-evals als compacte rijen met ID, titel en invoermodus. Een klik toont de concrete input, het verwachte gedrag, waarom dit wordt getest en het bronbewijs. Bij query-only staat de bronzaak alleen onder herkomst; de exacte Engelse vraag is de invoer en de Nederlandse versie uitsluitend een leesvertaling. Bij documentinvoer verwijzen veld en SHA-256 naar de volledige majority opinion; de zichtbare quote is een leesfragment. Testcategorieën, varianten en de volledige opdracht staan secundair onder Afspraken.
 
-[evals/build.py](evals/build.py) maakt de HTML uit de canonieke bron. Voer vanuit de reporoot `python3 docs/evals/build.py` uit na inhoudswijzigingen; `python3 docs/evals/build.py --check` controleert of de opgeslagen weergave nog overeenkomt. Generatorchecks draaien met `python3 -m unittest discover -s docs/evals -p 'test_*.py'`. Onderhoud bron en afgeleide HTML in dezelfde changeset. De [AGENTS-afspraken](../AGENTS.md#evaluatiedocumentatie-onderhouden) bepalen hoe toekomstige wijzigingen aan invoermodi, beoordelingsregels, status, labels en runs worden verwerkt.
+[evals/build.py](evals/build.py) maakt de HTML uit de canonieke opdracht en scenariocatalogus. De generator controleert onder meer scenario-ID’s, verplichte inhoud en invoermodi; hij beoordeelt geen juridische kandidaatmatches. Voer vanuit de reporoot `python3 docs/evals/build.py` uit na inhoudswijzigingen; `python3 docs/evals/build.py --check` controleert of de opgeslagen weergave nog overeenkomt. Generatorchecks draaien met `python3 -m unittest discover -s docs/evals -p 'test_*.py'`. Onderhoud bron en afgeleide HTML in dezelfde changeset. De [AGENTS-afspraken](../AGENTS.md#evaluatiedocumentatie-onderhouden) bepalen hoe toekomstige wijzigingen aan invoermodi, beoordelingsregels, status, labels en runs worden verwerkt.
 
 [De documentatieworkflow](../.github/workflows/eval-docs-checks.yml) voert synchronisatie- en generatorchecks uit op pull requests en pushes naar `main` die de bron, viewerbestanden of workflow veranderen. De check genereert niet eerst opnieuw: verouderde opgeslagen HTML faalt dus zichtbaar. Er worden geen corpusdata, modellen of benchmarkruns geladen.
 
-De viewer presenteert de opdracht, geen verzameling gebouwde scenario's of gemeten scores. Concrete evaldata, gecontroleerde relevantielabels, een metriekberekening en een uitvoerbare evaluatierunner moeten nog worden gebouwd. Een statische HTML-pagina start geen lokaal backendproces. De generatiecheck controleert alleen documentatiesynchronisatie; daadwerkelijke retrievalkwaliteit vraagt later onafhankelijke labels en echte runs volgens de opdracht.
+De viewer presenteert concrete ontwerpbeschrijvingen, geen beoordeelde retrievalbenchmark of gemeten scores. Kandidaten met gecontroleerde relevantielabels, een metriekberekening en een uitvoerbare evaluatierunner moeten nog worden gebouwd. De zichtbare ontwerpen zijn ontwikkelmateriaal en kunnen niet als verborgen testset worden gepresenteerd. Een statische HTML-pagina start geen lokaal backendproces. De generatiecheck controleert alleen documentatiesynchronisatie; daadwerkelijke retrievalkwaliteit vraagt later onafhankelijke labels en echte runs volgens de opdracht.
 
 ## Corpus, opslag en index
 
@@ -140,7 +140,7 @@ De frontendchecks draaien lokaal. De evaluatiedocumentatie heeft een automatisch
 
 ## Recente architectuurwijzigingen
 
-- 2026-11-11: centrale evaluatiedocumentatie toegevoegd met canonieke Markdownbron, gegenereerde HTML-viewer en synchronisatiecheck in CI. De evaluatieset en runner blijven gepland; er zijn geen benchmarkresultaten toegevoegd.
+- 2026-11-11: centrale evaluatiedocumentatie toegevoegd met canonieke Markdownbron, gegenereerde HTML-viewer en synchronisatiecheck in CI. De scenariocatalogus toont 25 concrete brononderbouwde ontwerpen; kandidaatlabels en runner blijven gepland. Er zijn geen benchmarkresultaten toegevoegd.
 
 - 2026-11-11: documentpresentatie herzien: laatste zoekresultaten onder de invoerbox, drie pagina-voorbeelden en een aparte volledige reader met terugkeerfocus. Bronpassage en score vormen de onderbouwing; de simulatie voegt geen juridische vergelijkredenen toe.
 

@@ -1,0 +1,930 @@
+{
+  "schema_version": 1,
+  "status": "ontwerp",
+  "description": "25 concrete geplande testbeschrijvingen, geen uitgevoerde evaluaties, kandidaatlabels of definitieve verwachte top3. De volledige brondocumenten blijven lokaal buiten Git. Alle scenario’s zijn zichtbare ontwikkelontwerpen, geen verborgen testset.",
+  "source_root": "/Users/R0GUE/Downloads/texas-criminal-reports/",
+  "source_scope": "135 Texas Court of Criminal Appeals-zaken uit volume 31 (1892–1893).",
+  "self_match_policy": "Sluit de bron-/ankerzaak uit vóór selectie van de drie resultaten; een query-only bronanker is nooit aanvullende modelinvoer.",
+  "scenarios": [
+    {
+      "id": "E01",
+      "title": "Eigendom en toestemming bij diefstal van kolen",
+      "input_mode": "document",
+      "query_case_id": "155952",
+      "source_case": {
+        "id": "155952",
+        "name": "Overturf v. State",
+        "file": "json/0010-01.json",
+        "decision_date": "1892-04-20"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "75a3c65dfe75f7cb6bf50ac4979702bf0bc08e775d43c0ad6a1c903adbd7cd7e",
+        "excerpt": "The evidence fails to show that any coal was ever taken by appellant from La Bryer.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": null,
+      "expected_behavior": "Een relevante match behandelt of het bewijs de ten laste gelegde diefstal draagt, waaronder wie het goed bezat en of toestemming was gegeven. Alleen dezelfde gestolen goederen noemen is onvoldoende.",
+      "why": "Test of de zoekfunctie de bewijs- en toestemmingsvraag herkent in plaats van alleen het woord coal of het delict theft.",
+      "source_evidence": [
+        {
+          "case_id": "155952",
+          "file": "json/0010-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The evidence fails to show that any coal was ever taken by appellant from La Bryer."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E02",
+      "title": "Bewijs van een openbare plaats bij kaartspelen",
+      "input_mode": "document",
+      "query_case_id": "156070",
+      "source_case": {
+        "id": "156070",
+        "name": "Metzer v. State",
+        "file": "json/0011-01.json",
+        "decision_date": "1892-04-23"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "d84128bc13329203a1700648d2d9b7b8ff9affb9bc9862dbad6ba3f4e82870e1",
+        "excerpt": "But under the allegations in the indictment, the place was a public place only by virtue of the fact that it was in view of the public street, and to sustain the conviction it was essential that this allegation should. be proved.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": null,
+      "expected_behavior": "Een relevante match behandelt zowel de concretisering van een openbare plaats in de aanklacht als het bewijs van die gestelde omstandigheid. Maak onderscheid tussen een voldoende aanklacht en onvoldoende bewijs of jury-instructie.",
+      "why": "Test of het systeem een strafbaar feit, de formulering van de aanklacht en het bewijs daarvan uit elkaar houdt.",
+      "source_evidence": [
+        {
+          "case_id": "156070",
+          "file": "json/0011-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "But under the allegations in the indictment, the place was a public place only by virtue of the fact that it was in view of the public street, and to sustain the conviction it was essential that this allegation should. be proved."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E03",
+      "title": "Intrekking van een strafwet tijdens hoger beroep",
+      "input_mode": "document",
+      "query_case_id": "156013",
+      "source_case": {
+        "id": "156013",
+        "name": "Kenyon v. State",
+        "file": "json/0013-01.json",
+        "decision_date": "1892-04-23"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "c21c989d510c9b733d1639cdd401a87e746c69b41bf65f5c27b8c9e4eb23aadf",
+        "excerpt": "The repeal of the Act of 1891 by the recent Legislature annuls the conviction in this case.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": null,
+      "expected_behavior": "Een relevante match bespreekt de gevolgen van intrekking van de toepasselijke strafwet tijdens een lopend beroep, zonder vervangende strafbepaling. Zoek niet uitsluitend naar dezelfde financiële activiteit.",
+      "why": "Test of juridische werking in de tijd zwaarder weegt dan het onderwerp usury; de bron bespreekt historische wetgeving, geen actuele rechtsregel.",
+      "source_evidence": [
+        {
+          "case_id": "156013",
+          "file": "json/0013-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The repeal of the Act of 1891 by the recent Legislature annuls the conviction in this case."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E04",
+      "title": "Een klacht die een toekomstig strafbaar feit vermeldt",
+      "input_mode": "document",
+      "query_case_id": "156000",
+      "source_case": {
+        "id": "156000",
+        "name": "Womack v. State",
+        "file": "json/0041-01.json",
+        "decision_date": "1892-06-01"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "7117fbb9447661adb451259428f7c933c4ee6d3210e0de12da3513758a8edacf",
+        "excerpt": "The date of the commission of the offense sought to be charged must be anterior to the making of the complaint.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": null,
+      "expected_behavior": "Een relevante match behandelt de geldigheid van een klacht wanneer de opgegeven delictsdatum na de datum van de beëdigde klacht ligt, en de wijze waarop dat gebrek aan de orde wordt gesteld. Alleen vuurwapenzaken zijn onvoldoende.",
+      "why": "Test of een datumtegenstrijdigheid in een processtuk wordt herkend als de juridische kern, niet het dragen van een pistool.",
+      "source_evidence": [
+        {
+          "case_id": "156000",
+          "file": "json/0041-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The date of the commission of the offense sought to be charged must be anterior to the making of the complaint."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E05",
+      "title": "Een borgstelling wijzigen zonder toestemming van de borgen",
+      "input_mode": "document",
+      "query_case_id": "156098",
+      "source_case": {
+        "id": "156098",
+        "name": "Butler v. State",
+        "file": "json/0063-01.json",
+        "decision_date": "1892-06-08"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "5fa96bfb7987afe97fa98a56c930f72eb196b7aa201d6c6c0fd95072be772ad1",
+        "excerpt": "But such change in the terms of the bond is not binding upon the sureties. They were responsible only as they bound themselves.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": null,
+      "expected_behavior": "Een relevante match behandelt een materiële wijziging van een bail bond en het verschil tussen gebondenheid van de hoofdschuldenaar en van de borgen. De oorspronkelijke onmogelijke verschijningsdatum is relevante context.",
+      "why": "Test of de zoekfunctie rechtsgevolgen voor verschillende procesrollen onderscheidt, in plaats van alle zaken met het woord bail gelijk te behandelen.",
+      "source_evidence": [
+        {
+          "case_id": "156098",
+          "file": "json/0063-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "But such change in the terms of the bond is not binding upon the sureties. They were responsible only as they bound themselves."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E06",
+      "title": "Bewijs van andere delicten: wanneer bestaat voldoende samenhang?",
+      "input_mode": "query",
+      "query_case_id": "156133",
+      "source_case": {
+        "id": "156133",
+        "name": "Nixon v. State",
+        "file": "json/0205-01.json",
+        "decision_date": "1892-10-26"
+      },
+      "document": null,
+      "query": {
+        "nl": "Wanneer mag bewijs van andere diefstallen of delicten worden gebruikt om het ten laste gelegde feit te bewijzen, en welke samenhang is daarvoor nodig?",
+        "en": "When may evidence of other thefts or offenses be admitted to prove the charged offense, and what connection is required?"
+      },
+      "expected_behavior": "Een relevante match behandelt de vereiste verbinding tussen het andere delict en het vervolgde feit, bijvoorbeeld voor identiteit, opzet of een samenhangend patroon. Zaken met een tegengestelde beslissing kunnen juist relevant zijn als zij die grens verklaren.",
+      "why": "Test of het systeem de juridische toelaatbaarheidsvraag vindt, ook bij andere gestolen goederen en een andere beslissing. De bronzaak zelf is uitgesloten.",
+      "source_evidence": [
+        {
+          "case_id": "156133",
+          "file": "json/0205-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "This testimony does not come within any of the rules authorizing admission of evidence of extraneous crimes and offenses."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E07",
+      "title": "Het slotwoord als de verdediging niet pleit",
+      "input_mode": "query",
+      "query_case_id": "155967",
+      "source_case": {
+        "id": "155967",
+        "name": "Vines v. State",
+        "file": "json/0031-01.json",
+        "decision_date": "1892-05-25"
+      },
+      "document": null,
+      "query": {
+        "nl": "Kan de verdediging door van pleidooi af te zien verhinderen dat de aanklager daarna het slotwoord voert?",
+        "en": "Can the defense prevent the prosecution from making a concluding jury argument by declining to argue after the opening argument?"
+      },
+      "expected_behavior": "Een relevante match behandelt de volgorde van pleidooien, het afzien van verdediging of het recht van de vervolging op een slotwoord. Een andere moordzaak zonder die procesvraag helpt niet.",
+      "why": "Test of een concrete procesrechtelijke vraag wordt opgepakt zonder onzichtbare feiten uit de herkomstzaak te gebruiken.",
+      "source_evidence": [
+        {
+          "case_id": "155967",
+          "file": "json/0031-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The order of argument, therefore, is within the discretion of the court, limited only by the right of the State to conclude."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E08",
+      "title": "Twee veroordelingen en straffen binnen één aanklacht",
+      "input_mode": "query",
+      "query_case_id": "156031",
+      "source_case": {
+        "id": "156031",
+        "name": "Crawford v. State",
+        "file": "json/0051-01.json",
+        "decision_date": "1892-06-04"
+      },
+      "document": null,
+      "query": {
+        "nl": "Kunnen meerdere misdrijven uit één transactie binnen één aanklacht afzonderlijke veroordelingen en straffen opleveren?",
+        "en": "May multiple felonies arising from one transaction produce separate convictions and punishments under a single indictment?"
+      },
+      "expected_behavior": "Een relevante match behandelt meerdere counts, één transactie en het onderscheid tussen gezamenlijk en afzonderlijk vervolgen of bestraffen. Alleen dezelfde vervalsingshandeling bespreken is onvoldoende.",
+      "why": "Test of de zoekfunctie een vraag over samenloop en procesopzet herkent in plaats van alleen forgery als delict.",
+      "source_evidence": [
+        {
+          "case_id": "156031",
+          "file": "json/0051-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Can defendant be convicted of two felonies under the same indictment, and be punished for each?"
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E09",
+      "title": "Dronkenschap van een ambtenaar: welke rechtbank is bevoegd?",
+      "input_mode": "query",
+      "query_case_id": "156048",
+      "source_case": {
+        "id": "156048",
+        "name": "Craig v. State",
+        "file": "json/0029-01.json",
+        "decision_date": "1892-05-18"
+      },
+      "document": null,
+      "query": {
+        "nl": "Wanneer valt dronkenschap van een ambtenaar onder official misconduct, en wat betekent dat voor de bevoegdheid van County Court of District Court?",
+        "en": "When does an officer’s drunkenness amount to official misconduct, and how does that affect County Court versus District Court jurisdiction?"
+      },
+      "expected_behavior": "Een relevante match bespreekt de wettelijke kwalificatie als official misconduct en de daaruit volgende rechterlijke bevoegdheid. Een zaak over gewone openbare dronkenschap zonder die bevoegdheidsvraag is geen sterke match.",
+      "why": "Test of het systeem onderscheid maakt tussen verwante woorden en de specifieke juridische functie van die woorden.",
+      "source_evidence": [
+        {
+          "case_id": "156048",
+          "file": "json/0029-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Drunkenness, in and of itself, does not indicate corruption, or willful neglect, or failure of duty, and is therefore not included in the meaning of the term “ official misconduct,” as defined by statute."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E10",
+      "title": "Eerdere diefstalveroordeling en een afzonderlijke inbraakzaak",
+      "input_mode": "query",
+      "query_case_id": "156009",
+      "source_case": {
+        "id": "156009",
+        "name": "Rust v. State",
+        "file": "json/0075-01.json",
+        "decision_date": "1892-06-11"
+      },
+      "document": null,
+      "query": {
+        "nl": "Wanneer blokkeert een eerdere diefstalveroordeling een inbraakvervolging uit dezelfde gebeurtenis, en maakt het uit of afzonderlijke aanklachten zijn gebruikt?",
+        "en": "When does a prior theft conviction bar a burglary prosecution from the same transaction, and does the use of separate indictments matter?"
+      },
+      "expected_behavior": "Een relevante match behandelt former conviction of dubbele vervolging bij inbraak en diefstal, met aandacht voor afzonderlijke versus gezamenlijke aanklachten. Een inhoudelijk verschil op dit punt moet zichtbaar blijven.",
+      "why": "Test of het systeem juridisch relevante verschillen in procesopzet herkent ondanks vrijwel dezelfde onderliggende feiten.",
+      "source_evidence": [
+        {
+          "case_id": "156009",
+          "file": "json/0075-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "In Howard’s case it was held, “ that burglary and theft committed in one and the same transaction could both be prosecuted and punished as separate offenses, though not as joint offenses.”"
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E11",
+      "title": "De rechter relativeert bewijs van goed karakter",
+      "input_mode": "combined",
+      "query_case_id": "156134",
+      "source_case": {
+        "id": "156134",
+        "name": "Young v. State",
+        "file": "json/0024-01.json",
+        "decision_date": "1892-05-11"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "61c1757fd819cfeeaf92cbf0490624bf06b7b0cd1f21adad801b9550d4ca6856",
+        "excerpt": "Good character is like any other fact or circumstance offered in evidence bearing on the question of the guilt of the accused.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wanneer kan een onjuiste rechterlijke opmerking over bewijs van goed karakter tot vernietiging leiden, en welke rol speelt nadeel voor de verdachte?",
+        "en": "When can an improper judicial comment on good-character evidence require reversal, and what role does prejudice play?"
+      },
+      "expected_behavior": "Een relevante match behandelt de waarde van karakterbewijs en de gevolgen van een rechterlijke opmerking die dat bewijs relativeert. Maak onderscheid tussen een onjuiste opmerking en een fout die daadwerkelijk tot vernietiging moet leiden.",
+      "why": "Test of de specifieke vraag over bewijs en nadeel de zoekopdracht stuurt, in plaats van alleen de aard van de mishandeling.",
+      "source_evidence": [
+        {
+          "case_id": "156134",
+          "file": "json/0024-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Good character is like any other fact or circumstance offered in evidence bearing on the question of the guilt of the accused."
+        },
+        {
+          "case_id": "156134",
+          "file": "json/0024-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "but, to entitle the defendant to a reversal, it must appear that it operated to the prejudice of the defendant."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E12",
+      "title": "De koper ontbreekt in de beschuldiging van alcoholverkoop",
+      "input_mode": "combined",
+      "query_case_id": "156044",
+      "source_case": {
+        "id": "156044",
+        "name": "Martin v. State",
+        "file": "json/0027-01.json",
+        "decision_date": "1892-05-11"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "4d9c11aff7c96f7128df1eeddb3fd9957da494d9cc4a2429211bafe9a0750b20",
+        "excerpt": "The information should allege the name of the person to whom the liquor was sold, or if the name of such person is unknown, that fact should be averred.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Moet een beschuldiging van verboden alcoholverkoop de koper noemen, en waarom is identificatie van de specifieke verkoop nodig?",
+        "en": "Must a charge of an unlawful liquor sale identify the purchaser, and why must the particular sale be specified?"
+      },
+      "expected_behavior": "Een relevante match behandelt voldoende specifieke beschuldiging, identificatie van de koper of vermelding dat diens naam onbekend is. Alleen dezelfde alcoholwet of verkoop bespreken is onvoldoende.",
+      "why": "Test of het systeem de precisie van de beschuldiging en de mogelijkheid van verweer of een beroep op eerdere berechting herkent.",
+      "source_evidence": [
+        {
+          "case_id": "156044",
+          "file": "json/0027-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The information should allege the name of the person to whom the liquor was sold, or if the name of such person is unknown, that fact should be averred."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E13",
+      "title": "Misleiding: bezit of ook eigendom overgedragen?",
+      "input_mode": "combined",
+      "query_case_id": "156045",
+      "source_case": {
+        "id": "156045",
+        "name": "Curtis v. State",
+        "file": "json/0039-01.json",
+        "decision_date": "1892-06-01"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "33d200862d2fa9ea80388ed010849b269107579f671a000dc1267b52adf0004a",
+        "excerpt": "It does not appear from said indictment whether the said Hawkins was induced to part with the possession only, or the possession and title also—whether it was theft or swindling.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wat moet een aanklacht wegens verkrijging door valse voorwendselen stellen over de overdracht van bezit en eigendom en het verband met de misleiding?",
+        "en": "What must an indictment for obtaining property by false pretenses allege about transfer of possession and title and its connection to the deception?"
+      },
+      "expected_behavior": "Een relevante match behandelt de materiële feiten die de beschuldiging moet stellen: welke overdracht plaatsvond en hoe het valse voorwendsel die veroorzaakte. Een zaak over een gestolen muilezel zonder deze aanklachtvraag is geen sterke match.",
+      "why": "Test of gedeelde goederen of een breed fraudeonderwerp de juridische grens tussen theft en swindling niet overschaduwen.",
+      "source_evidence": [
+        {
+          "case_id": "156045",
+          "file": "json/0039-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "It does not appear from said indictment whether the said Hawkins was induced to part with the possession only, or the possession and title also—whether it was theft or swindling."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E14",
+      "title": "Een geweigerd uitstel in hoger beroep aanvechten",
+      "input_mode": "combined",
+      "query_case_id": "156117",
+      "source_case": {
+        "id": "156117",
+        "name": "Fields v. State",
+        "file": "json/0042-01.json",
+        "decision_date": "1892-06-01"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "1da2b61799040c93a9cdea4d324d0d6ef0476d52d471a585763f963362532bb2",
+        "excerpt": "Inasmuch as no bill of exceptions was reserved to this ruling of the court, the same can not be considered on appeal.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Kan de afwijzing van een verzoek om uitstel worden beoordeeld in hoger beroep als geen bill of exceptions is vastgelegd?",
+        "en": "Can refusal of a continuance be reviewed on appeal when no bill of exceptions was reserved?"
+      },
+      "expected_behavior": "Een relevante match behandelt het bewaren van een bezwaar tegen geweigerd uitstel en de gevolgen voor de omvang van hoger beroep. De ernstige feiten uit het document mogen deze procesvraag niet verdringen.",
+      "why": "Test of een korte gerichte vraag de dominante en aangrijpende feiten van een document kan doorbreken.",
+      "source_evidence": [
+        {
+          "case_id": "156117",
+          "file": "json/0042-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Inasmuch as no bill of exceptions was reserved to this ruling of the court, the same can not be considered on appeal."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E15",
+      "title": "Een verklaring voor bezit is nog geen bewijs van diefstal",
+      "input_mode": "combined",
+      "query_case_id": "156081",
+      "source_case": {
+        "id": "156081",
+        "name": "Lacy v. State",
+        "file": "json/0078-01.json",
+        "decision_date": "1892-06-15"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "db046ee39d105a289fa29750542246a54b171d33072c9cb645cc2c20d300c9b4",
+        "excerpt": "Neither is it necessary for defendant to show that this possession was honest.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Hoe moet de jury omgaan met een redelijke verklaring voor bezit van gestolen goederen, en moet de verdachte daarbij eerlijk bezit aantonen?",
+        "en": "How should a jury assess a reasonable explanation of possession of stolen property, and must the defendant show that the possession was honest?"
+      },
+      "expected_behavior": "Een relevante match behandelt de bewijslast rond een natuurlijke, redelijke en waarschijnlijk ware verklaring voor bezit. Onderscheid deelname aan de oorspronkelijke diefstal van later ontvangen van gestolen goederen; alleen eenzelfde gestolen dier is onvoldoende.",
+      "why": "Test of het systeem de jury-instructie en het verschil tussen juridische delicten herkent binnen een document met ook andere verweren.",
+      "source_evidence": [
+        {
+          "case_id": "156081",
+          "file": "json/0078-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Neither is it necessary for defendant to show that this possession was honest."
+        },
+        {
+          "case_id": "156081",
+          "file": "json/0078-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "This court, by repeated decisions, has held that if defendant, in possession of stolen property, give an explanation of his possession that is natural, reasonable, and probably true, it then devolves on the State to prove that the explanation is false."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E16",
+      "title": "Een onduidelijk brandmerk als bewijs van eigendom",
+      "input_mode": "combined",
+      "query_case_id": "156112",
+      "source_case": {
+        "id": "156112",
+        "name": "Massey v. State",
+        "file": "json/0091-01.json",
+        "decision_date": "1892-06-22"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "a3ab292477eb73949f1a27e448db31f3ad58bedf309041504ee547b2a1e728c1",
+        "excerpt": "But when the recorded brand is uncertain as to what part of the animal the brand is to be placed, the brand is not in compliance with the law, and is inadmissible for any purpose.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wanneer kan een geregistreerd brandmerk eigendom bewijzen, en wat is het verschil tussen een onduidelijke registratie en een afwijkende plaats op het dier?",
+        "en": "When may a recorded livestock brand prove ownership, and how does an uncertain registration differ from a brand placed on a different part of the animal?"
+      },
+      "expected_behavior": "Een relevante match onderscheidt toelaatbaarheid van een onduidelijke registratie van de bewijskracht bij een afwijkend aangebracht merk. Zoek niet uitsluitend naar dezelfde soort vee of dezelfde eigenaar.",
+      "why": "Test of twee nabijgelegen bewijsproblemen uit elkaar worden gehouden: ongeldige of onduidelijke registratie tegenover een wel geldige registratie met afwijking.",
+      "source_evidence": [
+        {
+          "case_id": "156112",
+          "file": "json/0091-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "But when the recorded brand is uncertain as to what part of the animal the brand is to be placed, the brand is not in compliance with the law, and is inadmissible for any purpose."
+        },
+        {
+          "case_id": "156112",
+          "file": "json/0091-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Again, where the recorded brand is definite and legal, but the brand on the animal is on a different part from that designated in the record, this court says the variance does not destroy the admissibility of the recorded brand as evidence of ownership."
+        },
+        {
+          "case_id": "156112",
+          "file": "json/0091-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "It merely destroys the probative force, and in such a case the record alone, unsupported by other evidence, is not sufficient proof of ownership."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E17",
+      "title": "Een ontlastende verklaring is niet automatisch een bekentenis",
+      "input_mode": "combined",
+      "query_case_id": "156025",
+      "source_case": {
+        "id": "156025",
+        "name": "Ferguson v. State",
+        "file": "json/0093-01.json",
+        "decision_date": "1892-06-22"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "6b2d1c0aeb6f4b85314f8a8efa75faf350214f14ddb3e70640ce2ee8c4757eae",
+        "excerpt": "The statute, article 750 of the Criminal Procedure, relates to confessions only, and does not extend to nor include within its meaning and provision statements exculpatory of the defendant.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Valt een ontlastende verklaring over de herkomst van gestolen goederen onder de regels voor bekentenissen, ook als zij later wordt tegengesproken?",
+        "en": "Does an exculpatory account of how stolen property was obtained fall within confession rules even when it is later contradicted?"
+      },
+      "expected_behavior": "Een relevante match behandelt het onderscheid tussen een belastende bekentenis en een ontlastende verklaring over bezit, en de gevolgen daarvan voor bewijsgebruik. Dat de verdachte was aangehouden maakt iedere verklaring nog niet tot bekentenis.",
+      "why": "Test of de zoekvraag binnen een document met meerdere appelgronden stuurt naar het juiste bewijsprobleem; de afzonderlijke uitstelkwestie is hier niet de focus.",
+      "source_evidence": [
+        {
+          "case_id": "156025",
+          "file": "json/0093-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The statute, article 750 of the Criminal Procedure, relates to confessions only, and does not extend to nor include within its meaning and provision statements exculpatory of the defendant."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E18",
+      "title": "Wanneer moet de jury een lager delict kunnen overwegen?",
+      "input_mode": "combined",
+      "query_case_id": "156057",
+      "source_case": {
+        "id": "156057",
+        "name": "Maxwell v. State",
+        "file": "json/0119-01.json",
+        "decision_date": "1892-06-25"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "fdfe6b155587ea6b11a948905c5786304f3b8662b1c5da892eb9dd64f46ad60e",
+        "excerpt": "The principal ground urged for a rehearing is on the failure of the court to apply the charge of manslaughter.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wanneer vereist het bewijs een jury-instructie over een lager delict, in plaats van alleen instructies over moord en zelfverdediging?",
+        "en": "When does the evidence require a jury instruction on a lesser offense rather than instructions only on murder and self-defense?"
+      },
+      "expected_behavior": "Een relevante match behandelt wanneer de bewijssituatie een lager delict aan de jury moet voorleggen, met onderscheid tussen een mogelijke theorie en voldoende steun in het bewijs. Alleen een vergelijkbare ruzie of dezelfde eindstraf is onvoldoende.",
+      "why": "Test of juridische instructiedrempels worden gevonden ondanks sterk aanwezige feiten en meerdere mogelijke kwalificaties.",
+      "source_evidence": [
+        {
+          "case_id": "156057",
+          "file": "json/0119-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "We do not think there was sufficient evidence requiring such a charge."
+        },
+        {
+          "case_id": "156057",
+          "file": "json/0119-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The principal ground urged for a rehearing is on the failure of the court to apply the charge of manslaughter."
+        },
+        {
+          "case_id": "156057",
+          "file": "json/0119-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "But as presented by the record, it was either self-defense or murder, and the case was fully covered by the charge of the court."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E19",
+      "title": "De woonplaats van een getuige bewijst de pleegplaats niet",
+      "input_mode": "combined",
+      "query_case_id": "155998",
+      "source_case": {
+        "id": "155998",
+        "name": "Stewart v. State",
+        "file": "json/0153-01.json",
+        "decision_date": "1892-06-25"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "b965d10b6e56524be25901d9f3b18b02788e9596e93ea71ad3b160cb8549f958",
+        "excerpt": "yet it can not judicially know Mallison’s store is in Longview, nor draw such an inference from the fact that Mr. Jacobs was living in Longview at the time he was testifying.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wanneer mag de rechter de plaats van het feit afleiden uit een woonplaats, en welke grenzen gelden voor judicial notice van de bevoegde county?",
+        "en": "When may venue be inferred from a witness’s residence, and what limits apply to judicial notice of the county where the offense occurred?"
+      },
+      "expected_behavior": "Een relevante match behandelt bewijs van venue en het onderscheid tussen algemeen bekende geografische feiten en de onbewezen locatie van de concrete gebeurtenis. De woonplaats van een getuige is niet vanzelf de plaats van het feit.",
+      "why": "Test of de expliciete vraag het juiste subprobleem vindt binnen een zaak met meerdere zelfstandige gronden voor vernietiging.",
+      "source_evidence": [
+        {
+          "case_id": "155998",
+          "file": "json/0153-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "yet it can not judicially know Mallison’s store is in Longview, nor draw such an inference from the fact that Mr. Jacobs was living in Longview at the time he was testifying."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E20",
+      "title": "Een heropgepakte veroordeelde betwist zijn identiteit",
+      "input_mode": "combined",
+      "query_case_id": "156111",
+      "source_case": {
+        "id": "156111",
+        "name": "Washington v. State",
+        "file": "json/0084-01.json",
+        "decision_date": "1892-06-18"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "27b4c7b55e4ec38033d5a9246cbcb304a68b1068b01a43699702f37b2f9e36e0",
+        "excerpt": "The court was not only authorized to set aside the sentence first pronounced, but, as we understand the statute, it was obligatory upon the court to do so, and try the issue of identity, as suggested by appellant.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Mag de rechter een al uitgesproken strafoplegging terugnemen om eerst door een jury te laten bepalen of de opgepakte persoon werkelijk de veroordeelde is?",
+        "en": "May a court set aside a sentence already pronounced so that a jury can first determine whether a recaptured person is the individual previously convicted?"
+      },
+      "expected_behavior": "Een relevante match behandelt correctie van een strafoplegging en de vereiste vaststelling van identiteit vóór verdere tenuitvoerlegging. Alleen ontsnapping of de eerdere moordveroordeling bespreken is niet genoeg.",
+      "why": "Test of de smalle identiteitsvraag niet wordt verdrongen door veroordeling, ontsnapping of algemene appelregels. Broncontext: het hof bespreekt correctie van de strafoplegging, maar verwerpt het beroep uiteindelijk als niet-ontvankelijk; stel dit niet voor als een afzonderlijk toegewezen beroep.",
+      "source_evidence": [
+        {
+          "case_id": "156111",
+          "file": "json/0084-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The court was not only authorized to set aside the sentence first pronounced, but, as we understand the statute, it was obligatory upon the court to do so, and try the issue of identity, as suggested by appellant."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E21",
+      "title": "Een voormalige advocaat treedt op als rechter in dezelfde zaak",
+      "input_mode": "combined",
+      "query_case_id": "156051",
+      "source_case": {
+        "id": "156051",
+        "name": "Abrams v. State",
+        "file": "json/0449-01.json",
+        "decision_date": "1893-01-18"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "47f09db5143fc1f4369addf199e64c1a9fbd767e80076815536d1e77eabd20c3",
+        "excerpt": "The fact that counsel for defendant first proposed to try the case before such judge, and the further agreement not to raise the question of his competency, did not legally capacitate him to sit in the case.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Kan instemming van de partijen een rechter bevoegd maken die eerder als advocaat bij dezelfde zaak betrokken was?",
+        "en": "Can the parties’ consent cure a judge’s disqualification arising from prior participation as counsel in the same case?"
+      },
+      "expected_behavior": "Een relevante match behandelt eerdere advocaatbetrokkenheid van de rechter en of instemming of eerdere proceskeuzes die diskwalificatie kunnen wegnemen. Alleen algemene kritiek op een ongunstige rechterlijke beslissing is onvoldoende.",
+      "why": "Test of de zoekfunctie een specifieke grond voor rechterlijke diskwalificatie en het verschil met een gewoon prijsgegeven bezwaar herkent.",
+      "source_evidence": [
+        {
+          "case_id": "156051",
+          "file": "json/0449-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The fact that counsel for defendant first proposed to try the case before such judge, and the further agreement not to raise the question of his competency, did not legally capacitate him to sit in the case."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E22",
+      "title": "Een advocaat als getuige buiten de afzonderingsregel",
+      "input_mode": "combined",
+      "query_case_id": "156059",
+      "source_case": {
+        "id": "156059",
+        "name": "Boatmeyer v. State",
+        "file": "json/0473-01.json",
+        "decision_date": "1893-01-21"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "5abd44bef8d8c38170047a20e5926ac46cec57e3bb00ea4fc6e846872316c0e7",
+        "excerpt": "It is a practice alike familiar to the courts and the profession that this rule is relaxed in regard to attorneys of the court.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Mag een advocaat die in de zaak optreedt als getuige worden geweigerd omdat hij niet onder de afzonderingsregel voor getuigen viel?",
+        "en": "May an attorney involved in the case be excluded as a witness because the attorney was not placed under the witness-sequestration rule?"
+      },
+      "expected_behavior": "Een relevante match behandelt de verhouding tussen afzondering van getuigen, rechterlijke discretionaire ruimte en noodzakelijke getuigenis van een advocaat in de zaak. Alleen dezelfde mishandeling of dezelfde geldboete is geen bruikbare overeenkomst.",
+      "why": "Test of een concrete uitzondering op een procesregel wordt herkend in plaats van uitsluitend het algemene getuigenonderwerp.",
+      "source_evidence": [
+        {
+          "case_id": "156059",
+          "file": "json/0473-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The witness, under the facts of this case, should have been permitted to testify."
+        },
+        {
+          "case_id": "156059",
+          "file": "json/0473-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "It is a practice alike familiar to the courts and the profession that this rule is relaxed in regard to attorneys of the court."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E23",
+      "title": "Een bekentenis na beloofde hulp en een latere waarschuwing",
+      "input_mode": "combined",
+      "query_case_id": "156130",
+      "source_case": {
+        "id": "156130",
+        "name": "Clayton v. State",
+        "file": "json/0489-01.json",
+        "decision_date": "1893-02-01"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "457f70cc0909e95e63710ba64a8dff5292b5f38ebc389b9906745b7ef1030bcd",
+        "excerpt": "It was inadmissible whether appellant at the time of making it was or was not under arrest.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Maakt een latere waarschuwing of de stelling dat iemand niet was aangehouden een door beloofde hulp verkregen bekentenis alsnog toelaatbaar?",
+        "en": "Can a later warning or an officer’s claim that the suspect was not under arrest make a confession induced by promises of help admissible?"
+      },
+      "expected_behavior": "Een relevante match behandelt vrijwilligheid van een bekentenis, beloften of beïnvloeding en het moment van een waarschuwing. Onderscheid de vraag of iemand formeel was aangehouden van de afzonderlijke eis van vrijwilligheid.",
+      "why": "Test of dezelfde diefstalfeiten niet belangrijker worden gemaakt dan de omstandigheden waaronder de verklaring is verkregen.",
+      "source_evidence": [
+        {
+          "case_id": "156130",
+          "file": "json/0489-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "It was inadmissible whether appellant at the time of making it was or was not under arrest."
+        },
+        {
+          "case_id": "156130",
+          "file": "json/0489-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "True, the marshal states that he was so warned, but it was after the confession had been drawn from him by assurances of assistance and personal friendship for himself and his family on the part of the deputy marshal, coupled with the warning that it was useless for the appellant to deny the crime."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E24",
+      "title": "Te laat zorgen voor het feitenverslag voor hoger beroep",
+      "input_mode": "combined",
+      "query_case_id": "156093",
+      "source_case": {
+        "id": "156093",
+        "name": "Aistrop v. State",
+        "file": "json/0467-01.json",
+        "decision_date": "1893-01-18"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "77501602b34fce93802405ce40c5bc2618914e2d43a31d906a4fa52267ddabb9",
+        "excerpt": "The record shows no diligence whatever, under the facts stated m the affidavits.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wanneer kan een ontbrekend statement of facts tot vernietiging leiden, en welke inspanningen worden verlangd om het verslag tijdig in het appelrecord te krijgen?",
+        "en": "When can the absence of a statement of facts justify reversal, and what diligence is required to secure timely inclusion in the appellate record?"
+      },
+      "expected_behavior": "Een relevante match behandelt tijdige voorbereiding of indiening van het feitenverslag en de inspanningen van de partij die het ontbreken ervan aanvoert. Verwar een onvolledig dossier niet met een inhoudelijk oordeel dat het bewijs onvoldoende was.",
+      "why": "Test of het systeem onderscheid maakt tussen procedurele onmogelijkheid van bewijsbeoordeling en daadwerkelijke onschuld of ontoereikend bewijs.",
+      "source_evidence": [
+        {
+          "case_id": "156093",
+          "file": "json/0467-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "No order was sought or obtained authorizing the filing of the statement subsequent to adjournment."
+        },
+        {
+          "case_id": "156093",
+          "file": "json/0467-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "The record shows no diligence whatever, under the facts stated m the affidavits."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    },
+    {
+      "id": "E25",
+      "title": "Een lage boete en de grens aan verder hoger beroep",
+      "input_mode": "combined",
+      "query_case_id": "156042",
+      "source_case": {
+        "id": "156042",
+        "name": "Neubauer v. State",
+        "file": "json/0513-01.json",
+        "decision_date": "1893-02-03"
+      },
+      "document": {
+        "field": "casebody.opinions[0].text",
+        "opinion_type": "majority",
+        "sha256": "f4558896d8f46b15320dbee780bfc341bbea23ed217a131aca694b55d230e024",
+        "excerpt": "Where, on an appeal to the County Court from an inferior court, the fine imposed or judgment rendered in a criminal cause shall not exceed $100, exclusive of costs, the judgment shall be final in the County Court.",
+        "scope": "Volledige majority opinion; het fragment is uitsluitend een leesvoorbeeld."
+      },
+      "query": {
+        "nl": "Wanneer is een oordeel van de County Court na beroep vanuit een lagere strafrechter definitief vanwege de opgelegde geldboete?",
+        "en": "When is a County Court judgment on appeal from a lower criminal court final because of the fine imposed?"
+      },
+      "expected_behavior": "Een relevante match behandelt de toegang tot verder hoger beroep na een eerdere beroepsstap en de betekenis van de geldboete. De andere kwestie in het document, de foutieve naam van het appelgerecht in de recognizance, is niet de focus van deze vraag.",
+      "why": "Test of de vraag binnen een kort document met twee afzonderlijke ontvankelijkheidsgronden het juiste criterium selecteert.",
+      "source_evidence": [
+        {
+          "case_id": "156042",
+          "file": "json/0513-01.json",
+          "opinion_type": "majority",
+          "field": "casebody.opinions[0].text",
+          "text": "Where, on an appeal to the County Court from an inferior court, the fine imposed or judgment rendered in a criminal cause shall not exceed $100, exclusive of costs, the judgment shall be final in the County Court."
+        }
+      ],
+      "status": "ontwerp",
+      "judgment_status": "nog niet beoordeeld"
+    }
+  ],
+  "query_text_policy": "query.en is de exact geplande modelinvoer; query.nl is alleen de Nederlandse leesvertaling en wordt niet als tweede vraag meegestuurd.",
+  "document_text_policy": "Gebruik de volledige ongewijzigde text-string van de majority opinion na JSON-decoding, zonder trimmen of verdere normalisatie. SHA-256 geldt voor de UTF-8-bytes van die string. Het fragment is uitsluitend een leesvoorbeeld; er is nog geen runtime of import uitgevoerd."
+}

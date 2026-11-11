@@ -10,7 +10,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](docs/openapi.yaml): het canonieke, nog te implementeren API-contract.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
-- [Evaluatieoverzicht](docs/evals/index.html): klikbare uitleg van de geplande evals; [de opdracht](docs/EVALUATIEOPDRACHT.md) is de canonieke inhoud.
+- [Evaluatieoverzicht](docs/evals/index.html): alle 25 concrete ontwerp-evals, met input en verwacht gedrag na aanklikken; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -57,9 +57,9 @@ Voor de latere echte API-koppeling: kopieer `frontend/.env.example` naar `fronte
 
 ## Evals bekijken en bijhouden
 
-Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. Het beschrijft geplande tests en hun verwachte gedrag. De concrete benchmarkdataset, geverifieerde labels, evaluatierunner en meetresultaten zijn nog niet gebouwd; de viewer voert geen evals uit.
+Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Onafhankelijk beoordeelde kandidaatmatches, vaste relevantielabels, evaluatierunner en meetresultaten ontbreken nog; de viewer voert geen evals uit.
 
-Onderhoud de inhoud in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
+Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
 ```sh
 python3 docs/evals/build.py

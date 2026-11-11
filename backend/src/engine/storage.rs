@@ -1,5 +1,5 @@
 use super::{
-    EngineError, ErrorKind, IndexedPassage,
+    EngineError, ErrorKind, IndexedPassage, SourceSection,
     corpus::{CaseRecord, hash, parse_case},
     embedding::EmbeddingConfig,
     ranking::cosine,
@@ -11,8 +11,7 @@ use std::{
     path::Path,
 };
 
-pub(super) const PIPELINE: &str =
-    "majority-lf-trim-v1|chars1600-overlap160-token480-v1|question-prefix-v1|cosine-max-v1";
+pub(super) const PIPELINE: &str = "majority-and-head-matter-lf-trim-v1|chars1600-overlap160-token480-v1|question-prefix-v1|cosine-max-v1";
 pub(super) const EXPECTED_COUNT: usize = 135;
 pub(super) const EXPECTED_IDS_SHA256: &str =
     "efa425142ba80a8f54cc42e329a1f38c4a5fc5aa0aa853f8c9550fc96640be88";
@@ -156,18 +155,20 @@ pub(super) fn load(path: &Path, count: usize, ids_sha256: &str) -> Result<Snapsh
 
 pub(super) fn fingerprint(snapshot: &Snapshot) -> Result<String, EngineError> {
     use sha2::{Digest, Sha256};
+    let mut passages: Vec<_> = snapshot.passages.iter().collect();
+    passages.sort_by(|a, b| a.passage.passage_id.cmp(&b.passage.passage_id));
     let record = serde_json::to_vec(&(
         snapshot.manifest.format_version,
         &snapshot.manifest.pipeline,
         &snapshot.manifest.embedding,
         &snapshot.cases,
-        &snapshot.passages,
+        &passages,
     ))
     .map_err(|_| unavailable())?;
     let mut digest = Sha256::new();
     digest.update((record.len() as u64).to_le_bytes());
     digest.update(record);
-    for passage in &snapshot.passages {
+    for passage in passages {
         for value in &passage.vector {
             digest.update(value.to_le_bytes());
         }
@@ -180,7 +181,7 @@ pub(super) fn validate(
     count: usize,
     ids_sha256: &str,
 ) -> Result<(), EngineError> {
-    if snapshot.manifest.format_version != 2
+    if snapshot.manifest.format_version != 3
         || snapshot.manifest.pipeline != PIPELINE
         || snapshot.manifest.embedding.dimensions == 0
         || snapshot.cases.len() != count
@@ -197,41 +198,55 @@ pub(super) fn validate(
     {
         return Err(unavailable());
     }
-    let mut by_case: BTreeMap<&str, Vec<&IndexedPassage>> = BTreeMap::new();
+    let mut by_case: BTreeMap<(&str, SourceSection), Vec<&IndexedPassage>> = BTreeMap::new();
     let mut ids = BTreeSet::new();
     for item in &snapshot.passages {
         let case = snapshot.cases.get(&item.case_id).ok_or_else(unavailable)?;
         let p = &item.passage;
+        let section = p.source_section.ok_or_else(unavailable)?;
+        let (text, version) = case.section(section);
         if !ids.insert(&p.passage_id)
             || p.text.is_empty()
             || item.start_byte >= item.end_byte
-            || case.text.get(item.start_byte..item.end_byte) != Some(p.text.as_str())
-            || case.text[..item.start_byte].encode_utf16().count() != p.start_utf16
+            || text.get(item.start_byte..item.end_byte) != Some(p.text.as_str())
+            || p.text_version.as_deref() != Some(version)
+            || text[..item.start_byte].encode_utf16().count() != p.start_utf16
             || p.start_utf16.checked_add(p.text.encode_utf16().count()) != Some(p.end_utf16)
             || item.vector.len() != snapshot.manifest.embedding.dimensions
         {
             return Err(unavailable());
         }
         cosine(&item.vector, &item.vector).map_err(|_| unavailable())?;
-        by_case.entry(&item.case_id).or_default().push(item);
+        by_case
+            .entry((&item.case_id, section))
+            .or_default()
+            .push(item);
     }
     for (id, case) in &snapshot.cases {
         let original =
             parse_case(serde_json::from_str(&case.source_json).map_err(|_| unavailable())?)?;
-        if original.metadata != case.metadata || original.text != case.text {
+        if original.metadata != case.metadata
+            || original.text != case.text
+            || original.head_matter != case.head_matter
+            || original.head_matter_text_version != case.head_matter_text_version
+        {
             return Err(unavailable());
         }
-        let chunks = by_case.get_mut(id.as_str()).ok_or_else(unavailable)?;
-        chunks.sort_by_key(|p| p.start_byte);
-        let mut covered = 0;
-        for chunk in chunks {
-            if chunk.start_byte > covered {
+        for section in [SourceSection::Majority, SourceSection::HeadMatter] {
+            let chunks = by_case
+                .get_mut(&(id.as_str(), section))
+                .ok_or_else(unavailable)?;
+            chunks.sort_by_key(|p| p.start_byte);
+            let mut covered = 0;
+            for chunk in chunks {
+                if chunk.start_byte > covered {
+                    return Err(unavailable());
+                }
+                covered = covered.max(chunk.end_byte);
+            }
+            if covered != case.section(section).0.len() {
                 return Err(unavailable());
             }
-            covered = covered.max(chunk.end_byte);
-        }
-        if covered != case.text.len() {
-            return Err(unavailable());
         }
     }
     if fingerprint(snapshot)? != snapshot.manifest.corpus_version {
@@ -257,28 +272,37 @@ mod tests {
                 "id": id, "name": "Example", "decision_date": "1892-01-01",
                 "court": {"name": "Texas Court of Criminal Appeals"},
                 "citations": [{"type": "official", "cite": "Example cite"}],
-                "casebody": {"opinions": [{"type":"majority", "text":"Evidence 😀"}]}
+                "casebody": {"head_matter":"Headnote 😀", "opinions": [{"type":"majority", "text":"Evidence 😀"}]}
             }))
             .unwrap();
+            for section in [SourceSection::Majority, SourceSection::HeadMatter] {
+                let (text, version) = case.section(section);
+                passages.push(IndexedPassage {
+                    case_id: id.to_string(),
+                    start_byte: 0,
+                    end_byte: text.len(),
+                    passage: Passage {
+                        source_section: Some(section),
+                        text_version: Some(version.into()),
+                        passage_id: if section == SourceSection::Majority {
+                            format!("{id}:p00000000")
+                        } else {
+                            format!("{id}:head_matter:p00000000")
+                        },
+                        text: text.into(),
+                        start_utf16: 0,
+                        end_utf16: text.encode_utf16().count(),
+                    },
+                    vector: vec![1., 0.],
+                });
+            }
             cases.insert(id.to_string(), case);
-            passages.push(IndexedPassage {
-                case_id: id.to_string(),
-                start_byte: 0,
-                end_byte: "Evidence 😀".len(),
-                passage: Passage {
-                    passage_id: format!("{id}:p00000000"),
-                    text: "Evidence 😀".into(),
-                    start_utf16: 0,
-                    end_utf16: 11,
-                },
-                vector: vec![1., 0.],
-            });
         }
         let mut snapshot = Snapshot {
             cases,
             passages,
             manifest: Manifest {
-                format_version: 2,
+                format_version: 3,
                 pipeline: PIPELINE.into(),
                 embedding: EmbeddingConfig {
                     model: "test".into(),
@@ -309,7 +333,7 @@ mod tests {
         persist(&path, &expected).unwrap();
         let loaded = load(&path, 4, &ids()).unwrap();
         assert_eq!(loaded.cases.len(), 4);
-        assert_eq!(loaded.passages.len(), 4);
+        assert_eq!(loaded.passages.len(), 8);
         assert_eq!(
             loaded.manifest.corpus_version,
             expected.manifest.corpus_version
@@ -329,6 +353,30 @@ mod tests {
             .execute("DELETE FROM cases WHERE case_id = '4'", [])
             .unwrap();
         assert!(load(&path, 4, &ids()).is_err());
+    }
+
+    #[test]
+    fn wrong_section_version_and_missing_head_matter_are_rejected_even_with_a_fresh_fingerprint() {
+        for mutation in 0..3 {
+            let mut damaged = snapshot();
+            match mutation {
+                0 => damaged.passages[0].passage.source_section = Some(SourceSection::HeadMatter),
+                1 => damaged.passages[0].passage.text_version = Some("sha256:wrong".into()),
+                _ => damaged
+                    .passages
+                    .retain(|p| p.passage.source_section != Some(SourceSection::HeadMatter)),
+            }
+            damaged.manifest.corpus_version = fingerprint(&damaged).unwrap();
+            assert!(validate(&damaged, 4, &ids()).is_err());
+        }
+    }
+
+    #[test]
+    fn legacy_majority_only_schema_requires_reimport() {
+        let mut legacy = snapshot();
+        legacy.manifest.format_version = 2;
+        legacy.manifest.corpus_version = fingerprint(&legacy).unwrap();
+        assert!(validate(&legacy, 4, &ids()).is_err());
     }
 
     #[test]

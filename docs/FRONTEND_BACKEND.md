@@ -10,25 +10,29 @@
 |---|---|
 | `document` | Optioneel PDF- of UTF-8-TXT-bestand, maximaal 10 MiB. |
 | `query` | Optionele UTF-8-tekst, maximaal 1 MiB vóór trimmen; omringende witruimte wordt verwijderd. |
+| `retrieval_method` | Optioneel `opinion_chunks` (standaard) of `head_matter`. |
 
 Document-only, vraag-only en beide zijn ondersteund. Minstens één moet bruikbaar zijn. Een meegestuurd ongeldig bestand geeft een fout, ook wanneer de vraag wel geldig is. Laat de browser bij `FormData` zelf de multipart `Content-Type` met boundary zetten.
 
 De volledige multipartrequest mag maximaal 12 MiB zijn; het document zelf blijft maximaal 10 MiB. Uitgelezen PDF-tekst is begrensd op 20 MiB. De backend weigert overschrijdingen en kapt tekst niet stil af.
 
-Een succesvolle response bevat `mode`, `corpus_version`, `ranking_version` en precies drie `results`. Elk resultaat bevat `case_id`, `title`, `court`, `decision_date`, `citation`, `case_url`, `text_version`, `score` en `passage`.
+Een succesvolle response bevat `retrieval_method`, `mode`, `corpus_version`, `ranking_version` en precies drie `results`. Elk resultaat bevat `case_id`, `title`, `court`, `decision_date`, `citation`, `case_url`, `text_version`, `score` en `passage`.
 
 - `mode`: `document`, `query` of `combined`.
 - `score`: overeenkomst tussen -1 en 1, geen percentage of juridische zekerheid.
-- `passage`: `passage_id`, oorspronkelijke `text`, `start_utf16`, `end_utf16`.
+- `passage`: `passage_id`, oorspronkelijke `text`, `start_utf16`, `end_utf16`. Nieuwe indexresultaten voegen `source_section` (`majority` of `head_matter`) en de eigen `text_version` toe.
+- `retrieval_method`: de gekozen bronindex. Beide methoden gebruiken hetzelfde lokale model, dezelfde cosinusscore en dezelfde top-drieafspraak. Head matter is redactionele context, geen rechterlijke redenering. Een onbekende, lege of dubbele methode is een 400-fout.
 - De drie zaken zijn uniek en staan op aflopende score. We tonen de hoogste scores uit het volledige corpus volgens de afgesproken methode, ook wanneer de overeenkomst inhoudelijk zwak is. Er is nog geen gevalideerde relevantiedrempel.
 
 ## Volledige documenten met markering
 
 Haal voor ieder resultaat `GET /api/cases/{case_id}` op via `case_url`. De response bevat dezelfde zaakmetadata, `corpus_version`, `text_version` en de volledige canonieke `text` van het meerderheidsoordeel (majority opinion). Afwijkende of aanvullende opinions horen niet bij deze detailtekst.
 
-Markeer `text.slice(passage.start_utf16, passage.end_utf16)` in de detailtekst. De posities zijn **JavaScript/UTF-16-eenheden**, beginnen bij nul en het einde is exclusief. De uitsnede is exact gelijk aan `passage.text`. De frontend mag de tekst vóór het toepassen van de posities niet normaliseren of inkorten. Render tekst met veilige tekstnodes en bijvoorbeeld `<mark>`; ruwe HTML injecteren is niet nodig.
+Nieuwe detailresponses voegen de afzonderlijke `head_matter` en `head_matter_text_version` toe; `text` blijft altijd het volledige meerderheidsoordeel. Kies bij `passage.source_section: head_matter` de head-mattertekst en controleer de eigen passageversie tegen `head_matter_text_version`. Toon de gemarkeerde redactionele context apart, met het volledige meerderheidsoordeel eronder. Een head-matterpassage mag nooit in `text` worden gemarkeerd.
 
-Controleer dat `text_version` en `corpus_version` van zoekresultaat en detail overeenkomen. Bij een verschil: ververs de zoekopdracht; pas oude posities niet op nieuwe tekst toe. Iedere zaak heeft in deze versie één best scorende passage. Dit ondersteunt drie leesbare documenten met een markering; er worden geen originele PDF's of PDF-coördinaten geleverd.
+Markeer bij `source_section: majority` `text.slice(passage.start_utf16, passage.end_utf16)` in de detailtekst. De posities zijn **JavaScript/UTF-16-eenheden**, beginnen bij nul en het einde is exclusief. De uitsnede is exact gelijk aan `passage.text`. De frontend mag de tekst vóór het toepassen van de posities niet normaliseren of inkorten. Render tekst met veilige tekstnodes en bijvoorbeeld `<mark>`; ruwe HTML injecteren is niet nodig.
+
+Oude synthetische opinion-fixtures zonder sectie/passagetekstversie blijven leesbaar als majority; een head-matterresultaat vereist expliciete sectie en versie. Controleer dat `text_version` en `corpus_version` van zoekresultaat en detail overeenkomen. Bij een verschil: ververs de zoekopdracht; pas oude posities niet op nieuwe tekst toe. Iedere zaak heeft in deze versie één best scorende passage. Dit ondersteunt drie leesbare documenten met een markering; er worden geen originele PDF's of PDF-coördinaten geleverd.
 
 ## Meteen met fixtures bouwen
 
@@ -62,3 +66,12 @@ De afzonderlijke adapter op `http://127.0.0.1:18000` accepteert dezelfde zoekinv
 `SearchResponse.explanation_status` is optioneel: `available` betekent dat alle drie modeltoelichtingen gevalideerd zijn, `unavailable` betekent echte resultaten zonder toelichting. Alleen bij `available` heeft elk resultaat `explanation: {text, citations: [{passage_id, quote}], limitations: string[]}`. Het model kiest uitsluitend een bestaande passage-ID per zaak; de server vult `quote` met de exacte bronpassage. Bij een mislukte model/provider/schema-stap blijft de oorspronkelijke top drie beschikbaar met `unavailable`. Als de eigenlijke zoekbackend faalt, geldt het bestaande HTTP-foutcontract. De normale backend op 8000 hoeft deze optionele velden niet te leveren.
 
 Uploadinhoud gaat niet naar het taalmodel, alleen een eventuele vraag en teruggegeven bronpassages. De adapter voegt deze beperking expliciet aan uploaduitleg toe. De frontend toont modeltekst en noodzakelijke beperkingen compact boven de volledige meerderheidstekst; de gevalideerde passage blijft daarin gemarkeerd. Extra quoteblokken en citaatlinks worden niet herhaald, maar de bronverwijzingen blijven in de API aanwezig. Versies en UTF-16-markeringen blijven behouden. Geen modeltekst als bewijs van juridische juistheid presenteren.
+
+
+## Lokale evaluatievergelijking
+
+`POST /api/evals/search` bestaat uitsluitend op de Rust-backend en gebruikt dezelfde geladen engine als productzoeken. De multipartinvoer is gelijk aan zoeken, plus optioneel `excluded_case_ids`: een JSON-array als tekst, bijvoorbeeld `["156133"]`. Uitsluitingen worden vóór scoring en top drie toegepast. Onbekende/dubbele IDs of minder dan drie overblijvende zaken geven 400.
+
+De response is `{response, excluded_case_ids, eligible_case_count, index_manifest}`. `response` is de gewone zoekresponse met expliciete methode; het manifest bindt corpus, modelbestanden en verwerking. Voer A en B na elkaar uit op dezelfde invoer en uitsluitingen en vergelijk de volledige manifesten. De evalserver start geen extra embeddingproces en een lokale vergelijking heeft geen Orq-key nodig. Bewaar daadwerkelijke resultaten en timings; een rangverschil of overlap is geen juridische kwaliteitsmetric.
+
+De featurepreview gebruikt backend `127.0.0.1:8001`, app `127.0.0.1:5177` en evaluatiepagina `127.0.0.1:8799`. De bestaande database en binary blijven behouden; slechts één native modeljob draait tegelijk.

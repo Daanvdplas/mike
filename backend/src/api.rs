@@ -1,6 +1,9 @@
 use crate::{
     api_error::ApiError,
-    engine::{CaseDetail, EngineError, ErrorKind, HealthResponse, SearchResponse},
+    engine::{
+        CaseDetail, EngineError, ErrorKind, EvaluationSearchResponse, HealthResponse,
+        RetrievalMethod, SearchResponse,
+    },
     extraction::{MAX_DOCUMENT_BYTES, extract_document},
 };
 use axum::{
@@ -26,7 +29,15 @@ pub trait Backend: Send {
         &mut self,
         query: Option<&str>,
         document: Option<&str>,
+        method: RetrievalMethod,
     ) -> Result<SearchResponse, EngineError>;
+    fn evaluate_search(
+        &mut self,
+        query: Option<&str>,
+        document: Option<&str>,
+        method: RetrievalMethod,
+        excluded_case_ids: &[String],
+    ) -> Result<EvaluationSearchResponse, EngineError>;
     fn get_case(&self, case_id: &str) -> Result<CaseDetail, EngineError>;
     fn health(&self) -> HealthResponse;
 }
@@ -46,6 +57,7 @@ pub fn router(state: ApiState, origins: Vec<HeaderValue>) -> Router {
             .expect("canonical OpenAPI must be valid YAML");
     Router::new()
         .route("/api/search", post(search))
+        .route("/api/evals/search", post(evaluate_search))
         .route("/api/cases/{case_id}", get(get_case))
         .route("/api/health", get(health))
         .route("/openapi.json", get(move || async move { Json(contract) }))
@@ -94,12 +106,71 @@ async fn search(
     State(state): State<ApiState>,
     multipart: Result<Multipart, MultipartRejection>,
 ) -> Result<Json<SearchResponse>, ApiError> {
+    let input = parse_search_input(multipart, false).await?;
+    with_backend(state, move |backend| {
+        backend.search(
+            input.query.as_deref(),
+            input.document.as_deref(),
+            input.method,
+        )
+    })
+    .await
+    .map(Json)
+}
+
+async fn evaluate_search(
+    State(state): State<ApiState>,
+    multipart: Result<Multipart, MultipartRejection>,
+) -> Result<Json<EvaluationSearchResponse>, ApiError> {
+    let input = parse_search_input(multipart, true).await?;
+    with_backend(state, move |backend| {
+        backend.evaluate_search(
+            input.query.as_deref(),
+            input.document.as_deref(),
+            input.method,
+            &input.excluded_case_ids,
+        )
+    })
+    .await
+    .map(Json)
+}
+
+struct SearchInput {
+    query: Option<String>,
+    document: Option<String>,
+    method: RetrievalMethod,
+    excluded_case_ids: Vec<String>,
+}
+
+async fn parse_search_input(
+    multipart: Result<Multipart, MultipartRejection>,
+    allow_exclusions: bool,
+) -> Result<SearchInput, ApiError> {
     let mut multipart = multipart.map_err(|_| invalid_input())?;
     let mut query = None;
     let mut query_seen = false;
     let mut document = None;
+    let mut method = None;
+    let mut excluded_case_ids = None;
     while let Some(mut field) = multipart.next_field().await.map_err(multipart_error)? {
         match field.name() {
+            Some("retrieval_method") if method.is_none() => {
+                if field.file_name().is_some() {
+                    return Err(invalid_input());
+                }
+                method = Some(
+                    RetrievalMethod::parse(&field.text().await.map_err(multipart_error)?)
+                        .map_err(ApiError::from)?,
+                );
+            }
+            Some("excluded_case_ids") if allow_exclusions && excluded_case_ids.is_none() => {
+                if field.file_name().is_some() {
+                    return Err(invalid_input());
+                }
+                let value = field.text().await.map_err(multipart_error)?;
+                excluded_case_ids =
+                    Some(serde_json::from_str::<Vec<String>>(&value).map_err(|_| invalid_input())?);
+            }
             Some("query") if !query_seen => {
                 query_seen = true;
                 if field.file_name().is_some() {
@@ -161,11 +232,12 @@ async fn search(
         ),
         None => None,
     };
-    with_backend(state, move |backend| {
-        backend.search(query.as_deref(), document.as_deref())
+    Ok(SearchInput {
+        query,
+        document,
+        method: method.unwrap_or_default(),
+        excluded_case_ids: excluded_case_ids.unwrap_or_default(),
     })
-    .await
-    .map(Json)
 }
 
 async fn get_case(
@@ -259,6 +331,7 @@ mod tests {
             &mut self,
             query: Option<&str>,
             document: Option<&str>,
+            method: RetrievalMethod,
         ) -> Result<SearchResponse, EngineError> {
             self.captured
                 .lock()
@@ -273,7 +346,20 @@ mod tests {
                 _ => "document",
             }
             .into();
+            response.retrieval_method = method;
             Ok(response)
+        }
+        fn evaluate_search(
+            &mut self,
+            _: Option<&str>,
+            _: Option<&str>,
+            _: RetrievalMethod,
+            _: &[String],
+        ) -> Result<EvaluationSearchResponse, EngineError> {
+            Err(EngineError::new(
+                ErrorKind::InvalidInput,
+                "Fixture does not implement evaluation search.",
+            ))
         }
         fn get_case(&self, id: &str) -> Result<CaseDetail, EngineError> {
             let cases: Vec<CaseDetail> =
@@ -340,6 +426,111 @@ mod tests {
         let value = serde_json::from_slice(&bytes)
             .unwrap_or_else(|_| json!({"not_json":String::from_utf8_lossy(&bytes)}));
         (status, value)
+    }
+
+    #[tokio::test]
+    async fn evaluation_search_excludes_before_top_three_and_reports_the_shared_index() {
+        let app = router(
+            ApiState::new(Some(Box::new(crate::engine::tests::fixture()))),
+            vec![],
+        );
+        let mut request = multipart(&[
+            ("query", None, b"witness"),
+            ("retrieval_method", None, b"head_matter"),
+            ("excluded_case_ids", None, br#"["2"]"#),
+        ]);
+        *request.uri_mut() = "/api/evals/search".parse().unwrap();
+        let (status, body) = response_json(app, request).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["eligible_case_count"], 3);
+        assert_eq!(body["excluded_case_ids"], json!(["2"]));
+        assert_eq!(body["index_manifest"]["format_version"], 3);
+        assert_eq!(body["response"]["retrieval_method"], "head_matter");
+        let results = body["response"]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0]["case_id"], "4");
+        assert!(
+            results
+                .iter()
+                .all(|hit| hit["case_id"] != "2"
+                    && hit["passage"]["source_section"] == "head_matter")
+        );
+    }
+
+    #[tokio::test]
+    async fn invalid_duplicate_or_file_valued_methods_and_product_exclusions_are_rejected() {
+        let cases = vec![
+            multipart(&[
+                ("query", None, b"witness"),
+                ("retrieval_method", None, b"unknown"),
+            ]),
+            multipart(&[("query", None, b"witness"), ("retrieval_method", None, b"")]),
+            multipart(&[
+                ("query", None, b"witness"),
+                ("retrieval_method", Some("method.txt"), b"head_matter"),
+            ]),
+            multipart(&[
+                ("query", None, b"witness"),
+                ("retrieval_method", None, b"head_matter"),
+                ("retrieval_method", None, b"opinion_chunks"),
+            ]),
+            multipart(&[
+                ("query", None, b"witness"),
+                ("excluded_case_ids", None, br#"["2"]"#),
+            ]),
+        ];
+        for request in cases {
+            let (app, captured) = fixture_app();
+            let (status, body) = response_json(app, request).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+            assert!(captured.lock().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn evaluation_rejects_unknown_duplicate_excessive_or_malformed_exclusions() {
+        for value in [
+            br#"["unknown"]"#.as_slice(),
+            br#"["2","2"]"#,
+            br#"["1","2"]"#,
+            b"2",
+            br#"[2]"#,
+        ] {
+            let app = router(
+                ApiState::new(Some(Box::new(crate::engine::tests::fixture()))),
+                vec![],
+            );
+            let mut request = multipart(&[
+                ("query", None, b"witness"),
+                ("excluded_case_ids", None, value),
+            ]);
+            *request.uri_mut() = "/api/evals/search".parse().unwrap();
+            let (status, body) = response_json(app, request).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_head_matter_selection_is_forwarded_and_reported() {
+        let (app, _) = fixture_app();
+        let (status, body) = response_json(
+            app,
+            multipart(&[
+                ("query", None, b"witness"),
+                ("retrieval_method", None, b"head_matter"),
+            ]),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["retrieval_method"], "head_matter");
+    }
+
+    #[tokio::test]
+    async fn omitted_method_reports_the_existing_opinion_chunk_default() {
+        let (app, _) = fixture_app();
+        let (status, body) = response_json(app, multipart(&[("query", None, b"witness")])).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["retrieval_method"], "opinion_chunks");
     }
 
     #[tokio::test]

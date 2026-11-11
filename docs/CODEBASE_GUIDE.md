@@ -2,11 +2,13 @@
 
 ## Huidige stand
 
-De Rust-backend en gemergde React-frontend zijn beschikbaar in deze repository. De statisch gequantiseerde BGE-index is onder de resourceguard berekend: 135 zaken en 578 passages. De gezamenlijke live UI/API-controle is onafhankelijk afgerond: de gewone frontend op 5173 gebruikt nu standaard de bewaakte backend op 8000. De aparte API-preview op 5174 kan daarnaast draaien; fixtures vereisen een expliciete mockkeuze. De oorspronkelijke MiniLM-meting van 0/15 blijft bewaard als indicatieve AI-evaluatie; zij is geen menselijke juridische referentie. Er is geen A/B/C-uitbreiding of top-vijfcontract ingevoerd.
+De Rust-backend en React-frontend zijn beschikbaar. Deze featurebranch voegt `head_matter` toe naast de bestaande standaard `opinion_chunks`, met afzonderlijke bronsecties en reproduceerbare A/B-uitvoer. De featurepreview gebruikt app 5177, backend 8001 en evaluatiepagina 8799; slechts één native modeljob mag tegelijk draaien. De behouden oude majority-index bevat 135 zaken en 578 passages. De nieuwe dual-index en browserdoorloop worden afzonderlijk geverifieerd; de actuele uitvoeringsstatus staat in README. Hybrid search en een top-vijfcontract zijn niet ingevoerd.
 
 De [evaluatieviewer](evals/index.html) toont 25 concrete ontwerpbeschrijvingen. De technische Rustrunner en metricsscorer zijn beschikbaar; kandidaatlabels en gemeten juridische kwaliteit ontbreken nog.
 
 ## Resourcecheckpoint vóór nieuwe modelmetingen
+
+De eerste volledige dual-indeximport (1368 passages) is door de bestaande guard op de RSS-grens gestopt: groepspiek 1573,34 MiB na 140,48 seconden, zonder swapgroei en met normale geheugendruk. Die run publiceerde geen database. De gerichte oplossing in [importing.rs](../backend/src/engine/importing.rs) verdeelt de import over sequentiële processen van maximaal 256 passages. De ouder laadt geen model; elke worker gebruikt de oorspronkelijke tokenizer/modelconfiguratie en sluit volledig vóór de volgende start. Configuratie, bronhash, batchposities/-aantallen en complete index worden gecontroleerd vóór één atomische SQLite-publicatie. De hele procesboom houdt dezelfde RSS-/swap-/tijdbewaking; er is geen limietverhoging. De succesvolle hercontrole wordt pas na uitvoering vastgelegd.
 
 [embedding.rs](../backend/src/engine/embedding.rs) voert native inference nu uit met maximaal één tekst per call, met twee ONNX-threads. Iedere native call levert eerst de genormaliseerde vector op en laat zijn ruwe uitvoer los voordat de volgende tekst begint. Alleen een kleine interne batchgrootte meegeven aan één volledige corpuscall was onvoldoende: fastembed bewaart dan de ruwe uitvoer van alle interne batches tot de export. De nieuwe helper controleert ook het aantal teruggegeven rijen per call, behoudt de invoervolgorde en logt aantallen als voortgang zonder documentinhoud. De eerste bewaakte proef met vier teksten van ongeveer 465 tokens is bij de eerste inference gestopt op een gemeten groepspiek van 2637,64 MiB, zonder swapgroei. Daarom is de native grens aangescherpt naar één; de RSS-grens is niet verhoogd. De kleinere grens is vervolgens in de onderstaande bewaakte proeven onderzocht.
 
@@ -34,7 +36,7 @@ De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt ho
 
 ## HTTP-invoer en tekstextractie
 
-[api::router](../backend/src/api.rs) biedt de vier contractroutes en configureerbare CORS. `POST /api/search` leest de velden `query` en `document`, weigert dubbele/onbekende velden en behandelt een lege vraag als afwezig. Een ongeldig meegestuurd document wordt ook naast een geldige vraag geweigerd. Er is geen overgenomen COA-limiet van 1000 vraagtekens of 8192 requestbytes.
+[api::router](../backend/src/api.rs) biedt de vijf contractroutes en configureerbare CORS. `POST /api/search` leest de velden `query`, `document` en optioneel `retrieval_method`, weigert dubbele/onbekende velden en behandelt een lege vraag als afwezig. Een ongeldig meegestuurd document wordt ook naast een geldige vraag geweigerd. Er is geen overgenomen COA-limiet van 1000 vraagtekens of 8192 requestbytes.
 
 [extract_document](../backend/src/extraction.rs) behoudt UTF-8-TXT en extraheert tekst uit PDF. De bestandsgrootte wordt tijdens het lezen per document geteld: precies 10 MiB blijft geldig, los van multipartheaders. De vraag wordt tijdens het lezen op 1 MiB UTF-8 begrensd en de hele multipartrequest op 12 MiB. PDF-uitvoer wordt tijdens het schrijven op 20 MiB begrensd; een panic in de externe parser wordt een 422-fout. Dit is geen procesisolatie of harde CPU-/decompressiegrens voor de PDF-library.
 
@@ -44,41 +46,51 @@ PDF-parsing en enginewerk draaien via `spawn_blocking`; een mutex bewaakt de eng
 
 ## Geïmplementeerde data-/zoekengine
 
-[engine/mod.rs](../backend/src/engine/mod.rs) verbindt import, opslag en zoeken. `import_corpus` leest de JSON-map; [corpus.rs](../backend/src/engine/corpus.rs) selecteert precies één majority opinion, gebruikt `decision_date` en bewaart het volledige oorspronkelijke JSON-record inclusief aanvullende opinions. Canonieke tekst normaliseert CRLF/CR naar LF en verwijdert uitsluitend omringende witruimte. `text_version` is SHA-256 van de UTF-8-bytes van die exacte tekst.
+[engine/mod.rs](../backend/src/engine/mod.rs) verbindt import, opslag en zoeken. `import_corpus` leest de JSON-map; [corpus.rs](../backend/src/engine/corpus.rs) selecteert precies één majority opinion, leest head matter als afzonderlijke redactionele tekst, gebruikt `decision_date` en bewaart de exacte oorspronkelijke UTF-8-JSONbytes inclusief aanvullende opinions. Zo blijven ook brongetallen en witruimte behouden in plaats van een opnieuw geserialiseerde benadering. Canonieke tekst normaliseert CRLF/CR naar LF en verwijdert uitsluitend omringende witruimte. `text_version` is SHA-256 van de UTF-8-bytes van die exacte meerderheidstekst. `head_matter_text_version` identificeert op dezelfde manier de afzonderlijk gecanoniseerde head matter.
 
 [chunk.rs](../backend/src/engine/chunk.rs) maakt overlappende passages met oorspronkelijke byte- en UTF-16-grenzen. Een kandidaat beslaat maximaal 1600 Unicode-tekens en wordt kleiner zolang de echte tokenizer meer dan 480 tokens telt, inclusief speciale tokens. De normale overlap is 160 tekens; bij korte passages blijft voorwaartse voortgang gegarandeerd. Er wordt geen tekst stil afgekapt. Zowel lange vragen als documenten worden volledig verdeeld; hun passagevectoren krijgen een opnieuw genormaliseerd gemiddelde.
 
 [embedding.rs](../backend/src/engine/embedding.rs) hergebruikt het lokale fastembed-/cachepatroon uit COA, met nu `BGESmallENV15Q` voor Engels. De gekozen BGE-small-en-v1.5-variant gebruikt CLS-pooling en 384 dimensies. Alleen vraagpassages krijgen de instructie `Represent this sentence for searching relevant passages: `; corpus- en documentpassages niet. Het tokenbudget telt die instructie mee en truncatie staat uit. Een procesbrede gedeelde ONNX-omgeving maakt meerdere modelinitialisaties mogelijk, ook na import en het laten vallen van de vorige sessie; de directe `ort`-dependency gebruikt dezelfde reeds transitief gelockte versie. Modeltruncatie staat uit; iedere embeddinginvoer wordt vooraf tegen het tokenbudget gecontroleerd. De configuratie registreert SDK, model, dimensies, limiet en SHA-256 van de daadwerkelijk gebruikte model-/tokenizerbestanden en cacherevisie. De modelcache is een instelbaar pad buiten Git. De zoekkwaliteit heeft uitsluitend een indicatieve AI-evaluatie, zonder menselijke juridische ijking.
 
-[storage.rs](../backend/src/engine/storage.rs) bewaart bronrecords, passages, vectorbytes en manifest in SQLite. Een herimport vervangt de index in één transactie. `Engine::load` leest uitsluitend een bestaande database en accepteert pas een snapshot na controle van alle 135 afgesproken case-identiteiten, volledige passagebedekking, tekstversies, UTF-16-grenzen, vectoraantallen/-dimensies, eindige niet-nulvectoren en integriteit van het volledige manifest. De vaste identiteitenhash is afgeleid van de lexicografisch gesorteerde case-ID's uit het aangeleverde corpus. De huidige modelconfiguratie moet exact overeenkomen; gewijzigde bestanden of configuratie vereisen herimport. De engine doet bij laden geen impliciete herindexering.
+[storage.rs](../backend/src/engine/storage.rs) bewaart bronrecords, passages, vectorbytes en manifest in SQLite. De importcoördinator start uitsluitend sequentiële begrensde subprocessen; alleen de actieve worker houdt een model vast. Het manifest gebruikt formaat 3 en bindt beide bronsecties in dezelfde index. Iedere passage bevat haar bronsectie en eigen tekstversie; passages uit verschillende secties hebben verschillende IDs. Een herimport vervangt de index in één transactie. `Engine::load` leest uitsluitend een bestaande database en accepteert pas een snapshot na controle van alle 135 afgesproken case-identiteiten, volledige passagebedekking per zaak én sectie, tekstversies, UTF-16-grenzen, vectoraantallen/-dimensies, eindige niet-nulvectoren en integriteit van het volledige manifest. De vaste identiteitenhash is afgeleid van de lexicografisch gesorteerde case-ID's uit het aangeleverde corpus. De huidige modelconfiguratie moet exact overeenkomen; gewijzigde bestanden of configuratie vereisen herimport. De engine doet bij laden geen impliciete herindexering.
 
-[ranking.rs](../backend/src/engine/ranking.rs) bevat de overgenomen COA-cosinusfunctie en haar numerieke regressietest, met bronverwijzing in het bestand. De nieuwe casegroepering volgt `cosine-max-v1`: alle passages vergelijken, maximum per zaak, vaste passage-/case-ID-ties en exact drie unieke zaken. Numeriek gelijke scores, inclusief positief en negatief nul, volgen dezelfde case-ID-tie-break. [types.rs](../backend/src/engine/types.rs) beschrijft de contractresponses. De engine levert de oorspronkelijke beste passage en volledige canonieke majority-tekst; hij genereert geen antwoord.
+[ranking.rs](../backend/src/engine/ranking.rs) bevat de overgenomen COA-cosinusfunctie en haar numerieke regressietest, met bronverwijzing in het bestand. De casegroepering volgt `cosine-max-v1`: alle passages van de gekozen bronsectie vergelijken, maximum per zaak, vaste passage-/case-ID-ties en exact drie unieke zaken. Numeriek gelijke scores, inclusief positief en negatief nul, volgen dezelfde case-ID-tie-break. [types.rs](../backend/src/engine/types.rs) beschrijft de contractresponses. De engine levert de oorspronkelijke beste passage met bronsectie en eigen tekstversie. Zaakdetails bevatten de volledige canonieke majority-tekst plus afzonderlijke head matter; hij genereert geen antwoord.
 
 De deterministische tests controleren onder meer Unicode/overlap, drie invoermodi, lange vragen, casegroepering, beide tie-breaks, bronidentiteit, duplicaten, herimport, corrupte opslag en een partiële index met nog drie resterende zaken. Ze gebruiken bekende embeddingvectoren aan de modelgrens. De echte modeltest controleert daarnaast onverkorte tokenaantallen en vectorvorm. De afzonderlijke echte-corpuscheck importeert alle zaken en herlaadt de index, maar vervangt geen inhoudelijke beoordeling van zoekkwaliteit.
 
 De onafhankelijk geschreven module `independent_reference_tests` in [ranking.rs](../backend/src/engine/ranking.rs) vergelijkt productie-uitkomsten met een volledige f64-referentieberekening zonder de productiecosinus of casegroepering aan te roepen. De voorbeelden controleren alle drie invoermodi, een beste zaak aan het einde van de invoer, passage- en caseties, omgekeerde invoervolgorde en scores van weggelaten zaken. Extra grensgevallen controleren ongeldige vectoren, minder dan drie zaken en de normalisatie van een gemiddelde documentvector. Deze modelvrije tests zijn in een afzonderlijke reviewtarget uitgevoerd; een gedeelde Cargo-target tussen worktrees bleek onbetrouwbaar voor testherkomst.
 
-## Gebruik en geplande hoofdroute
+## Hoofdroute
 
-Een gebruiker geeft een document en/of vraag. De app toont drie verschillende uitspraken, met per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en de best scorende passage gemarkeerd.
+Een gebruiker geeft een document en/of vraag. De app toont drie verschillende uitspraken, met per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en de best scorende passage in de juiste bronsectie gemarkeerd.
 
 ```mermaid
 flowchart LR
-  C[Texas JSON-corpus] --> I[Import en passageverdeling]
+  C[Texas JSON-corpus] --> I[Majority en head matter afzonderlijk verdelen]
   I --> E[Lokale embeddings]
   E --> DB[(SQLite)]
   DB --> X[Volledige index in geheugen]
   U[Document en/of vraag] --> API[Rust / Axum]
   API --> Q[Invoer uitlezen en embedden]
-  Q --> S[Alle passages vergelijken]
+  Q --> S[Alle passages van gekozen sectie vergelijken]
   X --> S
   S --> R[Top 3 unieke zaken en tekstposities]
   R --> F[Frontend toont volledige documenten]
-  DB --> D[Volledige canonieke zaaktekst]
+  X --> D[Volledige majority en head matter uit geheugen]
   D --> F
 ```
 
 De mapverdeling is `backend/` voor de Rust-service en `frontend/` voor de aparte frontend-agent. Alleen de backend hoort bij deze wijziging. Gedeeld werk zit in `docs/`; contractwijzigingen worden afgestemd voordat een agent erop gaat bouwen.
+
+## Selecteerbare bronindex en één gedeelde evalengine
+
+`RetrievalMethod` in [types.rs](../backend/src/engine/types.rs) kent `opinion_chunks` en `head_matter`; de bestaande majoritymethode blijft de standaard. Beide methoden gebruiken hetzelfde BGE-model, dezelfde passageverdeling, normalisatie, 70/30-gewichten en deterministische top drie. Head matter wordt ook in korte passages verdeeld wanneer het tokenbudget dat vereist. De bronkeuze verandert uitsluitend welke corpuspassages worden vergeleken; een documentinvoer blijft het aangeboden document.
+
+[api.rs](../backend/src/api.rs) accepteert de optionele multipartmethode en rapporteert haar in de zoekresponse. De additionele `POST /api/evals/search` hergebruikt de bestaande mutex/engine, past expliciete bronuitsluitingen vóór top drie toe en retourneert de response plus uitsluitingen, kandidaatenaantal en volledig indexmanifest. De lokale web-evals starten hiervoor geen tweede Rustmodelproces. De scenarioselectie biedt alle 25 zichtbare ontwerpen afzonderlijk, naast de losse demo-invoer; een gezamenlijke webbatch is niet gebouwd. Er wordt bij deze route geen Orq-judge aangeroepen.
+
+De CLI accepteert `search --retrieval-method head_matter QUESTION` en `eval SCENARIOS CORPUS OUTPUT --retrieval-method head_matter`. De Rustrunner bewaart de methode in artifactformaat 2 (`rust-eval-v2`) en controleert dat alle responses en passages dezelfde geselecteerde sectie gebruiken. Labelbewijs blijft gekoppeld aan de majority-brontekst; head-matterrankingpassages worden afzonderlijk bewaard en niet als goldbewijs gepresenteerd.
+
+Een oude majority-only database is niet geschikt voor het nieuwe dubbele schema. De engine weigert die vóór modelladen; herimport gebeurt expliciet naar een nieuw databasepad. De oude demo-index blijft behouden. Een lokale A/B-vergelijking bewaart echte rankings, timings, invoer en model-/corpusversies. Zonder onafhankelijke kandidaatlabels zijn overlap en rangverschillen diagnostiek, geen Recall/nDCG of juridische kwaliteitswinst.
 
 ## Bestaande frontend: invoer, documentvoorbeelden en leesweergave
 
@@ -99,7 +111,7 @@ flowchart LR
   T --> B[Terug naar resultaten en oorspronkelijke focus]
 ```
 
-[`App` in `app.tsx`](../frontend/src/app.tsx) houdt de invoer, bijlage en laatste succesvolle zoekresponse alleen in browsergeheugen. De naam Mike, huidige vraag en invoerbox blijven het vertrekpunt. Een zoekopdracht blokkeert dubbele verzending tijdens laden en toont daaronder precies drie klikbare documentvoorbeelden. Op desktop staan ze naast elkaar; op smalle schermen onder elkaar. Een volgende succesvolle zoekopdracht vervangt de vorige resultaten. Er is geen stapelende chatgeschiedenis boven de invoerbox. Mislukte zoekopdrachten houden de invoer en eventuele vorige resultaten beschikbaar. Enter verstuurt, Shift+Enter maakt een nieuwe regel.
+[`App` in `app.tsx`](../frontend/src/app.tsx) houdt de invoer, bijlage en laatste succesvolle zoekresponse alleen in browsergeheugen. De naam Mike, huidige vraag en invoerbox blijven het vertrekpunt. Een zoekopdracht blokkeert dubbele verzending tijdens laden en toont daaronder precies drie klikbare documentvoorbeelden. De gebruiker kiest opinion-chunks of head matter; het gekozen resultaat bewaart zijn eigen bronsectie, ook wanneer de invoerkeuze daarna verandert. Op desktop staan ze naast elkaar; op smalle schermen onder elkaar. Een volgende succesvolle zoekopdracht vervangt de vorige resultaten. Er is geen stapelende chatgeschiedenis boven de invoerbox. Mislukte zoekopdrachten houden de invoer en eventuele vorige resultaten beschikbaar. Enter verstuurt, Shift+Enter maakt een nieuwe regel.
 
 Klikken op een document opent `DocumentReader` als aparte leesweergave op dezelfde pagina. De invoer en resultaten zijn dan verborgen, niet verwijderd. De reader haalt de zaak pas op bij openen, toont laad-/foutstatus en negeert een nog lopende detailresponse na sluiten. De volledige aanwezige meerderheidstekst blijft onverkort beschikbaar in de gewone paginascroll. ‘Terug naar resultaten’ herstelt focus op het gekozen document en de eerdere scrollpositie; readeropenen verplaatst focus naar de documenttitel. Upload-, document- en terugknoppen hebben toegankelijke namen.
 
@@ -180,7 +192,7 @@ Runresultaten bevatten `status: completed`, afzonderlijke structurele checks, AI
 
 Het lokale corpus staat in `/Users/R0GUE/Downloads/texas-criminal-reports`. De eerdere data-inspectie vond 135 historische uitspraken van het Texas Court of Criminal Appeals uit 1892–1893, volledige JSON-teksten en bijbehorende HTML. De volumemetadata vermeldt foutief 1992–1993; import gebruikt `decision_date` per zaak.
 
-De import bewaart zaak-ID, metadata, bronidentificatie en oorspronkelijke opinion-typen. De eerste zoekindex gebruikt de majority opinion, het oordeel van de meerderheid. Concurrence en dissent blijven herkenbaar en worden niet ongemerkt met het meerderheidsoordeel vermengd.
+De import bewaart zaak-ID, metadata, bronidentificatie en oorspronkelijke opinion-typen. De standaardzoekmethode `opinion_chunks` gebruikt de majority opinion, het oordeel van de meerderheid. De afzonderlijk selecteerbare `head_matter`-methode gebruikt redactionele context. Beide worden in afzonderlijke passages binnen hetzelfde SQLite-snapshot geïndexeerd. Concurrence en dissent blijven herkenbaar en worden niet ongemerkt met het meerderheidsoordeel vermengd.
 
 SQLite bewaart zaken, canonieke tekst, passages en embeddings. Per zaak bepaalt `text_version` de versie van de canonieke tekst; `corpus_version` identificeert de complete geïmporteerde dataset en verwerking. Model, modelversie en passageverdeling worden bij de index vastgelegd. Herimport is herhaalbaar en mag geen dubbele zaken maken. Uploads worden alleen voor de zoekopdracht verwerkt en hoeven niet duurzaam te worden opgeslagen.
 
@@ -194,11 +206,12 @@ Uitspraken en uploads worden in korte, deels overlappende passages verdeeld, bin
 
 De eerste rankingmethode, `cosine-max-v1`, werkt als volgt:
 
-1. **Vraag:** cosinusovereenkomst tussen vraagvector en iedere corpuspassage.
-2. **Document:** normaliseer het gemiddelde van de documentpassagevectoren opnieuw en vergelijk dat met iedere corpuspassage.
-3. **Beide:** `0.7 * query_score + 0.3 * document_score`, met bovenstaande cosinusovereenkomsten.
-4. Vergelijk alle passages. De score van een zaak is de hoogste passagescore binnen die zaak. Kies bij gelijke passagescores de laagste `passage_id` (lexicografisch).
-5. Sorteer alle zaken op score aflopend; bij gelijke scores op `case_id` lexicografisch oplopend. Geef precies de eerste drie terug.
+1. **Bronkeuze:** selecteer alleen majority-passages voor `opinion_chunks` (standaard), of alleen redactionele passages voor `head_matter`. Er is geen impliciete vermenging of terugval.
+2. **Vraag:** cosinusovereenkomst tussen vraagvector en iedere geselecteerde corpuspassage.
+3. **Document:** normaliseer het gemiddelde van de documentpassagevectoren opnieuw en vergelijk dat met iedere corpuspassage.
+4. **Beide:** `0.7 * query_score + 0.3 * document_score`, met bovenstaande cosinusovereenkomsten.
+5. Vergelijk alle passages van de gekozen sectie. De score van een zaak is de hoogste passagescore binnen die zaak. Kies bij gelijke passagescores de laagste `passage_id` (lexicografisch).
+6. Sorteer alle zaken op score aflopend; bij gelijke scores op `case_id` lexicografisch oplopend. Geef precies de eerste drie terug.
 
 De gewichten zijn een voorlopige ontwerpkeuze, geen gevalideerd optimum. Nulvectoren en onbruikbare invoer mogen geen NaN-scores opleveren; geef dan een duidelijke fout.
 
@@ -206,7 +219,7 @@ Er is geen benaderende vectorindex of voorafgaande kandidaatselectie nodig bij d
 
 ## Documenten en markeerbare passages
 
-Het zoekresultaat geeft per zaak één originele passage, een stabiele passage-ID en `start_utf16`/`end_utf16` terug. Het detailendpoint geeft de volledige canonieke tekst van het meerderheidsoordeel; afwijkende of aanvullende opinions horen niet bij deze tekst. Tekstposities gelden voor die exacte tekst en `text_version`; het einde is exclusief. UTF-16-eenheden sluiten aan bij JavaScript `slice`, ook bij tekens buiten de BMP. Rust moet de eenheden expliciet bepalen; UTF-8-byteposities zijn niet uitwisselbaar met deze posities.
+Het zoekresultaat geeft per zaak één originele passage, een stabiele passage-ID, `source_section`, de eigen `text_version` en `start_utf16`/`end_utf16` terug. Het detailendpoint geeft de volledige canonieke tekst van het meerderheidsoordeel en afzonderlijke `head_matter` met `head_matter_text_version`; afwijkende of aanvullende opinions horen niet bij deze tekst. Tekstposities gelden voor de expliciet gekozen bronsectie en haar eigen tekstversie; het einde is exclusief. UTF-16-eenheden sluiten aan bij JavaScript `slice`, ook bij tekens buiten de BMP. Rust moet de eenheden expliciet bepalen; UTF-8-byteposities zijn niet uitwisselbaar met deze posities.
 
 De backend normaliseert tekst één keer bij import, bewaart die tekst en berekent alle passagegrenzen daarop. De frontend normaliseert deze tekst niet opnieuw en controleert versies vóór het markeren. Dit levert leesbare volledige documenten met markeringen op; een originele PDF-layout of PDF-coördinaten zijn niet onderdeel van dit corpuscontract.
 
@@ -244,6 +257,8 @@ De volledige import piekte op 1105,86 MiB; de afgeronde HTTP-guardmeting op 705,
 De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige documentatieclaims zijn handmatig en onafhankelijk gecheckt; zij vormen nog geen volledige mechanische documentatie-mergegate.
 
 ## Recente architectuurwijzigingen
+
+- 2026-11-11: op een geïsoleerde featurebranch een selecteerbare head-matterindex naast de bestaande opinion-chunks toegevoegd; afzonderlijke sectieversies/markeringen, gedeelde evalHTTP-engine en methodegebonden CLI-/webruns. De daadwerkelijke verificatiestatus staat in README; geen juridische kwaliteitswinst geclaimd.
 
 - 2026-11-11: expliciet geautoriseerde optionele Orq-sidecar toegevoegd voor modelgestuurde aanroep van de vaste lokale zoektool en brongebonden uitleg. Drie oorspronkelijke resultaten blijven behouden; uploadtekst wordt niet aan Orq gegeven.
 

@@ -43,6 +43,8 @@ pub(super) fn chunk_text(
         }
         result.push(TextChunk {
             passage: Passage {
+                source_section: None,
+                text_version: None,
                 passage_id: format!("{prefix}:p{:08}", result.len()),
                 text: text[boundaries[start].0..boundaries[end].0].into(),
                 start_utf16: boundaries[start].1,

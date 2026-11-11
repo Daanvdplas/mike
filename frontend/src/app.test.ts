@@ -11,6 +11,39 @@ import { createMockClient } from './client';
 
 beforeEach(() => { document.body.innerHTML = '<div id="app"></div>'; });
 
+it('kiest head matter en markeert het voorwerk boven de volledige meerderheidstekst', async () => {
+  const mock = createMockClient(0);
+  const fixture = await mock.search({ query: 'vraag' });
+  const headMatter = 'Redactioneel voorwerk over getuigenverklaringen.';
+  const client = {
+    search: vi.fn(async () => ({ ...fixture, retrieval_method: 'head_matter' as const,
+      results: fixture.results.map(result => ({ ...result, passage: {
+        passage_id: `${result.case_id}-head`, text: headMatter, start_utf16: 0, end_utf16: headMatter.length,
+        source_section: 'head_matter' as const, text_version: 'head-version',
+      } })),
+    })),
+    getCase: async (url: string) => ({ ...await mock.getCase(url), head_matter: headMatter, head_matter_text_version: 'head-version' }),
+  };
+  await mountApp(document.querySelector('#app')!, client, false);
+  const selector = document.querySelector<HTMLSelectElement>('select[aria-label="Zoekmethode"]');
+  expect(selector).not.toBeNull();
+  expect(selector!.value).toBe('opinion_chunks');
+  await act(async () => {
+    selector!.value = 'head_matter';
+    selector!.dispatchEvent(new Event('change', { bubbles: true }));
+    const textarea = document.querySelector('textarea')!;
+    textarea.value = 'witness testimony';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  expect(client.search).toHaveBeenCalledWith(expect.objectContaining({ retrieval_method: 'head_matter' }));
+  expect(document.querySelector('.answer-note')!.textContent).toContain('Head matter');
+  await act(async () => { document.querySelector<HTMLButtonElement>('.case-button')!.click(); });
+  expect(document.querySelector('.head-matter mark')!.textContent).toBe(headMatter);
+  expect(document.querySelector('.document-text .opinion')!.textContent).toContain('synthetic');
+  expect(document.querySelector('.document-text mark')).toBeNull();
+});
+
 it('verstuurt eigen tekst, toont drie uitspraken en opent de volledige gemarkeerde bron', async () => {
   await mountApp(document.querySelector('#app')!, createMockClient(0), true);
   const textarea = document.querySelector('textarea')!;

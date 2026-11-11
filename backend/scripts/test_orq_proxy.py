@@ -21,6 +21,23 @@ def final_answer(bad_quote=False):
     return {'status': 'completed', 'output': [{'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': json.dumps({'explanations': rows})}]}]}
 
 class OrqProxyTests(unittest.TestCase):
+    def test_head_matter_method_is_validated_and_forwarded_without_losing_source_identity(self):
+        body = BODY.replace(b'--bound--', b'--bound\r\nContent-Disposition: form-data; name="retrieval_method"\r\n\r\nhead_matter\r\n--bound--')
+        search = copy.deepcopy(FIXTURE)
+        search['retrieval_method'] = 'head_matter'
+        for result in search['results']:
+            result['passage']['source_section'] = 'head_matter'
+            result['passage']['text_version'] = 'sha256:' + 'b' * 64
+        retrieved = []
+        responses = [tool_call(), final_answer()]
+        def retrieve(raw, kind):
+            retrieved.append((raw, kind))
+            return copy.deepcopy(search)
+        actual = proxy.explain_search(body, CONTENT_TYPE, lambda _: responses.pop(0), retrieve, 'test-model')
+        self.assertEqual(retrieved, [(body, CONTENT_TYPE)])
+        self.assertEqual(actual['retrieval_method'], 'head_matter')
+        self.assertTrue(all('redactionele' in ' '.join(row['explanation']['limitations']).lower() for row in actual['results']))
+
     def run_search(self, responses):
         requests, retrievals = [], []
         def provider(body):

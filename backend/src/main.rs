@@ -16,6 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await??;
             println!("{}", serde_json::to_string(&report)?);
         }
+        Command::ImportBatch { corpus, offset } => {
+            let batch = engine::import_batch(&corpus, &settings.cache, offset)?;
+            println!("{}", serde_json::to_string(&batch)?);
+        }
         Command::Search(query) => {
             let response = tokio::task::spawn_blocking(move || {
                 let mut engine = Engine::load(&settings.database, &settings.cache)?;
@@ -34,6 +38,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "excluded_case_ids": [case_id],
                     "eligible_case_count": engine.health().indexed_case_count - 1,
                 }))
+            })
+            .await??;
+            println!("{}", serde_json::to_string(&response)?);
+        }
+        Command::SearchWithOptions {
+            query,
+            retrieval_method,
+            excluded_case_ids,
+        } => {
+            let response = tokio::task::spawn_blocking(move || {
+                let mut engine = Engine::load(&settings.database, &settings.cache)?;
+                if excluded_case_ids.is_empty() {
+                    let response =
+                        engine.search_with_method(Some(&query), None, retrieval_method)?;
+                    serde_json::to_value(response).map_err(|_| engine::EngineError {
+                        kind: engine::ErrorKind::Internal,
+                        message: "Cannot serialize search.".into(),
+                    })
+                } else {
+                    let response = engine.evaluate_search(
+                        Some(&query),
+                        None,
+                        retrieval_method,
+                        &excluded_case_ids,
+                    )?;
+                    serde_json::to_value(response).map_err(|_| engine::EngineError {
+                        kind: engine::ErrorKind::Internal,
+                        message: "Cannot serialize evaluation search.".into(),
+                    })
+                }
             })
             .await??;
             println!("{}", serde_json::to_string(&response)?);
@@ -61,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .transpose()?;
             let mut engine = Engine::load(&settings.database, &settings.cache)?;
-            let mut artifact = plan.execute(&mut engine)?;
+            let mut artifact = plan.execute_with_method(&mut engine, options.retrieval_method)?;
             artifact.executable_sha256 = Some(evaluation::executable_sha256()?);
             let report = evaluation::score_labels(&artifact, labels.as_ref(), &options.corpus)?;
             evaluation::write_outputs(&options.output, &artifact, &report)?;

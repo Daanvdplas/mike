@@ -170,15 +170,15 @@ def render_scenario(scenario):
     provenance = f'<p class="case-name">{identity}</p><p class="source-path"><code>{escape(source["file"])}</code> · zaak-ID <code>{escape(source["id"])}</code></p>{quotes}'
     if scenario["document"] is not None:
         provenance += f'<p class="source-path">Volledige invoertekst: <code>{escape(scenario["document"]["field"])}</code><br>SHA-256: <code>{escape(scenario["document"]["sha256"])}</code></p>'
-    run_link = '<p><a href="#run-E06">E06 uitvoeren ↑</a></p>' if scenario["id"] == "E06" else ""
+    run_link = f'<p><a href="#run-{escape(scenario["id"])}" data-run-eval="{escape(scenario["id"])}">{escape(scenario["id"])} uitvoeren ↑</a></p>'
     return f'''<details class="eval-item" id="{escape(scenario["id"])}"><summary><span class="eval-id">{escape(scenario["id"])}</span><span class="eval-title">{escape(scenario["title"])}</span><span class="eval-mode">{mode_label}</span><span class="chevron" aria-hidden="true"></span></summary><div class="eval-detail">{run_link}<section class="scenario-input"><h3>Input</h3>{"".join(inputs)}</section><section class="scenario-expectation"><h3>Verwacht gedrag</h3><p>{escape(scenario["expected_behavior"])}</p></section><section class="scenario-purpose"><h3>Waarom deze test?</h3><p>{escape(scenario["why"])}</p></section><details class="provenance"><summary>{provenance_label}</summary>{provenance}</details><p class="scenario-status">Ontwerpbeschrijving · kandidaatmatches en relevantielabels nog niet beoordeeld.</p></div></details>'''
 
 
 def render(source):
     content = sections(source)
     status = content["Status en leeswijzer"]
-    if "**Status: ontwerp.**" not in status:
-        raise ValueError("De viewer ondersteunt ontwerpbeschrijvingen; pas bronstatus en presentatie bewust samen aan.")
+    if "**Status: technische uitvoering beschikbaar; juridische benchmark nog ontwerp.**" not in status:
+        raise ValueError("De viewer combineert technische runs met ontwerpscenario’s; pas bronstatus en presentatie bewust samen aan.")
     modes = table_rows(status)[1:]
     if len(modes) != 3 or any(len(row) != 4 for row in modes):
         raise ValueError("De bron moet drie invoervormen met vier kolommen bevatten.")

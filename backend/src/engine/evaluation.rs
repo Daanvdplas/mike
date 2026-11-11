@@ -1,5 +1,5 @@
 //! Reproducible development-scenario execution using the production scorer.
-use super::{Engine, EngineError, ErrorKind, SearchResponse, corpus};
+use super::{Engine, EngineError, ErrorKind, RetrievalMethod, SearchResponse, corpus};
 use crate::eval_metrics::{DocumentRef, MetricScenario, RankedRun};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -160,6 +160,7 @@ pub struct RawScenarioRun {
 pub struct RunArtifact {
     pub schema_version: u32,
     pub runner_version: String,
+    pub retrieval_method: RetrievalMethod,
     pub run_id: String,
     pub executable_sha256: Option<String>,
     pub started_unix_ms: u128,
@@ -229,7 +230,8 @@ impl EvaluationPlan {
             }
             let raw_source = std::fs::read(corpus_root.join(relative))?;
             let source_value: serde_json::Value = serde_json::from_slice(&raw_source)?;
-            let source = corpus::parse_case(source_value.clone())?;
+            let mut source = corpus::parse_case(source_value.clone())?;
+            source.source_json = std::str::from_utf8(&raw_source)?.to_owned();
             if source.metadata.case_id != scenario.query_case_id
                 || source.metadata.decision_date != scenario.source_case.decision_date
                 || cases
@@ -295,8 +297,8 @@ impl EvaluationPlan {
         snapshot: &super::storage::Snapshot,
     ) -> EvalResult<()> {
         self.validate_snapshot(snapshot)?;
-        if artifact.schema_version != 1
-            || artifact.runner_version != "rust-eval-v1"
+        if artifact.schema_version != 2
+            || artifact.runner_version != "rust-eval-v2"
             || artifact.scenarios_sha256 != self.scenarios_sha256
             || artifact.corpus_sources_sha256 != self.corpus_sources_sha256
             || artifact.index_manifest != serde_json::to_value(&snapshot.manifest)?
@@ -324,6 +326,7 @@ impl EvaluationPlan {
                 || raw.response.mode != scenario.mode
                 || raw.response.corpus_version != snapshot.manifest.corpus_version
                 || raw.response.ranking_version != "cosine-max-v1"
+                || raw.response.retrieval_method != artifact.retrieval_method
                 || raw.ranked_case_ids
                     != raw
                         .response
@@ -343,6 +346,8 @@ impl EvaluationPlan {
                     .get(&hit.metadata.case_id)
                     .ok_or_else(|| invalid("Unknown result case."))?;
                 if hit.metadata != case.metadata
+                    || hit.passage.source_section
+                        != Some(artifact.retrieval_method.source_section())
                     || !hit.score.is_finite()
                     || !(-1.0..=1.0).contains(&hit.score)
                     || !snapshot
@@ -373,9 +378,16 @@ impl EvaluationPlan {
         Ok(())
     }
     pub fn execute(self, engine: &mut Engine) -> EvalResult<RunArtifact> {
+        self.execute_with_method(engine, RetrievalMethod::default())
+    }
+    pub fn execute_with_method(
+        self,
+        engine: &mut Engine,
+        method: RetrievalMethod,
+    ) -> EvalResult<RunArtifact> {
         self.validate_snapshot(&engine.snapshot)?;
         let started_unix_ms = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-        let mut artifact = RunArtifact {schema_version:1, runner_version:"rust-eval-v1".into(), run_id:format!("{started_unix_ms}-{}", &self.scenarios_sha256[..12]), executable_sha256:None, started_unix_ms,
+        let mut artifact = RunArtifact {schema_version:2, runner_version:"rust-eval-v2".into(), retrieval_method:method, run_id:format!("{started_unix_ms}-{}-{:?}", &self.scenarios_sha256[..12], method), executable_sha256:None, started_unix_ms,
             scenarios_sha256:self.scenarios_sha256, corpus_sources_sha256:self.corpus_sources_sha256,
             index_manifest:serde_json::to_value(&engine.snapshot.manifest)?,
             latency_definition:"Sequential search wall time: query/document canonicalization, embedding and exhaustive ranking; excludes catalog/source/index/model loading and report serialization. First scenario is the first inference after model load; later scenarios share the same loaded model. No synthetic warm-up or repeated samples.".into(), metric_scenarios:Vec::new(), runs:Vec::new()};
@@ -385,10 +397,11 @@ impl EvaluationPlan {
             let eligible_case_count = metric.eligible_case_ids.len();
             artifact.metric_scenarios.push(metric);
             let start = Instant::now();
-            let response = engine.search_excluding(
+            let response = engine.search_excluding_with_method(
                 scenario.query.as_deref(),
                 scenario.document.as_deref(),
                 &excluded_case_ids,
+                method,
             )?;
             let latency_ms = start.elapsed().as_secs_f64() * 1000.;
             if response.mode != scenario.mode {
@@ -401,8 +414,12 @@ impl EvaluationPlan {
                 .collect();
             for hit in &response.results {
                 let detail = engine.get_case(&hit.metadata.case_id)?;
-                let utf16: Vec<_> = detail.text.encode_utf16().collect();
+                let (text, version) =
+                    self.cases[&hit.metadata.case_id].section(method.source_section());
+                let utf16: Vec<_> = text.encode_utf16().collect();
                 if hit.metadata.text_version != detail.metadata.text_version
+                    || hit.passage.source_section != Some(method.source_section())
+                    || hit.passage.text_version.as_deref() != Some(version)
                     || response.corpus_version != detail.corpus_version
                     || hit.passage.start_utf16 > hit.passage.end_utf16
                     || hit.passage.end_utf16 > utf16.len()
@@ -520,6 +537,13 @@ pub fn write_outputs(
         .write(true)
         .create_new(true)
         .open(output.join("report.md"))?;
+    writeln!(
+        markdown,
+        "Retrieval method: `{}`\n",
+        serde_json::to_value(artifact.retrieval_method)?
+            .as_str()
+            .unwrap_or_default()
+    )?;
     markdown.write_all(report.markdown().as_bytes())?;
     Ok(())
 }
@@ -615,6 +639,10 @@ mod tests {
         .unwrap();
         let plan = EvaluationPlan::load(&path, directory.path(), &[]).unwrap();
         let run = plan.execute(&mut engine).unwrap();
+        assert_eq!(
+            serde_json::to_value(&run).unwrap()["retrieval_method"],
+            "opinion_chunks"
+        );
         assert_eq!(run.runs.len(), 3);
         assert_eq!(run.runs[0].ranked_case_ids, ["2", "4", "3"]);
         for row in &run.runs {
@@ -624,6 +652,29 @@ mod tests {
         }
         assert!(run.metric_scenarios[0].document_ref.is_none());
         assert_eq!(run.metric_scenarios[0].query.as_deref(), Some("appeal"));
+        let head_plan = EvaluationPlan::load(&path, directory.path(), &[]).unwrap();
+        let head_run = head_plan
+            .execute_with_method(&mut engine, RetrievalMethod::HeadMatter)
+            .unwrap();
+        assert_eq!(head_run.retrieval_method, RetrievalMethod::HeadMatter);
+        assert_eq!(head_run.runs[0].ranked_case_ids, ["3", "2", "4"]);
+        assert_eq!(head_run.index_manifest, run.index_manifest);
+        assert_eq!(
+            serde_json::to_value(&head_run.metric_scenarios).unwrap(),
+            serde_json::to_value(&run.metric_scenarios).unwrap()
+        );
+        let check_plan = EvaluationPlan::load(&path, directory.path(), &[]).unwrap();
+        check_plan
+            .validate_artifact(&head_run, &engine.snapshot)
+            .unwrap();
+        let mut mismatched: RunArtifact =
+            serde_json::from_value(serde_json::to_value(&head_run).unwrap()).unwrap();
+        mismatched.runs[0].response.retrieval_method = RetrievalMethod::OpinionChunks;
+        assert!(
+            check_plan
+                .validate_artifact(&mismatched, &engine.snapshot)
+                .is_err()
+        );
         assert!(EvaluationPlan::load(&path, directory.path(), &["missing".into()]).is_err());
         let mut changed_source: serde_json::Value =
             serde_json::from_str(&engine.snapshot.cases["1"].source_json).unwrap();

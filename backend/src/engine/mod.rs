@@ -3,13 +3,17 @@ pub mod types;
 use corpus::CaseRecord;
 use embedding::{Embedder, LocalEmbeddings};
 use std::{collections::BTreeMap, path::Path};
-use storage::{EXPECTED_COUNT, EXPECTED_IDS_SHA256, Manifest, PIPELINE, Snapshot};
+use storage::{EXPECTED_COUNT, EXPECTED_IDS_SHA256, Snapshot};
+#[cfg(test)]
+use storage::{Manifest, PIPELINE};
 pub use types::*;
 
 mod chunk;
 mod corpus;
 mod embedding;
+mod importing;
 mod ranking;
+pub use importing::{import_batch, import_corpus};
 mod storage;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -59,6 +63,15 @@ impl Engine {
         self.search_excluding(query, document_text, &[])
     }
 
+    pub fn search_with_method(
+        &mut self,
+        query: Option<&str>,
+        document_text: Option<&str>,
+        method: RetrievalMethod,
+    ) -> Result<SearchResponse, EngineError> {
+        self.search_excluding_with_method(query, document_text, &[], method)
+    }
+
     /// Evaluation-only source exclusion; filtering precedes top-three selection.
     pub fn search_excluding(
         &mut self,
@@ -66,6 +79,28 @@ impl Engine {
         document_text: Option<&str>,
         excluded_case_ids: &[String],
     ) -> Result<SearchResponse, EngineError> {
+        self.search_excluding_with_method(
+            query,
+            document_text,
+            excluded_case_ids,
+            RetrievalMethod::default(),
+        )
+    }
+
+    pub fn search_excluding_with_method(
+        &mut self,
+        query: Option<&str>,
+        document_text: Option<&str>,
+        excluded_case_ids: &[String],
+        method: RetrievalMethod,
+    ) -> Result<SearchResponse, EngineError> {
+        let unique: std::collections::BTreeSet<_> = excluded_case_ids.iter().collect();
+        if unique.len() != excluded_case_ids.len() {
+            return Err(EngineError::new(
+                ErrorKind::InvalidInput,
+                "Exclusions must be unique.",
+            ));
+        }
         for id in excluded_case_ids {
             if !self.snapshot.cases.contains_key(id) {
                 return Err(EngineError::new(
@@ -98,7 +133,15 @@ impl Engine {
             (true, false) => "query",
             _ => "document",
         };
-        let ranking = if excluded_case_ids.is_empty() {
+        let ranking = if method == RetrievalMethod::HeadMatter {
+            ranking::rank_cases_for_section(
+                &self.snapshot.passages,
+                query_vector.as_deref(),
+                document_vector.as_deref(),
+                excluded_case_ids,
+                SourceSection::HeadMatter,
+            )?
+        } else if excluded_case_ids.is_empty() {
             ranking::rank_cases(
                 &self.snapshot.passages,
                 query_vector.as_deref(),
@@ -125,10 +168,41 @@ impl Engine {
             })
             .collect();
         Ok(SearchResponse {
+            retrieval_method: method,
             mode: mode.into(),
             corpus_version: self.snapshot.manifest.corpus_version.clone(),
             ranking_version: "cosine-max-v1".into(),
             results,
+        })
+    }
+
+    pub fn evaluate_search(
+        &mut self,
+        query: Option<&str>,
+        document_text: Option<&str>,
+        method: RetrievalMethod,
+        excluded_case_ids: &[String],
+    ) -> Result<EvaluationSearchResponse, EngineError> {
+        if self
+            .snapshot
+            .cases
+            .len()
+            .saturating_sub(excluded_case_ids.len())
+            < 3
+        {
+            return Err(EngineError::new(
+                ErrorKind::InvalidInput,
+                "Exclusions must leave at least three cases.",
+            ));
+        }
+        let response =
+            self.search_excluding_with_method(query, document_text, excluded_case_ids, method)?;
+        Ok(EvaluationSearchResponse {
+            response,
+            excluded_case_ids: excluded_case_ids.to_vec(),
+            eligible_case_count: self.snapshot.cases.len() - excluded_case_ids.len(),
+            index_manifest: serde_json::to_value(&self.snapshot.manifest)
+                .map_err(|_| EngineError::new(ErrorKind::Internal, "Cannot describe the index."))?,
         })
     }
     pub fn get_case(&self, id: &str) -> Result<CaseDetail, EngineError> {
@@ -141,6 +215,8 @@ impl Engine {
             metadata: case.metadata.clone(),
             corpus_version: self.snapshot.manifest.corpus_version.clone(),
             text: case.text.clone(),
+            head_matter: Some(case.head_matter.clone()),
+            head_matter_text_version: Some(case.head_matter_text_version.clone()),
         })
     }
     pub fn health(&self) -> HealthResponse {
@@ -150,23 +226,6 @@ impl Engine {
             indexed_case_count: self.snapshot.cases.len(),
         }
     }
-}
-
-pub fn import_corpus(
-    corpus: &Path,
-    database: &Path,
-    cache: &Path,
-) -> Result<ImportReport, EngineError> {
-    let cases = corpus::read_cases(corpus)?;
-    check_case_ids(&cases, EXPECTED_COUNT, EXPECTED_IDS_SHA256)?;
-    let mut embedder = LocalEmbeddings::new(cache)?;
-    let snapshot = build_snapshot(cases, &mut embedder, EXPECTED_COUNT, EXPECTED_IDS_SHA256)?;
-    storage::persist(database, &snapshot)?;
-    Ok(ImportReport {
-        corpus_version: snapshot.manifest.corpus_version.clone(),
-        case_count: snapshot.cases.len(),
-        passage_count: snapshot.passages.len(),
-    })
 }
 
 fn check_case_ids(
@@ -192,6 +251,35 @@ fn check_case_ids(
     Ok(())
 }
 
+fn prepare_passages(
+    cases: &BTreeMap<String, CaseRecord>,
+    embedder: &dyn Embedder,
+) -> Result<Vec<IndexedPassage>, EngineError> {
+    let mut passages = Vec::new();
+    for (id, case) in cases {
+        for section in [SourceSection::Majority, SourceSection::HeadMatter] {
+            let (text, version) = case.section(section);
+            let prefix = match section {
+                SourceSection::Majority => id.clone(),
+                SourceSection::HeadMatter => format!("{id}:head_matter"),
+            };
+            for mut chunk in chunk::chunk_text(text, &prefix, |text| embedder.token_count(text))? {
+                chunk.passage.source_section = Some(section);
+                chunk.passage.text_version = Some(version.to_owned());
+                passages.push(IndexedPassage {
+                    case_id: id.clone(),
+                    passage: chunk.passage,
+                    start_byte: chunk.start_byte,
+                    end_byte: chunk.end_byte,
+                    vector: Vec::new(),
+                });
+            }
+        }
+    }
+    Ok(passages)
+}
+
+#[cfg(test)]
 fn build_snapshot(
     cases: BTreeMap<String, CaseRecord>,
     embedder: &mut dyn Embedder,
@@ -199,18 +287,7 @@ fn build_snapshot(
     ids: &str,
 ) -> Result<Snapshot, EngineError> {
     check_case_ids(&cases, count, ids)?;
-    let mut passages = Vec::new();
-    for (id, case) in &cases {
-        for chunk in chunk::chunk_text(&case.text, id, |text| embedder.token_count(text))? {
-            passages.push(IndexedPassage {
-                case_id: id.clone(),
-                passage: chunk.passage,
-                start_byte: chunk.start_byte,
-                end_byte: chunk.end_byte,
-                vector: Vec::new(),
-            });
-        }
-    }
+    let mut passages = prepare_passages(&cases, embedder)?;
     let texts: Vec<_> = passages.iter().map(|p| p.passage.text.clone()).collect();
     let vectors = embedder.embed(&texts)?;
     if vectors.len() != passages.len() {
@@ -226,7 +303,7 @@ fn build_snapshot(
         cases,
         passages,
         manifest: Manifest {
-            format_version: 2,
+            format_version: 3,
             pipeline: PIPELINE.into(),
             embedding: embedder.config().clone(),
             corpus_version: String::new(),
@@ -266,7 +343,7 @@ fn text_vector(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use embedding::EmbeddingConfig;
     use serde_json::json;
@@ -294,7 +371,7 @@ mod tests {
         }
     }
 
-    pub(super) fn fixture() -> Engine {
+    pub(crate) fn fixture() -> Engine {
         let mut embedder = KnownEmbeddings(EmbeddingConfig {
             model: "known".into(),
             dimensions: 2,
@@ -308,7 +385,7 @@ mod tests {
             let case = corpus::parse_case(json!({
                 "id":id,"name":"Case","decision_date":"1892-01-01", "court":{"name":"Texas Court of Criminal Appeals"},
                 "citations":[{"cite":"Example cite","type":"official"}],
-                "casebody":{"opinions":[{"type":"majority","text":if id%2==1 {"witness testimony"} else {"appeal procedure"}}]}
+                "casebody":{"head_matter":if id%2==1 {"Editorial appeal procedure"} else {"Editorial witness testimony"}, "opinions":[{"type":"majority","text":if id%2==1 {"witness testimony"} else {"appeal procedure"}}]}
             })).unwrap();
             (id.to_string(), case)
         }).collect();
@@ -317,6 +394,78 @@ mod tests {
         Engine {
             snapshot,
             embedder: Box::new(embedder),
+        }
+    }
+
+    #[test]
+    fn index_preserves_separate_majority_and_head_matter_passages_for_every_case() {
+        let engine = fixture();
+        for (id, case) in &engine.snapshot.cases {
+            for (section, text, version) in [
+                (
+                    SourceSection::Majority,
+                    &case.text,
+                    &case.metadata.text_version,
+                ),
+                (
+                    SourceSection::HeadMatter,
+                    &case.head_matter,
+                    &case.head_matter_text_version,
+                ),
+            ] {
+                let passages: Vec<_> = engine
+                    .snapshot
+                    .passages
+                    .iter()
+                    .filter(|p| &p.case_id == id && p.passage.source_section == Some(section))
+                    .collect();
+                assert!(!passages.is_empty(), "Missing {section:?} for {id}");
+                let units: Vec<_> = text.encode_utf16().collect();
+                for item in passages {
+                    assert_eq!(item.passage.text_version.as_ref(), Some(version));
+                    assert_eq!(
+                        String::from_utf16(
+                            &units[item.passage.start_utf16..item.passage.end_utf16]
+                        )
+                        .unwrap(),
+                        item.passage.text
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn head_matter_search_uses_only_editorial_vectors_and_marks_its_own_text_in_all_modes() {
+        let mut engine = fixture();
+        for (query, document, expected) in [
+            (Some("witness"), None, ["2", "4", "1"]),
+            (None, Some("appeal"), ["1", "3", "2"]),
+            (Some("witness"), Some("appeal"), ["2", "4", "1"]),
+        ] {
+            let response = engine
+                .search_with_method(query, document, RetrievalMethod::HeadMatter)
+                .unwrap();
+            assert_eq!(response.retrieval_method, RetrievalMethod::HeadMatter);
+            assert_eq!(
+                response
+                    .results
+                    .iter()
+                    .map(|r| r.metadata.case_id.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            for hit in response.results {
+                let detail = engine.get_case(&hit.metadata.case_id).unwrap();
+                let units: Vec<_> = detail.head_matter.unwrap().encode_utf16().collect();
+                assert_eq!(hit.passage.source_section, Some(SourceSection::HeadMatter));
+                assert_eq!(hit.passage.text_version, detail.head_matter_text_version);
+                assert_eq!(
+                    String::from_utf16(&units[hit.passage.start_utf16..hit.passage.end_utf16])
+                        .unwrap(),
+                    hit.passage.text
+                );
+            }
         }
     }
 
@@ -454,7 +603,15 @@ mod tests {
         let database = std::env::var_os("ADAMI_SMOKE_DATABASE")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| dir.path().join("cases.sqlite"));
-        let report = import_corpus(Path::new(&corpus), &database, Path::new(&cache)).unwrap();
+        let worker = std::env::var_os("ADAMI_BINARY")
+            .expect("Set ADAMI_BINARY to the built backend executable");
+        let report = importing::import_with_binary(
+            Path::new(&corpus),
+            &database,
+            Path::new(&cache),
+            Path::new(&worker),
+        )
+        .unwrap();
         assert_eq!(report.case_count, 135);
         assert!(report.passage_count > 135);
         let mut engine = Engine::load(&database, Path::new(&cache)).unwrap();

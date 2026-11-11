@@ -73,6 +73,10 @@ textarea:focus-visible { outline: none; }
 .model-explanation { white-space: pre-wrap; }
 .document-text { margin-top: var(--space-lg); }
 .document-text h2 { margin: 0 0 var(--space-md); }
+.head-matter { margin-top: var(--space-lg); padding-bottom: var(--space-lg); border-bottom: 1px solid var(--border); }
+.head-matter h2 { margin: 0 0 var(--space-md); }
+.method-choice { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.method-choice select { max-width: 75%; min-height: 42px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--paper, #fff); color: inherit; font: inherit; }
 .opinion { white-space: pre-wrap; overflow-wrap: anywhere; font-family: Georgia, "Times New Roman", serif; font-size: 18px; line-height: 1.9; max-width: 68ch; }
 mark { background: #dde9fa; color: inherit; padding: 2px 0; box-decoration-break: clone; scroll-margin-top: 88px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

@@ -20,6 +20,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - Exact zoeken over alle geïndexeerde passages. De garantie is de hoogste drie scores volgens onze zoekmethode binnen dit corpus; inhoudelijke juridische relevantie wordt apart beoordeeld.
 - De Rust-library staat in `backend/`. De frontend wordt door een aparte agent in `frontend/` gebouwd en hoort niet bij deze backendwijziging.
 - Geen gegenereerd juridisch antwoord of Orq/Codex-aanroep in deze versie. Docker is optioneel en geen voorwaarde voor de eerste demo.
+- Operationele invoergrenzen: document 10 MiB, vraag 1 MiB UTF-8, totale multipartrequest 12 MiB en uitgelezen PDF-tekst 20 MiB. Overschrijdingen geven een fout; tekst wordt niet stil afgekapt.
 
 ## Data en hergebruik
 

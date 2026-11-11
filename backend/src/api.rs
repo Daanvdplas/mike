@@ -5,12 +5,20 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, Multipart, Path, State, multipart::MultipartRejection},
+    extract::{
+        DefaultBodyLimit, Multipart, Path, Request, State,
+        multipart::{MultipartError, MultipartRejection},
+    },
     http::{HeaderValue, Method, StatusCode, header},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use std::sync::{Arc, Mutex};
 use tower_http::cors::{AllowOrigin, CorsLayer};
+
+pub const MAX_QUERY_BYTES: usize = 1024 * 1024;
+pub const MAX_REQUEST_BYTES: usize = 12 * 1024 * 1024;
 
 /// Only the search/index boundary is replaceable; HTTP and extraction stay real.
 pub trait Backend: Send {
@@ -41,8 +49,9 @@ pub fn router(state: ApiState, origins: Vec<HeaderValue>) -> Router {
         .route("/api/cases/{case_id}", get(get_case))
         .route("/api/health", get(health))
         .route("/openapi.json", get(move || async move { Json(contract) }))
-        // Enforce the file limit on its bytes, not on multipart headers/query.
-        .layer(DefaultBodyLimit::disable())
+        // Keep the exact file allowance separate from multipart/request overhead.
+        .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
+        .layer(middleware::from_fn(check_content_length))
         .layer(
             CorsLayer::new()
                 .allow_origin(AllowOrigin::list(origins))
@@ -50,6 +59,35 @@ pub fn router(state: ApiState, origins: Vec<HeaderValue>) -> Router {
                 .allow_headers([header::CONTENT_TYPE]),
         )
         .with_state(state)
+}
+
+async fn check_content_length(request: Request, next: Next) -> Response {
+    if request
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok())
+        .is_some_and(|length| length > MAX_REQUEST_BYTES as u64)
+    {
+        return request_too_large().into_response();
+    }
+    next.run(request).await
+}
+
+fn request_too_large() -> ApiError {
+    ApiError::new(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "document_too_large",
+        "The multipart request must not exceed 12 MiB.",
+    )
+}
+
+fn multipart_error(error: MultipartError) -> ApiError {
+    if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
+        request_too_large()
+    } else {
+        invalid_input()
+    }
 }
 
 async fn search(
@@ -60,14 +98,24 @@ async fn search(
     let mut query = None;
     let mut query_seen = false;
     let mut document = None;
-    while let Some(mut field) = multipart.next_field().await.map_err(|_| invalid_input())? {
+    while let Some(mut field) = multipart.next_field().await.map_err(multipart_error)? {
         match field.name() {
             Some("query") if !query_seen => {
                 query_seen = true;
                 if field.file_name().is_some() {
                     return Err(invalid_input());
                 }
-                let bytes = field.bytes().await.map_err(|_| invalid_input())?;
+                let mut bytes = Vec::new();
+                while let Some(chunk) = field.chunk().await.map_err(multipart_error)? {
+                    if chunk.len() > MAX_QUERY_BYTES - bytes.len() {
+                        return Err(ApiError::new(
+                            StatusCode::BAD_REQUEST,
+                            "invalid_input",
+                            "The query must not exceed 1 MiB of UTF-8 text.",
+                        ));
+                    }
+                    bytes.extend_from_slice(&chunk);
+                }
                 let text = std::str::from_utf8(&bytes)
                     .map_err(|_| invalid_input())?
                     .trim();
@@ -87,7 +135,7 @@ async fn search(
                     })?
                     .to_owned();
                 let mut bytes = Vec::new();
-                while let Some(chunk) = field.chunk().await.map_err(|_| invalid_input())? {
+                while let Some(chunk) = field.chunk().await.map_err(multipart_error)? {
                     if chunk.len() > MAX_DOCUMENT_BYTES - bytes.len() {
                         return Err(ApiError::new(
                             StatusCode::PAYLOAD_TOO_LARGE,
@@ -274,6 +322,7 @@ mod tests {
         }
         body.extend_from_slice(b"--test-boundary--\r\n");
         Request::post("/api/search")
+            .header("content-length", body.len())
             .header(
                 "content-type",
                 "multipart/form-data; boundary=test-boundary",
@@ -502,5 +551,24 @@ mod tests {
                 allowed
             );
         }
+    }
+
+    #[tokio::test]
+    async fn query_size_is_bounded_without_silent_truncation() {
+        let bytes = vec![b'q'; 1024 * 1024 + 1];
+        let (app, captured) = fixture_app();
+        let (status, body) = response_json(app, multipart(&[("query", None, &bytes)])).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"]["code"], "invalid_input");
+        assert!(captured.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn total_multipart_limit_returns_contract_413() {
+        let bytes = vec![b'q'; 12 * 1024 * 1024];
+        let (app, _) = fixture_app();
+        let (status, body) = response_json(app, multipart(&[("query", None, &bytes)])).await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(body["error"]["code"], "document_too_large");
     }
 }

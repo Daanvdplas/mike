@@ -1,6 +1,7 @@
 use crate::api_error::ApiError;
 
 pub const MAX_DOCUMENT_BYTES: usize = 10 * 1024 * 1024;
+pub const MAX_EXTRACTED_TEXT_BYTES: usize = 20 * 1024 * 1024;
 
 pub fn extract_document(filename: &str, bytes: &[u8]) -> Result<String, ApiError> {
     if bytes.len() > MAX_DOCUMENT_BYTES {
@@ -28,7 +29,7 @@ pub fn extract_document(filename: &str, bytes: &[u8]) -> Result<String, ApiError
             if !bytes.starts_with(b"%PDF-") {
                 return Err(unreadable());
             }
-            pdf_extract::extract_text_from_mem(bytes).map_err(|_| unreadable())?
+            extract_pdf(bytes, MAX_EXTRACTED_TEXT_BYTES)?
         }
         _ => {
             return Err(ApiError::new(
@@ -48,8 +49,62 @@ fn unreadable() -> ApiError {
     ApiError::new(
         axum::http::StatusCode::UNPROCESSABLE_ENTITY,
         "unreadable_document",
-        "The document contains no readable text. Scans require OCR, which is not supported.",
+        "The document could not yield readable text. Use an unencrypted text PDF or UTF-8 TXT; scans require OCR.",
     )
+}
+
+fn extract_pdf(bytes: &[u8], limit: usize) -> Result<String, ApiError> {
+    std::panic::catch_unwind(|| {
+        let document = pdf_extract::Document::load_mem(bytes).map_err(|_| unreadable())?;
+        if document.is_encrypted() {
+            return Err(unreadable());
+        }
+        let mut text = LimitedText {
+            text: String::new(),
+            limit,
+            exceeded: false,
+        };
+        let result = {
+            let mut output = pdf_extract::PlainTextOutput::new(&mut text);
+            pdf_extract::output_doc(&document, &mut output)
+        };
+        if result.is_err() {
+            if text.exceeded {
+                return Err(ApiError::new(
+                    axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                    "unreadable_document",
+                    "The PDF text exceeds the extraction limit of 20 MiB.",
+                ));
+            }
+            return Err(unreadable());
+        }
+        Ok(text.text)
+    })
+    .map_err(|_| unreadable())?
+}
+
+struct LimitedText {
+    text: String,
+    limit: usize,
+    exceeded: bool,
+}
+
+impl std::fmt::Write for LimitedText {
+    fn write_str(&mut self, value: &str) -> std::fmt::Result {
+        if value.len() > self.limit - self.text.len() {
+            self.exceeded = true;
+            return Err(std::fmt::Error);
+        }
+        self.text.push_str(value);
+        Ok(())
+    }
+}
+
+impl pdf_extract::ConvertToFmt for &mut LimitedText {
+    type Writer = Self;
+    fn convert(self) -> Self::Writer {
+        self
+    }
 }
 
 #[cfg(test)]
@@ -112,6 +167,30 @@ pub(crate) mod tests {
                 "unreadable_document"
             );
         }
+    }
+
+    #[test]
+    fn parser_panics_on_a_missing_page_box_become_unreadable_documents() {
+        let mut pdf = text_pdf(Some("A page with damaged metadata."));
+        let marker = b"/MediaBox [0 0 612 792]";
+        let start = pdf
+            .windows(marker.len())
+            .position(|bytes| bytes == marker)
+            .unwrap();
+        pdf[start..start + marker.len()].fill(b' ');
+        assert_eq!(
+            extract_document("damaged.pdf", &pdf).err().unwrap().code,
+            "unreadable_document"
+        );
+    }
+
+    #[test]
+    fn pdf_text_output_is_bounded_while_it_is_written() {
+        let pdf = text_pdf(Some("More than eight bytes of extracted text."));
+        assert_eq!(
+            extract_pdf(&pdf, 8).err().unwrap().code,
+            "unreadable_document"
+        );
     }
 
     pub(crate) fn text_pdf(text: Option<&str>) -> Vec<u8> {

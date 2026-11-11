@@ -9,9 +9,11 @@
 | Veld | Waarde |
 |---|---|
 | `document` | Optioneel PDF- of UTF-8-TXT-bestand, maximaal 10 MiB. |
-| `query` | Optionele tekst; omringende witruimte wordt verwijderd. |
+| `query` | Optionele UTF-8-tekst, maximaal 1 MiB vóór trimmen; omringende witruimte wordt verwijderd. |
 
 Document-only, vraag-only en beide zijn ondersteund. Minstens één moet bruikbaar zijn. Een meegestuurd ongeldig bestand geeft een fout, ook wanneer de vraag wel geldig is. Laat de browser bij `FormData` zelf de multipart `Content-Type` met boundary zetten.
+
+De volledige multipartrequest mag maximaal 12 MiB zijn; het document zelf blijft maximaal 10 MiB. Uitgelezen PDF-tekst is begrensd op 20 MiB. De backend weigert overschrijdingen en kapt tekst niet stil af.
 
 Een succesvolle response bevat `mode`, `corpus_version`, `ranking_version` en precies drie `results`. Elk resultaat bevat `case_id`, `title`, `court`, `decision_date`, `citation`, `case_url`, `text_version`, `score` en `passage`.
 
@@ -41,10 +43,10 @@ Fouten gebruiken steeds `{"error":{"code":"...","message":"..."}}`. Toon de lees
 
 | HTTP | Betekenis |
 |---|---|
-| 400 | Geen bruikbare invoer. |
-| 413 | Bestand groter dan 10 MiB. |
+| 400 | Geen bruikbare invoer, ongeldige multipart of vraag groter dan 1 MiB UTF-8. |
+| 413 | Bestand groter dan 10 MiB of volledige multipartrequest groter dan 12 MiB. |
 | 415 | Ander bestandstype dan PDF/TXT. |
-| 422 | Meegegeven bestand onleesbaar, leeg of scan zonder uitleesbare tekst. |
+| 422 | Meegegeven bestand onleesbaar, leeg, versleuteld, scan zonder uitleesbare tekst of PDF-tekst groter dan 20 MiB. |
 | 404 | Gevraagde zaak bestaat niet. |
 | 503 | Volledige zoekindex nog niet beschikbaar. |
 | 500 | Onverwachte backendfout. |

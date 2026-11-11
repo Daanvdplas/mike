@@ -25,6 +25,9 @@ paths:
         score. Sort by score descending, then case_id lexicographically ascending.
         For equal passage scores choose passage_id lexicographically ascending.
         The complete 135-case index must be ready; partial results are forbidden.
+        Operational limits: query text is at most 1 MiB of UTF-8 bytes (400),
+        the complete multipart request is at most 12 MiB (413), and extracted
+        PDF text is at most 20 MiB (422). Inputs are rejected, never truncated.
       requestBody:
         required: true
         content:
@@ -39,10 +42,11 @@ paths:
                   description: |
                     Optional PDF with extractable text or UTF-8 TXT.
                     Maximum file size 10 MiB (10485760 bytes).
+                    Extracted PDF text is limited to 20 MiB (20971520 UTF-8 bytes).
                     File type must be validated by the server.
                 query:
                   type: string
-                  description: Optional query; whitespace-only counts as absent.
+                  description: Optional UTF-8 query; at most 1 MiB (1048576 bytes) before trimming. Whitespace-only counts as absent.
               anyOf:
                 - required: [document]
                 - required: [query]
@@ -275,7 +279,7 @@ components:
               description: Human-readable explanation, without secrets or internal traces.
   responses:
     InvalidInput:
-      description: No usable document or query was supplied, or multipart input is malformed.
+      description: No usable document or query was supplied, multipart input is malformed, or query text exceeds 1 MiB of UTF-8 bytes.
       content:
         application/json:
           schema:
@@ -285,7 +289,7 @@ components:
               code: invalid_input
               message: Supply a PDF/TXT document, a query, or both.
     DocumentTooLarge:
-      description: The uploaded file exceeds 10 MiB (10485760 bytes).
+      description: The uploaded file exceeds 10 MiB (10485760 bytes), or the complete multipart request exceeds 12 MiB (12582912 bytes). Both use document_too_large.
       content:
         application/json:
           schema:
@@ -305,7 +309,7 @@ components:
               code: unsupported_document
               message: Upload a PDF or TXT document.
     UnreadableDocument:
-      description: The supplied document cannot yield usable text, including empty files or scans.
+      description: The supplied document cannot yield usable text, including corrupt/encrypted PDFs, empty files, scans or PDF extraction exceeding 20 MiB of text.
       content:
         application/json:
           schema:

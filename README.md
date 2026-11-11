@@ -20,7 +20,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - Precies drie unieke zaken met metadata, overeenkomstscore en gemarkeerde passage in de volledige tekst van het meerderheidsoordeel.
 - Exact zoeken over alle geïndexeerde passages. De garantie is de hoogste drie scores volgens onze zoekmethode binnen dit corpus; inhoudelijke juridische relevantie wordt apart beoordeeld.
 - De Rust-backend staat in `backend/`; de gemergde React/TypeScript-frontend met Vite staat in `frontend/`.
-- Geen gegenereerd juridisch antwoord of Orq/Codex-aanroep in deze versie. Docker is optioneel en geen voorwaarde voor de eerste demo.
+- Geen gegenereerd juridisch advies. Een optionele, expliciet geautoriseerde Orq-sidecar kan de bestaande lokale zoekresultaten toelichten; de gewone zoek-API blijft zonder modelgeneratie werken. Geen Codex/MCP nodig. Docker is optioneel.
 - Operationele invoergrenzen: document 10 MiB, vraag 1 MiB UTF-8, totale multipartrequest 12 MiB en uitgelezen PDF-tekst 20 MiB. Overschrijdingen geven een fout; tekst wordt niet stil afgekapt.
 
 ## Data en hergebruik
@@ -142,6 +142,32 @@ VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:8000 node node_modules/vite
 ```
 
 Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
+
+## Optionele Orq-uitleg apart proberen
+
+De Orq-uitbreiding draait als kleine Python-stdlib-adapter op `127.0.0.1:18000`, naast de bestaande bewaakte Rust-zoekbackend op 8000. Hij laadt geen tweede embeddingmodel en bouwt geen index. Een taalmodel roept de vaste `search_cases`-tool aan; de adapter stuurt daarbij de oorspronkelijke multipartinvoer ongewijzigd naar de lokale backend. De drie zaak-ID’s, volgorde, scores, bronteksten en versies blijven behouden.
+
+Gebruik uitsluitend een serverzijdige `ORQ_API_KEY`, of `ORQ_API_KEY_FILE` naar een privébestand buiten Git. Voorbeeldstart vanuit de aparte checkout, terwijl de bestaande backend draait:
+
+```sh
+ORQ_API_KEY_FILE=/pad/buiten/de/repo/private-orq-key \
+  python3 backend/scripts/orq_proxy.py --max-model-requests 20
+```
+
+Model: `openai/gpt-4.1-mini-2025-04-14`, via `https://my.orq.ai/v3/router/responses`. Dit exacte catalogusmodel is met echte tool- en schema-aanroepen gecontroleerd. Een andere keuze kan met `ORQ_MODEL` of `--model`, maar die modeltoegang en functies moeten apart worden gecontroleerd. Normaal zijn er twee providerrequests per zoekopdracht; elke providerrequest heeft 30 seconden timeout en de adapter verwerkt één zoekopdracht tegelijk. Het procesbudget telt maximaal twintig providerrequests standaard en is instelbaar; na uitputting blijven echte zoekresultaten beschikbaar met uitlegstatus `unavailable`. Het budget is geen prijsplafond.
+
+In een tweede terminal:
+
+```sh
+cd frontend
+VITE_API_BASE_URL=http://127.0.0.1:18000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5175 --strictPort
+```
+
+Open `http://127.0.0.1:5175/`. De bestaande hoofdmapdemo op 5173 en extra preview op 5174 blijven afzonderlijk werken. De Orq-reader toont een korte modeltoelichting, bronlinks en beperkingen. Het model retourneert alleen bestaande passage-ID’s; de server vult de citaten uit de oorspronkelijke passage in. Onbekende zaken, verkeerde passage-ID’s of ongeldige modeluitvoer maken de uitleg `unavailable`; er worden nooit zaken of citaten verzonnen als terugval.
+
+Alleen de vraag en gevonden bronpassages gaan naar Orq. Uploadinhoud wordt niet aan het taalmodel gegeven; bij uploads meldt iedere uitleg dit expliciet. Deze toelichting bewijst geen juridische relevantie of juistheid. De bestaande UTF-16- en versiecontrole beschermt de volledige bronweergave. Sleutels, uploads en providerresponses worden niet naar Git of de frontend geschreven. `store: false` wordt meegestuurd; dit is geen garantie over logs of bewaarbeleid van de modelgateway/provider.
+
+Modelvrije adapterchecks: `python3 -m unittest discover -s backend/scripts -p 'test_orq_proxy.py'`. Echte Orq-aanroepen verbruiken API-budget en horen uitsluitend bij een expliciet geautoriseerde live controle.
 
 ## Uitgevoerde controle en indicatieve zoekkwaliteit
 

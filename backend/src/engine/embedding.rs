@@ -10,7 +10,7 @@ static ENVIRONMENT: OnceLock<Result<ort::environment::Environment, String>> = On
 
 pub(super) const MODEL: &str = "Xenova/bge-small-en-v1.5";
 const QUERY_PREFIX: &str = "Represent this sentence for searching relevant passages: ";
-const INFERENCE_BATCH_SIZE: usize = 4;
+const INFERENCE_BATCH_SIZE: usize = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct EmbeddingConfig {
@@ -189,7 +189,7 @@ mod tests {
         let texts: Vec<_> = (0..11).map(|i| i.to_string()).collect();
         let mut sizes = Vec::new();
         let vectors = embed_in_batches(&texts, |batch| {
-            assert!(batch.len() <= INFERENCE_BATCH_SIZE);
+            assert!(batch.len() <= 1);
             sizes.push(batch.len());
             Ok(batch
                 .iter()
@@ -197,7 +197,7 @@ mod tests {
                 .collect())
         })
         .unwrap();
-        assert_eq!(sizes, [4, 4, 3]);
+        assert_eq!(sizes, [1; 11]);
         assert_eq!(vectors, (0..11).map(|i| vec![i as f32]).collect::<Vec<_>>());
     }
 

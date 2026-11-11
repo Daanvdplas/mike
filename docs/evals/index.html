@@ -229,8 +229,8 @@ function renderDeterministicResults(container, result) {
   result.results.forEach(row => {
     const item = element('li', null, 'judgment');
     item.append(element('h4', `${row.rank}. ${row.title}`),
-      element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'),
-      element('p', row.assessment === 'expected' ? 'Vooraf verwachte zaak' : 'Onbeoordeeld resultaat'));
+      element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
+    if (row.assessment === 'expected') item.append(element('p', 'Vooraf verwachte zaak'));
     list.append(item);
   });
   const details = element('details', null, 'run-provenance');

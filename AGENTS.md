@@ -4,6 +4,7 @@ Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante
 
 - **Frontend:** begin bij [de backendafspraak](docs/FRONTEND_BACKEND.md), het [API-contract](docs/openapi.yaml) en de bijbehorende fixtures. Werk in de toekomstige map `frontend/`.
 - **Backend/database:** werk in `backend/`. Het API-contract ligt vast voor parallel frontendwerk; stem wijzigingen eerst af met de coördinator.
+- **Evaluaties:** begin bij het [klikbare overzicht](docs/evals/index.html). Onderhoud de afspraken in de [canonieke evaluatieopdracht](docs/EVALUATIEOPDRACHT.md) en concrete ontwerpbeschrijvingen in [scenarios.json](docs/evals/scenarios.json); de HTML wordt uit beide bronnen gegenereerd.
 - **Taakverdeling en voortgang:** gebruik de hoofdissues en gekoppelde subissues op GitHub. Claim een subissue vóór je begint; houd wijzigingen beperkt tot die taak.
 
 ## Rollen en werkwijze
@@ -30,3 +31,11 @@ Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante
 - Onderscheid geverifieerde implementatie, voorgenomen ontwerp en onbekenden. Claim geen werkende endpoints, setup of tests zolang die niet bestaan.
 - Rapporteer bij afronding of de gids is bijgewerkt en waarom. Laat de gids bij wijzigingen zonder documentatie-impact ongemoeid en leg dat kort uit.
 - Laat een onafhankelijke agent relevante checks uitvoeren. De echte backendchecks staan in README; voeg bij nieuw gedrag passende tests toe en houd tests met modeldownloads buiten de deterministische standaardchecks.
+
+## Evaluatiedocumentatie onderhouden
+
+- Houd invoermodi, verwacht gedrag, beoordelingsregels, metrics en status actueel in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md). Werk bij toekomstige wijzigingen ook betrokken dataset-, label- en runverwijzingen in dezelfde changeset bij.
+- Onderhoud concrete scenario-invoer, verwacht gedrag, reden en bronbewijs in [docs/evals/scenarios.json](docs/evals/scenarios.json). Ontwerpbeschrijvingen zijn geen kandidaatlabels of meetresultaten; voeg die niet onder dezelfde status toe. Engelse zoekvragen zijn exacte invoer, Nederlandse tekst is uitsluitend leesvertaling.
+- Wijzig de gegenereerde HTML niet met de hand. Genereer opnieuw met `python3 docs/evals/build.py` en controleer synchronisatie met `python3 docs/evals/build.py --check`.
+- De [documentatie-CI](.github/workflows/eval-docs-checks.yml) controleert bron-/HTML-synchronisatie en de generator bij wijzigingen aan de evaluatiedocumentatie. Dit zijn geen benchmarkruns.
+- Onderscheid gepland, gebouwd en daadwerkelijk uitgevoerd. Een beschikbare viewer bewijst geen beschikbare evalset, runner of meetresultaten; toon uitsluitend bestaande resultaten met hun herkomst.

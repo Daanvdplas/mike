@@ -2,6 +2,8 @@
 
 ## Huidige stand
 
+**Werk in uitvoering:** de overstap naar BGE-small-en-v1.5, CLS-pooling, een queryinstructie en manifestformaat 2 is nog niet volledig geverifieerd. Een eerdere bulkimport is gestopt wegens geheugendruk; er is nog geen goedgekeurde verse BGE-index of kwaliteitsuitslag. De MiniLM-baseline van 0/15 en de evaluatiebestanden blijven bewaard. Zwaar werk volgt uitsluitend de afgesproken resourcegate. Dit zijn geen opgeleverde BGE-resultaten.
+
 De repo bevat het API-contract, synthetische fixtures, de geteste Axum-router en PDF/TXT-extractie, en de data-/zoekengine met corpusimport en SQLite-opslag. De server/CLI-koppeling bestaat. Deterministische tests en een echte TCP-doorloop met ontbrekende database zijn gecontroleerd; de volledige corpusdoorloop en onafhankelijke eindreview lopen nog. Frontendimplementatie valt buiten deze backendwijziging.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.

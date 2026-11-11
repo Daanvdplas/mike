@@ -69,10 +69,10 @@ impl Engine {
             ));
         }
         let query_vector = query
-            .map(|text| text_vector(self.embedder.as_mut(), text))
+            .map(|text| text_vector(self.embedder.as_mut(), text, true))
             .transpose()?;
         let document_vector = document_text
-            .map(|text| text_vector(self.embedder.as_mut(), text))
+            .map(|text| text_vector(self.embedder.as_mut(), text, false))
             .transpose()?;
         let mode = match (query_vector.is_some(), document_vector.is_some()) {
             (true, true) => "combined",
@@ -198,7 +198,7 @@ fn build_snapshot(
         cases,
         passages,
         manifest: Manifest {
-            format_version: 1,
+            format_version: 2,
             pipeline: PIPELINE.into(),
             embedding: embedder.config().clone(),
             corpus_version: String::new(),
@@ -209,10 +209,11 @@ fn build_snapshot(
     Ok(snapshot)
 }
 
-fn text_vector(embedder: &mut dyn Embedder, text: &str) -> Result<Vec<f32>, EngineError> {
+fn text_vector(embedder: &mut dyn Embedder, text: &str, is_query: bool) -> Result<Vec<f32>, EngineError> {
     let text = corpus::canonicalize(text);
-    let chunks = chunk::chunk_text(&text, "input", |s| embedder.token_count(s))?;
-    let texts: Vec<_> = chunks.into_iter().map(|c| c.passage.text).collect();
+    let prefix = if is_query { embedder.config().query_prefix.clone() } else { String::new() };
+    let chunks = chunk::chunk_text(&text, "input", |s| embedder.token_count(&format!("{prefix}{s}")))?;
+    let texts: Vec<_> = chunks.into_iter().map(|c| format!("{prefix}{}", c.passage.text)).collect();
     let vectors = embedder.embed(&texts)?;
     if vectors.len() != texts.len() {
         return Err(EngineError::new(
@@ -258,6 +259,8 @@ mod tests {
             dimensions: 2,
             max_tokens: 512,
             sdk: "test".into(),
+            pooling: "test".into(),
+            query_prefix: String::new(),
             artifacts_sha256: "test".into(),
         });
         let cases = (1..=4).map(|id| {
@@ -274,6 +277,36 @@ mod tests {
             snapshot,
             embedder: Box::new(embedder),
         }
+    }
+
+    #[test]
+    fn query_instruction_is_only_added_to_queries_and_counts_toward_token_budget() {
+        struct Recorder {
+            config: EmbeddingConfig,
+            inputs: Vec<String>,
+        }
+        impl Embedder for Recorder {
+            fn config(&self) -> &EmbeddingConfig { &self.config }
+            fn token_count(&self, text: &str) -> Result<usize, EngineError> { Ok(text.chars().count() + 2) }
+            fn embed(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>, EngineError> {
+                self.inputs.extend_from_slice(texts);
+                Ok(texts.iter().map(|_| vec![1., 0.]).collect())
+            }
+        }
+        let mut recorder = Recorder { config: EmbeddingConfig {
+            model:"test".into(), dimensions:2, max_tokens:512, sdk:"test".into(),
+            pooling:"test".into(), query_prefix:"Represent this sentence for searching relevant passages: ".into(),
+            artifacts_sha256:"test".into(),
+        }, inputs:Vec::new() };
+        text_vector(&mut recorder, &"query ".repeat(400), true).unwrap();
+        assert!(recorder.inputs.len() > 1);
+        for input in &recorder.inputs {
+            assert!(input.starts_with(&recorder.config.query_prefix));
+            assert!(input.chars().count() + 2 <= chunk::TOKEN_BUDGET);
+        }
+        recorder.inputs.clear();
+        text_vector(&mut recorder, "Original document text.", false).unwrap();
+        assert_eq!(recorder.inputs, ["Original document text."]);
     }
 
     #[test]

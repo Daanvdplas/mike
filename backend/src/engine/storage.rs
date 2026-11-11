@@ -12,7 +12,7 @@ use std::{
 };
 
 pub(super) const PIPELINE: &str =
-    "majority-lf-trim-v1|chars1600-overlap160-token480-v1|cosine-max-v1";
+    "majority-lf-trim-v1|chars1600-overlap160-token480-v1|question-prefix-v1|cosine-max-v1";
 pub(super) const EXPECTED_COUNT: usize = 135;
 pub(super) const EXPECTED_IDS_SHA256: &str =
     "efa425142ba80a8f54cc42e329a1f38c4a5fc5aa0aa853f8c9550fc96640be88";
@@ -180,7 +180,7 @@ pub(super) fn validate(
     count: usize,
     ids_sha256: &str,
 ) -> Result<(), EngineError> {
-    if snapshot.manifest.format_version != 1
+    if snapshot.manifest.format_version != 2
         || snapshot.manifest.pipeline != PIPELINE
         || snapshot.manifest.embedding.dimensions == 0
         || snapshot.cases.len() != count
@@ -278,13 +278,15 @@ mod tests {
             cases,
             passages,
             manifest: Manifest {
-                format_version: 1,
+                format_version: 2,
                 pipeline: PIPELINE.into(),
                 embedding: EmbeddingConfig {
                     model: "test".into(),
                     dimensions: 2,
                     max_tokens: 512,
                     sdk: "test".into(),
+                    pooling: "test".into(),
+                    query_prefix: String::new(),
                     artifacts_sha256: "test".into(),
                 },
                 corpus_version: String::new(),

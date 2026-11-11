@@ -65,8 +65,11 @@ pub(super) fn rank_cases(
     // COA's stable score/source ordering, applied after complete case grouping.
     let mut ranked: Vec<_> = cases.into_values().collect();
     ranked.sort_by(|a, b| {
-        b.1.total_cmp(&a.1)
-            .then(passages[a.0].case_id.cmp(&passages[b.0].case_id))
+        if a.1 == b.1 {
+            passages[a.0].case_id.cmp(&passages[b.0].case_id)
+        } else {
+            b.1.total_cmp(&a.1)
+        }
     });
     ranked.truncate(3);
     Ok(ranked)
@@ -169,5 +172,19 @@ mod tests {
         assert!(normalized_mean(&[vec![1., 0.], vec![-1., 0.]]).is_err());
         assert!(normalized_mean(&[vec![1., 0.], vec![1.]]).is_err());
         assert!(normalized_mean(&[vec![f32::INFINITY]]).is_err());
+    }
+
+    #[test]
+    fn numerically_equal_signed_zero_scores_use_case_id_tie_break() {
+        let passages = vec![
+            candidate("A", "A:p1", &[-1e-20, 0., 1e10]),
+            candidate("B", "B:p1", &[0., 0., 1.]),
+            candidate("C", "C:p1", &[-1., 0., 0.]),
+            candidate("D", "D:p1", &[0., -1., 0.]),
+        ];
+        let ranked = rank_cases(&passages, Some(&[1e-20, 1., 0.]), None).unwrap();
+        assert_eq!(ranked[0].1, 0.);
+        assert_eq!(ranked[1].1, 0.);
+        assert_eq!(passages[ranked[0].0].case_id, "A");
     }
 }

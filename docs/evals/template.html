@@ -4,19 +4,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Alle juridische ontwerpscenario’s in één compact overzicht. Klik op een eval voor de concrete input en het verwachte gedrag.">
+  <meta name="description" content="Start twee juridische evaluaties en bekijk de echte resultaten, naast het overzicht van 25 ontwerpscenario’s.">
   <link rel="icon" href="data:,">
   <title>Evaluaties · Adami</title>
   <style>{{STYLE}}</style>
 </head>
 <body>
-  <a class="skip-link" href="#overzicht">Ga naar de evaluaties</a>
-  <div class="app-bar"><a class="brand" href="#overzicht">ADAMI <span>/</span> <span>Evaluaties</span></a><nav aria-label="Project"><a href="#afspraken">Afspraken</a><a href="../../README.md">Project <span aria-hidden="true">↗</span></a></nav></div>
+  <a class="skip-link" href="#runbare-evals">Ga naar de evaluaties</a>
+  <div class="app-bar"><a class="brand" href="#overzicht">ADAMI <span>/</span> <span>Evaluaties</span></a><nav aria-label="Project"><a href="#ontwerpen">Scenario’s</a><a href="#afspraken">Afspraken</a></nav></div>
   <main id="overzicht">
-    <header class="page-header"><div><h1>Evaluaties <span class="status-pill">Ontwerp</span></h1><p>{{SCENARIO_COUNT}} evals. Klik op een eval voor de input en het verwachte gedrag.</p></div></header>
+    <header class="page-header"><div><h1>Evaluaties</h1><p>Twee evals om zelf te draaien. {{SCENARIO_COUNT}} scenario’s om verder te ontwikkelen.</p></div></header>
+    <section id="runbare-evals" class="runnable-section" aria-labelledby="runnable-heading">
+      <h2 id="runnable-heading">Runbare evals</h2>
+      <p class="run-intro">Een klik zoekt drie uitspraken en laat Orq hun relevantie beoordelen. De score is een AI-indicatie, geen menselijke juridische beoordeling.</p>
+      <p id="catalog-status" role="status">Evalinvoer laden…</p>
+      <button id="catalog-retry" type="button" hidden>Opnieuw verbinden</button>
+      <div id="runnable-list"></div>
+      <noscript><p>Schakel JavaScript in om de twee evals te starten. De scenario’s hieronder blijven leesbaar.</p></noscript>
+    </section>
+    <h2 id="ontwerpen" class="catalog-heading">{{SCENARIO_COUNT}} scenario-ontwerpen</h2>
     <div class="overview-label"><span>Eval</span><span>Invoer</span></div>
     <section class="eval-list" aria-label="Alle ontwerpscenario’s">{{SCENARIO_ITEMS}}</section>
-    <p class="overview-note">Ontwerpbeschrijvingen op basis van echte zaken. Relevante kandidaatmatches moeten nog onafhankelijk worden beoordeeld.</p>
+    <p class="overview-note">Ontwerpbeschrijvingen op basis van echte zaken. E06 kun je hierboven uitvoeren. De overige 24 zijn nog niet runbaar; vaste kandidaatlabels en benchmarkmetingen ontbreken.</p>
     <details id="afspraken" class="full-spec"><summary>Afspraken en volledige opdracht <span aria-hidden="true">↗</span></summary><div class="spec-layout"><nav aria-label="Hoofdstukken van de opdracht"><ul>{{SOURCE_NAVIGATION}}</ul></nav><div class="specification">{{SPECIFICATION}}</div></div></details>
     <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht en <a href="scenarios.json">scenarios.json</a>. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>Opdracht SHA-256 <code class="source-hash">{{HASH}}</code></p><p>Scenario’s SHA-256 <code class="source-hash">{{CATALOG_HASH}}</code></p></details></footer>
   </main>

@@ -30,7 +30,7 @@ class DocumentationBuildTests(unittest.TestCase):
             check=False,
         )
 
-    def test_source_change_is_visible_and_stale_check_does_not_write(self):
+    def test_archived_source_change_is_tracked_and_stale_check_does_not_write(self):
         result = self.run_build()
         self.assertEqual(result.returncode, 0, result.stderr)
         original = self.output.read_bytes()
@@ -40,11 +40,11 @@ class DocumentationBuildTests(unittest.TestCase):
         self.assertEqual(self.output.read_bytes(), original, "--check must never rewrite the artifact")
         result = self.run_build()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Unieke afspraak voor deze test.", self.output.read_text())
+        self.assertNotIn("Unieke afspraak voor deze test.", self.output.read_text())
         self.assertNotEqual(self.output.read_bytes(), original)
         self.assertEqual(self.run_build("--check").returncode, 0)
 
-    def test_catalog_title_change_is_visible_escaped_and_detected_as_stale(self):
+    def test_archived_catalog_change_is_tracked_without_exposing_planned_items(self):
         self.assertEqual(self.run_build().returncode, 0)
         original = self.output.read_bytes()
         catalog_path = self.root / "evals" / "scenarios.json"
@@ -55,17 +55,17 @@ class DocumentationBuildTests(unittest.TestCase):
         self.assertEqual(self.output.read_bytes(), original)
         self.assertEqual(self.run_build().returncode, 0)
         rendered = self.output.read_text()
-        self.assertIn('&lt;script&gt;untrusted catalog title&lt;/script&gt;', rendered)
+        self.assertNotIn('&lt;script&gt;untrusted catalog title&lt;/script&gt;', rendered)
         self.assertNotIn('<script>untrusted catalog title</script>', rendered)
         self.assertEqual(self.run_build("--check").returncode, 0)
 
-    def test_raw_source_html_is_text_not_executable_markup(self):
+    def test_archived_source_html_is_not_embedded_in_the_page(self):
         self.source.write_text(self.source.read_text() + '\n<script>window.untrusted = true;</script>\n')
         result = self.run_build()
         self.assertEqual(result.returncode, 0, result.stderr)
         rendered = self.output.read_text()
         self.assertNotIn("<script>window.untrusted", rendered)
-        self.assertIn("&lt;script&gt;window.untrusted", rendered)
+        self.assertNotIn("&lt;script&gt;window.untrusted", rendered)
 
     def test_missing_source_section_fails_without_overwriting_output(self):
         result = self.run_build()

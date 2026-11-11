@@ -2,9 +2,17 @@
 
 ## Huidige stand
 
-Deze bootstrap bevat uitsluitend documentatie, het [API-contract](openapi.yaml) en synthetische [fixtures](examples/search-response.json). Er zijn nog geen Rust-bronbestanden, SQLite-database, frontend, CI of werkende endpoints. Alle uitvoeringsstappen hieronder zijn **voorgenomen ontwerp**. Voeg bij implementatie echte codeverwijzingen en gecontroleerde commando's toe; presenteer dit ontwerp niet als werkende code.
+De repo bevat het [API-contract](openapi.yaml), synthetische [fixtures](examples/search-response.json) en een compileerbare Rust-librarybasis in [backend/](../backend/Cargo.toml). De HTTP-service, corpusimport en databasewerking zijn nog niet geïmplementeerd; er zijn geen werkende endpoints. De architectuurroute hieronder is **voorgenomen ontwerp**; uitsluitend de bouwbasis in de volgende paragraaf bestaat nu.
 
 De [README](../README.md) is het startpunt; [AGENTS.md](../AGENTS.md) bepaalt hoe agents samenwerken. Het contract is een productafspraak. Deze gids legt de samenhang, afwegingen en grenzen uit.
+
+## Geverifieerde bouwbasis
+
+- [backend/Cargo.toml](../backend/Cargo.toml) en de lockfile vormen een zelfstandige Rust 2024-crate; er is geen rootworkspace. De directe COA-patronen zijn Axum 0.8, fastembed exact 7.1.2 met dezelfde native-TLS/ONNX-downloadfeatures, serde, Tokio en SHA-256.
+- [backend/src/lib.rs](../backend/src/lib.rs) is het library-startpunt zonder productgedrag. Corpus/zoekmodules en de HTTP-service worden door aparte agents toegevoegd. Er is nog geen CLI of serverbinary.
+- SQLite gebruikt de gebundelde SQLite-build via rusqlite. PDF-extractie, CORS en YAML-naar-JSON-conversie hebben dependencies klaarstaan, maar worden pas bij hun implementatietaken aangesloten.
+- [.github/workflows/backend-checks.yml](../.github/workflows/backend-checks.yml) volgt de COA-checkvolgorde: expliciete Rust-toolchain, fmt, clippy, deterministische tests en build. De standaardchecks laden geen embeddingmodel.
+- De gecontroleerde commando's staan in de [README](../README.md). De lege library bevat nog nul gedragstests; een succesvolle basistest is geen bewijs dat de zoekfunctie werkt.
 
 ## Gebruik en geplande hoofdroute
 
@@ -26,7 +34,7 @@ flowchart LR
   D --> F
 ```
 
-De voorlopige mapverdeling is `backend/` voor de Rust-service en `frontend/` voor de aparte frontend-agent. Die mappen bestaan nog niet. Gedeeld werk zit nu in `docs/`; contractwijzigingen worden afgestemd voordat een agent erop gaat bouwen.
+De mapverdeling is `backend/` voor de Rust-service en de voorgenomen `frontend/` voor de aparte frontend-agent. Alleen de backendbasis hoort bij deze wijziging. Gedeeld werk zit in `docs/`; contractwijzigingen worden afgestemd voordat een agent erop gaat bouwen.
 
 ## Corpus, opslag en index
 
@@ -85,7 +93,7 @@ Deze paden liggen buiten deze repo en zijn daarom oriëntatiepunten, geen beschi
 
 ## Verificatie bij implementatie
 
-Er is nog geen projecttestcommando. De implementatie moet aantoonbaar maken:
+De bouwchecks staan in README en CI; er zijn in de basis nog geen productgedragstests. De verdere implementatie moet aantoonbaar maken:
 
 - alle drie invoermodi, PDF/TXT en duidelijke fouten bij onbruikbare invoer;
 - precies drie unieke zaken, volledige scoring en deterministische gelijke scores;
@@ -94,8 +102,9 @@ Er is nog geen projecttestcommando. De implementatie moet aantoonbaar maken:
 - onafhankelijke controle van ranking met bekende vectoren én aparte inhoudelijke beoordeling;
 - een echte HTTP-upload, zoeken en ophalen van volledige documenten.
 
-Contract- en fixturechecks moeten later in de echte CI aansluiten op de gekozen projecttools. De bootstrap is handmatig gecontroleerd en onafhankelijk gereviewd; de canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
+Contract- en fixturechecks moeten bij implementatie aansluiten op deze backend-CI. De documentatiebootstrap is handmatig gecontroleerd en onafhankelijk gereviewd; de canonieke documenten zijn nog geen mechanisch afgedwongen mergegate.
 
 ## Recente architectuurwijzigingen
 
+- 2026-11-11: zelfstandige Rust-library, vaste dependency-lockfile en backend-CI toegevoegd op een featurebranch. Nog geen productgedrag of draaiende server; API-contract ongewijzigd.
 - 2026-11-11: repo-overdracht en API-ontwerp toegevoegd. Scope vastgelegd als document en/of vraag, exact drie unieke zaken en volledige majority-opinionteksten met UTF-16-markeerposities. Nog geen runtime-implementatie.

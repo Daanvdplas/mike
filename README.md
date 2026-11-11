@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: alleen de repo-overdracht en het API-ontwerp zijn aanwezig. Er is nog geen uitvoerbare backend, database, frontend of CI.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de Rust-librarybasis en backendchecks zijn toegevoegd; de HTTP-service, corpusimport en databasewerking worden nog geïmplementeerd. Er draait nog geen backend.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 
@@ -18,7 +18,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - PDF/TXT-upload, alleen een vraag of beide; minimaal één bruikbare invoer.
 - Precies drie unieke zaken met metadata, overeenkomstscore en gemarkeerde passage in de volledige tekst van het meerderheidsoordeel.
 - Exact zoeken over alle geïndexeerde passages. De garantie is de hoogste drie scores volgens onze zoekmethode binnen dit corpus; inhoudelijke juridische relevantie wordt apart beoordeeld.
-- De frontend wordt door een aparte agent gebouwd. De voorgenomen mappen zijn `backend/` en `frontend/`; deze bestaan nog niet.
+- De Rust-library staat in `backend/`. De frontend wordt door een aparte agent in `frontend/` gebouwd en hoort niet bij deze backendwijziging.
 - Geen gegenereerd juridisch antwoord of Orq/Codex-aanroep in deze versie. Docker is optioneel en geen voorwaarde voor de eerste demo.
 
 ## Data en hergebruik
@@ -29,6 +29,20 @@ De aangeleverde [CAP-link](https://case.law/caselaw/#florida) heeft een Florida-
 
 `../coa` bevat een herbruikbare Rust-zoekkern en een voorbeeld van eerst zoeken en daarna passages aan een model aanbieden. De nieuwe app neemt gericht zoekonderdelen over; de Codex/MCP-aansturing en COA-specifieke dataset niet. Zie de architectuurgids voor de gecontroleerde codepaden.
 
+## Backendbasis controleren
+
+Benodigd: Rust 1.94.1 met clippy en rustfmt; nightly met rustfmt voor de formatteringsafspraak. De eerste build downloadt Rust-dependencies en de ONNX-runtime, maar geen embeddingmodel. Voer vanuit de reporoot uit:
+
+```sh
+cargo +nightly fmt --manifest-path backend/Cargo.toml --all
+cargo +1.94.1 fmt --manifest-path backend/Cargo.toml --all --check
+cargo +1.94.1 clippy --manifest-path backend/Cargo.toml --locked --all-targets -- -D warnings
+cargo +1.94.1 test --manifest-path backend/Cargo.toml --locked
+cargo +1.94.1 build --manifest-path backend/Cargo.toml --locked
+```
+
+De basis bevat nog geen productgedrag of tests: `cargo test` bouwt nu alleen de lege testharness. De [backendworkflow](.github/workflows/backend-checks.yml) voert formattering, clippy, deterministische tests en build uit zonder embeddingmodel te laden. Tests met echte modellen worden later apart gehouden van deze standaardchecks.
+
 ## Nu parallel beginnen
 
-De frontend-agent kan starten met [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. Een server starten kan nog niet. Zodra implementatie beschikbaar is, worden hier de daadwerkelijk gecontroleerde installatie-, import-, start- en testcommando's toegevoegd.
+De frontend-agent kan starten met [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. De backend- en database-agent bouwen op dezelfde librarybasis in eigen branches. Een server starten of een corpus importeren kan nog niet; die commando's worden toegevoegd zodra de werking is gecontroleerd.

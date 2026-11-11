@@ -3,7 +3,7 @@
 Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante delen van de [architectuurgids](docs/CODEBASE_GUIDE.md).
 
 - **Frontend:** begin bij [de backendafspraak](docs/FRONTEND_BACKEND.md), het [API-contract](docs/openapi.yaml) en de bijbehorende fixtures. Werk in de toekomstige map `frontend/`.
-- **Backend/database:** werk in de toekomstige map `backend/`. Het API-contract ligt vast voor parallel frontendwerk; stem wijzigingen eerst af met de coördinator.
+- **Backend/database:** werk in `backend/`. Het API-contract ligt vast voor parallel frontendwerk; stem wijzigingen eerst af met de coördinator.
 - **Taakverdeling en voortgang:** gebruik de hoofdissues en gekoppelde subissues op GitHub. Claim een subissue vóór je begint; houd wijzigingen beperkt tot die taak.
 
 ## Rollen en werkwijze
@@ -29,4 +29,4 @@ Lees eerst [README.md](README.md) voor scope en status. Lees daarna de relevante
 - Werk bij veranderd gedrag of architectuur de betrokken hoofdstukken in dezelfde taak, pull request en changeset bij. Houd diagrammen, codeverwijzingen, ontwerpafwegingen, beperkingen en recente architectuurwijzigingen actueel; integreer wijzigingen in de bestaande uitleg.
 - Onderscheid geverifieerde implementatie, voorgenomen ontwerp en onbekenden. Claim geen werkende endpoints, setup of tests zolang die niet bestaan.
 - Rapporteer bij afronding of de gids is bijgewerkt en waarom. Laat de gids bij wijzigingen zonder documentatie-impact ongemoeid en leg dat kort uit.
-- Laat een onafhankelijke agent relevante checks uitvoeren. Testcommando's en CI worden toegevoegd zodra de daadwerkelijke backend/frontend bestaan; verzin ze niet bij deze bootstrap.
+- Laat een onafhankelijke agent relevante checks uitvoeren. De echte backendchecks staan in README; voeg bij nieuw gedrag passende tests toe en houd tests met modeldownloads buiten de deterministische standaardchecks.

@@ -10,7 +10,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](docs/openapi.yaml): het canonieke API-contract, ook beschikbaar via `/openapi.json`.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
-- [Evaluatieoverzicht](docs/evals/index.html): alle 25 concrete ontwerp-evals, met input en verwacht gedrag na aanklikken; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
+- [Evaluatieoverzicht](docs/evals/index.html): de bestaande uitvoerbare evaluatiekaarten. De 25 volledige ontwerpen blijven voor later bewaard in [scenarios.json](docs/evals/scenarios.json); [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -182,7 +182,7 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Vaste benchmarklabels en algemene meetresultaten ontbreken nog. De lokale evalserver hieronder maakt de vaste B1-referentiecontrole en E06 uitvoerbaar; de overige 24 ontwerpen blijven gepland.
+Open het [evaluatieoverzicht](docs/evals/index.html) via de lokale evalserver hieronder voor de bestaande B1-referentiecontrole en E06. De volledige lijst van 25 ontwerpscenario’s blijft met invoer, herkomst, verwachtingen en bronbewijs bewaard in [scenarios.json](docs/evals/scenarios.json), buiten de UI. De catalogusstatus is `ontwerp`: de overige 24 scenario’s blijven gepland, zonder vaste benchmarklabels of algemene meetresultaten. De oorspronkelijke opdracht blijft eveneens bewaard; deze bronnen zijn ontwikkelmateriaal, geen verborgen testset.
 
 Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 

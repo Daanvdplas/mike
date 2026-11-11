@@ -1,11 +1,3 @@
-// Native details provide the complete experience without JavaScript.
-const evalItems = [...document.querySelectorAll('.eval-item')];
-
-// Keep the overview compact: opening a row closes the previous row.
-evalItems.forEach(item => item.addEventListener('toggle', () => {
-  if (item.open) evalItems.forEach(other => { if (other !== item) other.open = false; });
-}));
-
 function revealAnchor() {
   let id;
   try { id = decodeURIComponent(location.hash.slice(1)); }
@@ -281,7 +273,7 @@ async function loadCatalog() {
     catalogStatus.hidden = true;
     revealAnchor();
   } catch {
-    catalogStatus.textContent = 'Runnen is niet beschikbaar. Open deze pagina via de lokale evalserver. De 25 scenario-ontwerpen hieronder kun je wel lezen.';
+    catalogStatus.textContent = 'Runnen is niet beschikbaar. Open deze pagina via de lokale evalserver.';
     catalogRetry.hidden = false;
   }
 }

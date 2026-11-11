@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de Rust-backend, import/zoekengine en HTTP-/CLI-koppeling zijn geïmplementeerd. Deterministische tests en echte TCP-readiness zonder database zijn gecontroleerd; de volledige corpusdoorloop en onafhankelijke eindreview lopen nog.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de React-frontend werkt lokaal met een gesimuleerde backend. De Rust-backend en HTTP-/CLI-koppeling zijn geïmplementeerd en eerder technisch gecontroleerd. De begrensde BGE-uitvoering, verse index en gezamenlijke UI-doorloop worden nog afgerond; er is nog geen eindakkoord.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 
@@ -18,7 +18,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - PDF/TXT-upload, alleen een vraag of beide; minimaal één bruikbare invoer.
 - Precies drie unieke zaken met metadata, overeenkomstscore en gemarkeerde passage in de volledige tekst van het meerderheidsoordeel.
 - Exact zoeken over alle geïndexeerde passages. De garantie is de hoogste drie scores volgens onze zoekmethode binnen dit corpus; inhoudelijke juridische relevantie wordt apart beoordeeld.
-- De Rust-library staat in `backend/`. De frontend wordt door een aparte agent in `frontend/` gebouwd en hoort niet bij deze backendwijziging.
+- De Rust-backend staat in `backend/`; de gemergde React/TypeScript-frontend met Vite staat in `frontend/`.
 - Geen gegenereerd juridisch antwoord of Orq/Codex-aanroep in deze versie. Docker is optioneel en geen voorwaarde voor de eerste demo.
 - Operationele invoergrenzen: document 10 MiB, vraag 1 MiB UTF-8, totale multipartrequest 12 MiB en uitgelezen PDF-tekst 20 MiB. Overschrijdingen geven een fout; tekst wordt niet stil afgekapt.
 
@@ -46,11 +46,11 @@ De tests gebruiken de echte router, multipartverwerking en PDF/TXT-extractie. Al
 
 ## Nu parallel beginnen
 
-De frontend-agent gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. Deze backendwijziging bevat geen frontendcode.
+De frontend gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md) en de fixtures. De bestaande frontend is via de gewone main-integratie overgenomen; de backend-PR voegt geen nieuwe frontendfunctionaliteit toe.
 
 ## Backend gebruiken
 
-Voer vanuit de reporoot uit. De onderstaande CLI-ingangen bestaan; de volledige corpusimport en zoekdoorloop worden nog onafhankelijk gecontroleerd.
+De onderstaande CLI-ingangen bestaan. Start tijdens de exclusieve corpusimport geen tweede build, modeljob of server. Modelwerk moet via de [resourceguard](backend/scripts/resource_guard.py) en binnen het afgesproken geheugenbudget lopen; de definitieve bewaakte startprocedure volgt na de verse indexcontrole.
 
 ```sh
 export ADAMI_DB_PATH="$PWD/data/cases.sqlite3"
@@ -78,3 +78,28 @@ Gebruik voor zaakdetails de `case_url` uit het zoekresultaat, op dezelfde backen
 | `ADAMI_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
 
 CORS-origins zijn kommagescheiden HTTP(S)-origins zonder pad. Er zijn geen API-sleutels of externe modelaanroepen nodig. De modelcache en SQLite-database horen buiten Git.
+
+## Frontend lokaal proberen
+
+Gebruik Node.js 22.12+ (of 20.19+). Vanuit de repository:
+
+```sh
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. De ontwikkelserver luistert alleen lokaal. Typ/plak eigen tekst, voeg een PDF/TXT van maximaal 10 MiB toe, of combineer beide. Versturen toont na een korte laadstatus altijd dezelfde drie verzonnen zaken als klikbare documentvoorbeelden onder de invoerbox, op desktop naast elkaar. Een nieuwe zoekopdracht vervangt de vorige resultaten. Open een document om in een aparte leesweergave de volledige aangeleverde meerderheidstekst met markering te lezen; de terugknop brengt je naar de resultaten. Het blok ‘Waarom dit document?’ toont de exacte gevonden bronpassage en overeenkomstscore, geen gegenereerde juridische verklaring of daadwerkelijke analyse van je invoer in de demostand.
+
+De standaarddemostand leest of verstuurt bestandsinhoud niet en slaat uploads of gesprekken niet op. De bijlage wordt in de mock alleen op naam, extensie en grootte gecontroleerd; inhoudelijke PDF/TXT-validatie en echte zoekresultaten verlopen via de Rust-backend in API-modus. De fixtureteksten zijn kort en bewijzen geen leesbaarheid van lange echte uitspraken.
+
+Gecontroleerde frontendchecks:
+
+```sh
+npm test
+npm run build
+```
+
+`npm test` controleert invoermodi en grenzen, mock/API-uitwisseling, React-interacties en UTF-16-markeringen met versiecontrole. De build voert TypeScript-controle uit en schrijft `frontend/dist/` (genegeerd door Git).
+
+Voor de echte API-koppeling: kopieer `frontend/.env.example` naar `frontend/.env.local`, zet `VITE_API_MODE=api`, configureer `VITE_API_BASE_URL` en herstart Vite. Deze modus verstuurt uploads naar die ingestelde backend; de gezamenlijke end-to-end-controle wacht nog op de goedgekeurde, begrensde BGE-index. De standaard blijft `mock`. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).

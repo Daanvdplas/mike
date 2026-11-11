@@ -1,4 +1,5 @@
-export interface SearchInput { query?: string; document?: File }
+export interface SearchInput { query?: string; document?: File; model?: string }
+export interface ModelCatalog { models: { id: string; label: string }[]; default_model: string }
 export interface CaseMetadata {
   case_id: string; title: string; court: string; decision_date: string; citation: string; text_version: string;
 }
@@ -15,6 +16,8 @@ export interface SearchResult extends CaseMetadata {
 export interface SearchResponse {
   mode: 'query' | 'document' | 'combined'; corpus_version: string; ranking_version: string; results: SearchResult[];
   explanation_status?: 'available' | 'unavailable';
+  explanation_model?: string | null;
+  explanation_requested_model?: string;
   input_context?: { text_version: string; utf16_length: number };
 }
 export interface CaseDetail extends CaseMetadata { corpus_version: string; text: string }

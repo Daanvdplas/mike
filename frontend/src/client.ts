@@ -1,10 +1,11 @@
 import fixtureResponse from '../../docs/examples/search-response.json';
 import fixtureCases from '../../docs/examples/cases.json';
-import { validateInput, type CaseDetail, type SearchInput, type SearchResponse } from './search';
+import { validateInput, type CaseDetail, type ModelCatalog, type SearchInput, type SearchResponse } from './search';
 
 export interface SearchClient {
   search(input: SearchInput): Promise<SearchResponse>;
   getCase(caseUrl: string): Promise<CaseDetail>;
+  getModels?(): Promise<ModelCatalog | null>;
 }
 
 export function createMockClient(delay = 650): SearchClient {
@@ -35,8 +36,21 @@ export function createApiClient(baseUrl: string, fetcher: typeof fetch = fetch):
       const form = new FormData();
       if (query) form.append('query', query);
       if (document) form.append('document', document);
-      return request<SearchResponse>('/api/search', { method: 'POST', body: form });
+      return request<SearchResponse>('/api/search', {
+        method: 'POST', body: form,
+        ...(input.model ? { headers: { 'X-Orq-Model': input.model } } : {}),
+      });
     },
     getCase: (caseUrl) => request<CaseDetail>(caseUrl),
+    async getModels() {
+      const response = await fetcher(`${baseUrl.replace(/\/$/, '')}/api/models`);
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('Modelkeuze is niet beschikbaar. Zoeken gebruikt de serverinstelling.');
+      const catalog = await response.json() as ModelCatalog;
+      if (!Array.isArray(catalog.models) || (catalog.models.length && !catalog.models.some(model => model.id === catalog.default_model))) {
+        throw new Error('De server geeft geen geldige modelkeuze.');
+      }
+      return catalog;
+    },
   };
 }

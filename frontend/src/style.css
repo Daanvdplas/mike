@@ -22,7 +22,7 @@ button:disabled { cursor: wait; opacity: .55; }
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--active); outline-offset: 4px; }
 [hidden] { display: none !important; }
 .app-header { color: var(--primary); height: 90px; padding: 0 40px; display: flex; align-items: center; font-size: 22px; font-weight: 550; letter-spacing: -.5px; }
-.app-logo { display: block; width: 88px; height: auto; }
+.app-logo { display: block; width: 79.2px; height: auto; }
 .workspace { max-width: 780px; margin: 0 auto; padding: 0 24px var(--space-lg); }
 .intro { padding: min(16vh, 140px) 0 var(--space-md); }
 h1 { color: #122958; font-size: 32px; font-weight: 500; letter-spacing: -1.1px; line-height: 1.2; margin: 0; }

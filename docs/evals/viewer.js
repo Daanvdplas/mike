@@ -48,25 +48,34 @@ function renderResults(container, result) {
   const checks = result.structural_checks;
   const judgments = result.judgments;
   if (result.status !== 'completed' || !Array.isArray(judgments) || judgments.length !== 3 ||
-      new Set(judgments.map(row => row.case_id)).size !== 3 || !checks?.three_unique_results ||
+      new Set(judgments.map(row => row.case_id)).size !== 3 ||
+      judgments.some(row => !Number.isInteger(row.grade) || row.grade < 0 || row.grade > 3) ||
+      !checks?.three_unique_results ||
       (result.eval_id === 'E06' && (!checks.source_excluded || judgments.some(row => row.case_id === '156133')))) {
     throw new Error('De run bevat geen geldige drie unieke resultaten. Probeer opnieuw.');
   }
   const structural = element('p', '3 unieke uitspraken' +
     (checks.source_excluded === true ? ' · Nixon (156133) uitgesloten' : ' · Bronzaak kan zichzelf terugvinden'), 'run-checks');
   const scale = element('p', 'AI-relevantie: 0 niet relevant · 1 zijdelings · 2 bruikbaar · 3 sterk. Zoekscore is de lokale overeenkomstscore.', 'grade-scale');
+  const useful = judgments.filter(row => row.grade >= 2).length;
+  const summary = element('div', null, 'result-summary');
+  summary.append(
+    element('h4', `${useful} van de 3 matches bruikbaar`),
+    element('p', `${3 - useful} weinig of niet relevant · AI-beoordeling`),
+  );
+  const gradeLabels = ['Niet relevant', 'Zijdelings', 'Bruikbaar', 'Sterk'];
   const list = element('ol', null, 'judgments');
   judgments.forEach(row => {
     const item = element('li', null, 'judgment');
     const heading = element('div', null, 'judgment-heading');
-    heading.append(element('h4', row.title), element('span', `${row.grade} / 3`, 'grade'));
+    heading.append(element('h4', row.title), element('span', `${gradeLabels[row.grade]} · ${row.grade} / 3`, 'grade'));
     item.append(heading);
     item.append(element('p', `Zaak ${row.case_id} · Zoekscore ${Number(row.score).toFixed(4)}`, 'judgment-meta'));
     item.append(element('p', row.reasoning, 'judgment-reason'), element('blockquote', row.quote));
     list.append(item);
   });
   const provenance = element('details', null, 'run-provenance');
-  provenance.append(element('summary', 'Rungegevens en beperkingen'));
+  provenance.append(element('summary', 'Rundetails'), structural, scale);
   const details = element('dl');
   [
     ['Run', result.run_id], ['Model', result.model],
@@ -78,7 +87,7 @@ function renderResults(container, result) {
   const limitations = element('ul');
   (result.limitations || []).forEach(text => limitations.append(element('li', text)));
   provenance.append(limitations);
-  container.replaceChildren(structural, scale, list, provenance);
+  container.replaceChildren(summary, list, provenance);
 }
 
 async function runEval(evalRecord, button, status, results) {
@@ -117,33 +126,33 @@ function renderRunnable(evalRecord) {
   const section = element('article', null, 'runnable-eval');
   section.id = `run-${evalRecord.id}`;
   const heading = element('div', null, 'run-heading');
-  const title = element('h3', (evalRecord.id === 'E06' ? 'E06 · ' : '') + evalRecord.title);
+  const title = element('h3', evalRecord.title);
   title.id = `${section.id}-title`;
   section.setAttribute('aria-labelledby', title.id);
-  const mode = evalRecord.input_mode === 'query' ? 'Alleen vraag' : 'Document + vraag';
-  heading.append(title);
-  heading.append(element('span', mode, 'run-mode'));
+  const info = element('details', null, 'eval-info');
+  const infoToggle = element('summary', 'i');
+  infoToggle.setAttribute('aria-label', 'Uitleg en beoordeling van deze eval');
+  const explanation = element('div', null, 'eval-info-content');
+  explanation.append(
+    element('p', 'Het systeem zoekt drie uitspraken bij de Engelse vraag. De bronzaak zelf is uitgesloten. AI beoordeelt of elke uitspraak de rechtsvraag beantwoordt; alleen vergelijkbare feiten zijn niet genoeg.'),
+    element('p', '0 = niet relevant, 1 = zijdelings, 2 = bruikbaar, 3 = sterk. De samenvatting telt scores 2 en 3 als bruikbaar.'),
+    element('p', 'Dit is een AI-beoordeling, zonder door mensen gecontroleerde referentie. Het is geen garantie van juridische juistheid.'),
+  );
+  info.append(infoToggle, explanation);
+  heading.append(title, info);
   section.append(heading);
   const input = element('div', null, 'run-input');
-  field(input, 'Exacte zoekvraag · Engels', evalRecord.query, 'run-query');
+  field(input, 'Input', evalRecord.query, 'run-query');
   input.querySelector('.run-query p').lang = 'en';
-  if (evalRecord.query_nl) {
-    const translation = element('details', null, 'english-query');
-    translation.append(element('summary', 'Nederlandse leesvertaling'), element('p', evalRecord.query_nl));
-    input.append(translation);
-  }
-  if (evalRecord.id === 'E06') {
-    input.append(element('p', `${evalRecord.source_case.name} (${evalRecord.source_case.id}) is de herkomst van de vraag. Alleen de vraag gaat naar de zoekfunctie; de bronzaak wordt vóór selectie van de drie resultaten uitgesloten.`, 'input-note'));
-  }
   section.append(input);
-  field(section, 'Verwacht gedrag', evalRecord.expected_behavior, 'run-expectation');
-  field(section, 'Waarom deze eval?', evalRecord.why, 'run-purpose');
+  field(section, 'Verwachte output', evalRecord.expected_behavior, 'run-expectation');
   const action = element('div', null, 'run-action');
   const button = element('button', 'Start eval', 'run-button');
   button.type = 'button';
   button.dataset.evalId = evalRecord.id;
   button.setAttribute('aria-label', `Start eval: ${evalRecord.id}`);
-  const status = element('p', 'Nog niet uitgevoerd', 'run-status');
+  const status = element('p', '', 'run-status');
+  status.hidden = true;
   status.id = `${section.id}-status`;
   status.setAttribute('role', 'status');
   button.setAttribute('aria-describedby', status.id);

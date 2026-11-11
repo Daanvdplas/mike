@@ -37,7 +37,7 @@ pub(super) struct LocalEmbeddings {
 impl LocalEmbeddings {
     pub(super) fn new(cache: &Path) -> Result<Self, EngineError> {
         eprintln!(
-            "Initializing local model {MODEL} (batch <= {INFERENCE_BATCH_SIZE}, threads = 2)"
+            "Initializing local model {MODEL} (batch <= {INFERENCE_BATCH_SIZE}, threads = 2, CPU arena = off)"
         );
         let environment = ENVIRONMENT
             .get_or_init(|| {
@@ -52,6 +52,13 @@ impl LocalEmbeddings {
         let mut model = fastembed::TextEmbedding::try_new(
             fastembed::TextInitOptions::new(fastembed::EmbeddingModel::BGESmallENV15)
                 .with_environment(environment)
+                // Explicit CPU policy: release variable-shape working allocations.
+                .with_execution_providers(vec![
+                    ort::ep::CPU::default()
+                        .with_arena_allocator(false)
+                        .build()
+                        .error_on_failure(),
+                ])
                 .with_cache_dir(cache.to_owned())
                 .with_show_download_progress(true)
                 .with_max_length(512)
@@ -212,13 +219,19 @@ mod tests {
     fn bounded_model_smoke_reuses_one_session_for_repeated_near_limit_batches() {
         let cache = std::env::var_os("ADAMI_MODEL_CACHE").expect("Set ADAMI_MODEL_CACHE");
         let mut model = LocalEmbeddings::new(Path::new(&cache)).unwrap();
-        let texts: Vec<_> = (0..8)
-            .map(|i| format!("Trial {i}. {}", "witness ".repeat(460)))
+        let texts: Vec<_> = [8, 460, 60, 420, 180, 470, 300, 25]
+            .into_iter()
+            .enumerate()
+            .map(|(i, length)| format!("Trial {i}. {}", "witness ".repeat(length)))
             .collect();
-        for text in &texts {
-            let count = model.token_count(text).unwrap();
-            assert!((450..=TOKEN_BUDGET).contains(&count));
-        }
+        let counts: Vec<_> = texts
+            .iter()
+            .map(|text| model.token_count(text).unwrap())
+            .collect();
+        eprintln!("Resource smoke token lengths: {counts:?}");
+        assert!(counts.iter().all(|count| *count <= TOKEN_BUDGET));
+        assert!(*counts.iter().min().unwrap() < 50);
+        assert!(*counts.iter().max().unwrap() >= 450);
         let first = model.embed(&texts).unwrap();
         for repeat in 1..=3 {
             eprintln!("Resource smoke repetition {repeat}/3");

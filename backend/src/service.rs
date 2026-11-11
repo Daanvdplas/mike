@@ -26,6 +26,7 @@ pub enum Command {
     Serve,
     Import(PathBuf),
     Search(String),
+    SearchExcluding { query: String, case_id: String },
 }
 
 impl Command {
@@ -36,6 +37,16 @@ impl Command {
             [command, path] if command == "import" && !path.is_empty() => {
                 Ok(Self::Import(PathBuf::from(path)))
             }
+            [command, flag, case_id, words @ ..]
+                if command == "search" && flag == "--exclude-case-id" =>
+            {
+                let query = words.join(" ").trim().to_owned();
+                if case_id.trim().is_empty() || query.is_empty() {
+                    Err("Excluded search needs a case ID and question.".into())
+                } else {
+                    Ok(Self::SearchExcluding {query, case_id:case_id.clone()})
+                }
+            }
             [command, words @ ..] if command == "search" => {
                 let query = words.join(" ").trim().to_owned();
                 if query.is_empty() {
@@ -45,7 +56,7 @@ impl Command {
                 }
             }
             _ => {
-                Err("Usage: texas-case-finder [serve | import CORPUS_DIR | search QUESTION]".into())
+                Err("Usage: texas-case-finder [serve | import CORPUS_DIR | search QUESTION | search --exclude-case-id ID QUESTION]".into())
             }
         }
     }
@@ -126,6 +137,21 @@ mod tests {
             Command::parse(&args(&["search", "witness", "evidence"])).unwrap(),
             Command::Search("witness evidence".into())
         );
+        assert_eq!(
+            Command::parse(&args(&[
+                "search",
+                "--exclude-case-id",
+                "156133",
+                "other",
+                "offenses"
+            ]))
+            .unwrap(),
+            Command::SearchExcluding {
+                query: "other offenses".into(),
+                case_id: "156133".into()
+            }
+        );
+        assert!(Command::parse(&args(&["search", "--exclude-case-id", "156133"])).is_err());
         for values in [
             &["import"][..],
             &["serve", "unexpected"],

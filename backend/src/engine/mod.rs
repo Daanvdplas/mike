@@ -55,6 +55,24 @@ impl Engine {
         query: Option<&str>,
         document_text: Option<&str>,
     ) -> Result<SearchResponse, EngineError> {
+        self.search_excluding(query, document_text, &[])
+    }
+
+    /// Evaluation-only source exclusion; filtering precedes top-three selection.
+    pub fn search_excluding(
+        &mut self,
+        query: Option<&str>,
+        document_text: Option<&str>,
+        excluded_case_ids: &[String],
+    ) -> Result<SearchResponse, EngineError> {
+        for id in excluded_case_ids {
+            if !self.snapshot.cases.contains_key(id) {
+                return Err(EngineError::new(
+                    ErrorKind::InvalidInput,
+                    "Unknown excluded case.",
+                ));
+            }
+        }
         let query = query.map(str::trim).filter(|s| !s.is_empty());
         if document_text.is_some_and(|s| s.trim().is_empty()) {
             return Err(EngineError::new(
@@ -79,11 +97,21 @@ impl Engine {
             (true, false) => "query",
             _ => "document",
         };
-        let ranking = ranking::rank_cases(
-            &self.snapshot.passages,
-            query_vector.as_deref(),
-            document_vector.as_deref(),
-        )?;
+        let ranking = if excluded_case_ids.is_empty() {
+            ranking::rank_cases(
+                &self.snapshot.passages,
+                query_vector.as_deref(),
+                document_vector.as_deref(),
+            )?
+        } else {
+            ranking::rank_cases_excluding(
+                &self.snapshot.passages,
+                query_vector.as_deref(),
+                document_vector.as_deref(),
+                excluded_case_ids,
+            )?
+        };
+
         let results = ranking
             .into_iter()
             .map(|(index, score)| {
@@ -368,6 +396,36 @@ mod tests {
             ErrorKind::CaseNotFound
         );
         assert_eq!(engine.health().indexed_case_count, 4);
+    }
+
+    #[test]
+    fn exclusions_remove_source_before_top_three_and_validate_ids() {
+        let mut engine = fixture();
+        let response = engine
+            .search_excluding(Some("witness"), None, &["1".into()])
+            .unwrap();
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| r.metadata.case_id.as_str())
+                .collect::<Vec<_>>(),
+            ["3", "2", "4"]
+        );
+        assert_eq!(
+            engine
+                .search_excluding(Some("witness"), None, &["absent".into()])
+                .unwrap_err()
+                .kind,
+            ErrorKind::InvalidInput
+        );
+        assert_eq!(
+            engine
+                .search_excluding(Some("witness"), None, &["1".into(), "2".into()])
+                .unwrap_err()
+                .kind,
+            ErrorKind::IndexUnavailable
+        );
     }
 
     #[test]

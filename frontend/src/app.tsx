@@ -51,16 +51,9 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   }
 
   return <>
-    <header className="header">
-      <a href="./" className="wordmark" aria-label="Adami, nieuw gesprek">adami<span>.</span></a>
-      <span className="demo-label">{isMock ? 'Demo · gesimuleerd' : 'Lokale API'}</span>
-    </header>
     <main className="workspace">
       <section className="intro" aria-labelledby="intro-title" hidden={turns.length > 0}>
-        <p className="eyebrow">TEXAS JURISPRUDENTIE</p>
         <h1 id="intro-title">Welke uitspraken zoek je?</h1>
-        <p>Stel een vraag, plak tekst of voeg een document toe.</p>
-        <p className="intro-note">{isMock ? 'Je krijgt drie vaste voorbeeldzaken. Je invoer blijft in deze browser.' : 'Zoek in het afgesproken historische Texas-corpus.'}</p>
       </section>
       <section className="conversation" aria-label="Gesprek">
         {turns.map((turn) => <article key={turn.id} className="turn">
@@ -83,7 +76,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
         <p className="error" role="alert" hidden={!error}>{error}</p>
         <form className="composer" noValidate onSubmit={submit} aria-busy={busy}>
           <label className="visually-hidden" htmlFor="query">Vraag of tekst</label>
-          <textarea id="query" ref={textarea} rows={3} value={query} disabled={busy} placeholder="Typ je vraag of plak hier tekst…" aria-describedby="input-hint" aria-invalid={Boolean(error)}
+          <textarea id="query" ref={textarea} rows={3} value={query} disabled={busy} placeholder="Typ je vraag of plak hier tekst…" aria-invalid={Boolean(error)}
             onInput={(event) => {
               setQuery(event.currentTarget.value);
               if (!document) setError('');
@@ -111,7 +104,6 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
             <button className="send-button" type="submit" disabled={busy}>{busy ? 'Even geduld' : 'Versturen'} <span aria-hidden="true">↑</span></button>
           </div>
         </form>
-        <p className="input-hint" id="input-hint">PDF of TXT · max. 10 MiB <span>Enter verstuurt · Shift + Enter voor een nieuwe regel</span></p>
       </div>
     </main>
   </>;

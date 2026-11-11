@@ -66,8 +66,14 @@ it('steelt na laden geen focus van een andere leesinteractie', async () => {
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
-  const link = document.querySelector('a')!;
-  link.focus();
   await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
-  expect(document.activeElement).toBe(link);
+  await act(async () => {
+    textarea.focus(); textarea.value = 'Een volgende vraag';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => { document.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  const readingButton = document.querySelector<HTMLButtonElement>('.case-button')!;
+  readingButton.focus();
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  expect(document.activeElement).toBe(readingButton);
 });

@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status: de React-frontend werkt lokaal met een gesimuleerde backend. De Rust-backend en HTTP-/CLI-koppeling zijn geïmplementeerd en eerder technisch gecontroleerd. De begrensde BGE-uitvoering, verse index en gezamenlijke UI-doorloop worden nog afgerond; er is nog geen eindakkoord.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
+**Status: de React-frontend werkt lokaal met een gesimuleerde backend. De Rust-backend en HTTP-/CLI-koppeling zijn geïmplementeerd en eerder technisch gecontroleerd. De begrensde BGE-index is vooraf berekend; de gezamenlijke live UI-doorloop en definitieve demo-overdracht worden nog afgerond.** De JSON-fixtures zijn synthetische voorbeelden, geen modelresultaten of echte uitspraken.
 
 ## Begin hier
 

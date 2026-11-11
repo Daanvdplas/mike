@@ -125,6 +125,13 @@ Het startoverzicht toont alle 25 ontwerp-evals als compacte rijen met ID, titel 
 
 De viewer presenteert concrete ontwerpbeschrijvingen, geen beoordeelde retrievalbenchmark of gemeten scores. Kandidaten met gecontroleerde relevantielabels, een metriekberekening en een uitvoerbare evaluatierunner moeten nog worden gebouwd. De zichtbare ontwerpen zijn ontwikkelmateriaal en kunnen niet als verborgen testset worden gepresenteerd. Een statische HTML-pagina start geen lokaal backendproces. De generatiecheck controleert alleen documentatiesynchronisatie; daadwerkelijke retrievalkwaliteit vraagt later onafhankelijke labels en echte runs volgens de opdracht.
 
+
+### Eén optionele AI-relevantie-eval
+
+[`backend/scripts/retrieval_relevance.py`](../backend/scripts/retrieval_relevance.py) is een los Python-stdlibtool voor één door de gebruiker aangevraagde AI-beoordeling. Het haalt voor documenttekst en/of vraag de echte drie resultaten op via de bestaande `/api/search`, of leest een expliciet aangeleverde response voor dezelfde invoer. Vraag, documenttekst en de drie passages gaan als gegevens naar precies één configureerbare Orq-chatmodelaanroep met JSON-uitvoer. De systeemprompt behandelt instructies in documenten als brondata. De key blijft in procesgeheugen via `ORQ_API_KEY` of invoer zonder echo; de frontend ontvangt haar niet.
+
+Per zaak valideert het tool de exacte ID-set, integergrade 0–3, korte reden en een letterlijk citaat uit juist die bronpassage. De JSON-uitvoer bewaart model-ID, invoerherkomst, echte zoekresponse en oordelen buiten Git. Fouten stoppen zonder retries. Dit is een AI-oordeel over opgehaalde passages, geen referentiebenchmark of menselijke juridische controle; zelfmatches worden niet uitgesloten. Rust, embeddings, API en frontend zijn hiervoor ongewijzigd. De [README](../README.md#één-ai-relevantie-eval) bevat het concrete democommando.
+
 ## Corpus, opslag en index
 
 Het lokale corpus staat in `/Users/R0GUE/Downloads/texas-criminal-reports`. De eerdere data-inspectie vond 135 historische uitspraken van het Texas Court of Criminal Appeals uit 1892–1893, volledige JSON-teksten en bijbehorende HTML. De volumemetadata vermeldt foutief 1992–1993; import gebruikt `decision_date` per zaak.

@@ -162,3 +162,19 @@ python3 -m unittest discover -s docs/evals -p 'test_*.py'
 ```
 
 De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronisatiecheck en generatortests automatisch uit bij wijzigingen aan deze evaldocumentatie. Een verouderde HTML-weergave laat de check falen. Dit valideert de documentatie, niet de kwaliteit of uitvoering van de toekomstige evals. Zie de [onderhoudsafspraken](AGENTS.md#evaluatiedocumentatie-onderhouden).
+
+## Eén AI-relevantie-eval
+
+Met [`retrieval_relevance.py`](backend/scripts/retrieval_relevance.py) kun je één invoer en de drie echte zoekresultaten laten beoordelen. De Rustapp blijft lokale embeddings gebruiken. Alleen deze losse eval stuurt de vraag, optionele documenttekst en drie bronpassages naar één Orq-modelaanroep. De uitkomst is per zaak een AI-score van 0–3, een korte reden en een letterlijk gecontroleerd citaat; geen menselijke juridische referentie of benchmark.
+
+De backend moet gereed zijn op 8000. Gebruik Python 3 en een beschikbaar Orq-model; de key wordt zonder echo gevraagd, of gelezen uit `ORQ_API_KEY`. Sla de uitvoer buiten de repo op:
+
+```sh
+python3 backend/scripts/retrieval_relevance.py \
+  --document /Users/R0GUE/Downloads/adami-demo-test/texas-confession-example.txt \
+  --query 'Find cases about a confession induced by an officer claiming family friendship and promising help if the suspect admits the crime.' \
+  --model openai/gpt-4.1-mini-2025-04-14 \
+  --output /tmp/retrieval-relevance.json
+```
+
+Je kunt ook alleen `--query` of `--document` gebruiken. Het document is een UTF-8-tekstbestand van maximaal 20.000 tekens. Met `--response-json /pad/response.json` beoordeel je een eerder opgeslagen `SearchResponse` die bij exact dezelfde invoer hoort. `ORQ_MODEL` en `ORQ_BASE_URL` zijn optioneel instelbaar; de standaardgateway is `https://my.orq.ai/v3/router`. De tool probeert geen andere modellen en herhaalt een mislukte aanroep niet. Het demodocument komt zelf uit het corpus en kan zichzelf terugvinden.

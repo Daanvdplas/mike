@@ -62,6 +62,8 @@ Vanuit `frontend/`: `npm ci`, `npm run dev`, `npm test` en `npm run build`. De d
 
 [EVALUATIEOPDRACHT.md](EVALUATIEOPDRACHT.md) is de canonieke specificatie van de geplande evals. [evals/index.html](evals/index.html) is de gegenereerde, klikbare leesweergave voor mensen. De viewer hoort bij de projectdocumentatie en staat los van de React-productinterface en de synthetische productfixtures.
 
+Het compacte overzicht groepeert de geplande onderdelen onder Invoervormen, Juridische uitdagingen en Extra controles. Een klik op een onderdeel opent de invoer en het verwachte gedrag; de volledige opdracht staat afzonderlijk onder Afspraken. Zo blijft de eerste weergave kort en zijn details op verzoek beschikbaar.
+
 [evals/build.py](evals/build.py) maakt de HTML uit de canonieke bron. Voer vanuit de reporoot `python3 docs/evals/build.py` uit na inhoudswijzigingen; `python3 docs/evals/build.py --check` controleert of de opgeslagen weergave nog overeenkomt. Generatorchecks draaien met `python3 -m unittest discover -s docs/evals -p 'test_*.py'`. Onderhoud bron en afgeleide HTML in dezelfde changeset. De [AGENTS-afspraken](../AGENTS.md#evaluatiedocumentatie-onderhouden) bepalen hoe toekomstige wijzigingen aan invoermodi, beoordelingsregels, status, labels en runs worden verwerkt.
 
 [De documentatieworkflow](../.github/workflows/eval-docs-checks.yml) voert synchronisatie- en generatorchecks uit op pull requests en pushes naar `main` die de bron, viewerbestanden of workflow veranderen. De check genereert niet eerst opnieuw: verouderde opgeslagen HTML faalt dus zichtbaar. Er worden geen corpusdata, modellen of benchmarkruns geladen.

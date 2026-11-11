@@ -4,54 +4,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Het plan, de testopbouw en beoordelingsafspraken voor de juridische zoekfunctie. De evaluaties zijn nog niet uitgevoerd.">
+  <meta name="description" content="Een compact overzicht van de geplande juridische evaluaties. Klik op een onderdeel voor de input en verwachte beoordeling.">
   <link rel="icon" href="data:,">
-  <title>Juridische evaluaties · Adami</title>
+  <title>Evaluaties · Adami</title>
   <style>{{STYLE}}</style>
 </head>
 <body>
-  <a class="skip-link" href="#overzicht">Ga naar de inhoud</a>
-  <aside class="sidebar">
-    <a class="brand" href="#overzicht"><span class="brand-name">ADAMI</span><span>Legal similarity finder</span></a>
-    <nav aria-label="Evaluatiedocumentatie">
-      <p class="nav-label">Evaluaties</p>
-      <a href="#overzicht" aria-current="location">Overzicht</a>
-      <a href="#testopbouw">Input, verwachting en resultaat</a>
-      <a href="#moeilijke-tests">Moeilijke tests</a>
-      <a href="#varianten">Varianten van een test</a>
-      <a href="#beoordeling">Beoordelen en vergelijken</a>
-      <a href="#opdracht">Volledige opdracht</a>
-    </nav>
-    <div class="sidebar-bottom"><p>Een document en/of een vraag.<br>Drie gevonden zaken.</p><a href="../../README.md">Projectdocumentatie <span aria-hidden="true">↗</span></a></div>
-  </aside>
-
+  <a class="skip-link" href="#overzicht">Ga naar de evaluaties</a>
+  <div class="app-bar"><a class="brand" href="#overzicht">ADAMI <span>/</span> <span>Evaluaties</span></a><nav aria-label="Project"><a href="#afspraken">Afspraken</a><a href="../../README.md">Project <span aria-hidden="true">↗</span></a></nav></div>
   <main id="overzicht">
-    <header class="page-header"><div><p class="eyebrow">Plan voor het ontwikkelteam</p><h1>Juridische evaluaties</h1><p class="intro">Vindt de zoekfunctie de zaken die juridisch helpen?<br>Hier zie je hoe we dat willen testen.</p></div><span class="status-pill">Gepland</span></header>
-    <section class="plan-status" aria-label="Huidige status"><div>{{STATUS}}</div><a href="../EVALUATIEOPDRACHT.md">Bekijk de bronopdracht <span aria-hidden="true">↗</span></a></section>
-
-    <section class="section test-list" aria-labelledby="testgevallen-titel">
-      <div class="section-heading"><div><p class="eyebrow">Testgevallen</p><h2 id="testgevallen-titel">De set moet nog worden samengesteld</h2></div><button type="button" class="button unavailable" aria-disabled="true" aria-describedby="run-unavailable">Run set <span aria-hidden="true">↗</span></button></div>
-      <p>Het doel is <strong>{{TARGET}} basisscenario’s</strong>. Er is nog geen lijst met concrete tests, gecontroleerde verwachte matches of gemeten scores. Je kunt hieronder alvast de opbouw en de geplande moeilijkheden bekijken.</p>
-      <p id="run-unavailable" class="run-reason"><strong>Uitvoeren is nog niet beschikbaar.</strong> Daarvoor moeten de testgevallen, onafhankelijke labelcontrole en een lokale runner eerst worden aangesloten.</p>
-      <a class="text-link" href="#testopbouw">Bekijk hoe één test eruit gaat zien <span aria-hidden="true">↓</span></a>
-    </section>
-
-    <section id="testopbouw" class="section" aria-labelledby="opbouw-titel">
-      <p class="eyebrow">Van invoer naar beoordeling</p><h2 id="opbouw-titel">Wat zie je bij één test?</h2><p>Dit is de <strong>opbouw van een test</strong>, geen ingevuld testgeval. Kies een invoervorm om te zien wat de zoekfunctie wel en niet krijgt.</p>
-      <fieldset class="mode-controls"><legend>Bekijk een invoervorm</legend>{{MODE_CONTROLS}}</fieldset>
-      {{MODE_PANELS}}
-      <p class="caption">De verwachtingen worden onafhankelijk beoordeeld. Daarna vergelijken we de echte zoekresultaten ermee. Een relevante set kan minder of meer dan drie zaken bevatten; een onbeoordeelde zaak is niet automatisch irrelevant.</p>
-      <noscript><p class="small">JavaScript staat uit. Alle drie de invoervormen blijven volledig zichtbaar; de navigatie en uitklapbare onderdelen blijven werken.</p></noscript>
-    </section>
-
-    <section id="moeilijke-tests" class="section" aria-labelledby="moeilijk-titel"><p class="eyebrow">Juridische moeilijkheid</p><h2 id="moeilijk-titel">Verder kijken dan dezelfde woorden</h2><p>Dit zijn kenmerken van toekomstige testgevallen, geen al samengestelde tests. Een test kan meerdere van deze moeilijkheden combineren. Open een onderdeel om de bedoeling te bekijken.</p>{{CHALLENGES}}<p class="caption">Het corpus moet de voorbeelden kunnen dragen. Een tekort wordt gemeld; passende zaken of juridische feiten worden niet verzonnen.</p></section>
-
-    <section id="varianten" class="section" aria-labelledby="variant-titel"><p class="eyebrow">Een bestaande test moeilijker maken</p><h2 id="variant-titel">Varianten zijn geen extra onafhankelijke tests</h2><details class="reading-detail"><summary>De vraag anders formuleren of naar een andere rechtsvraag wisselen</summary><div class="detail-body"><p>{{VARIANTS}}</p><p class="small">Een parafrase behoudt de betekenis. Een andere rechtsvraag vraagt om nieuwe beoordelingen, ook als het document gelijk blijft.</p></div></details><details class="reading-detail"><summary>Herkenbare namen en citaties weghalen</summary><div class="detail-body"><p>{{MASKING}}</p><p class="small">Dit laat zien of de zoekfunctie op juridische inhoud zoekt of vooral op herkenbare verwijzingen.</p></div></details></section>
-
-    <section id="beoordeling" class="section" aria-labelledby="beoordeling-titel"><p class="eyebrow">Verwachting is iets anders dan uitvoering</p><h2 id="beoordeling-titel">Maak zichtbaar wat gecontroleerd is</h2><div class="reading-columns"><div><h3>Beoordeling van matches</h3><p>Een voorgesteld label, een onafhankelijke AI-controle en een juridisch deskundigenoordeel zijn verschillende stappen. Alleen daadwerkelijk uitgevoerde controle mag als zodanig worden getoond.</p><a href="#bron-beoordeling-en-dekking">Beoordeling en ontbrekende matches</a></div><div><h3>Resultaat van de zoekfunctie</h3><p>Een run toont wat werkelijk gevonden is. Een afgeronde run is niet automatisch geslaagd. Scores vereisen gecontroleerde labels en vooraf vastgelegde meetafspraken.</p><a href="#bron-evaluatiescript-en-meetafspraken">Recall@3, nDCG@3 en MRR@3</a></div></div></section>
-
-    <section id="opdracht" class="section" aria-labelledby="opdracht-titel"><p class="eyebrow">Canonieke afspraken</p><h2 id="opdracht-titel">De volledige ontwikkelopdracht</h2><p>Dit is de inhoud van <a href="../EVALUATIEOPDRACHT.md">EVALUATIEOPDRACHT.md</a>, automatisch verwerkt tot deze leesweergave. Wijzig de bron en genereer deze pagina opnieuw; onderhoud geen tweede versie van de afspraken.</p><details id="volledige-opdracht" class="full-spec"><summary>Open de volledige opdracht en bronverwijzingen</summary><div class="spec-layout"><nav aria-label="Hoofdstukken van de opdracht"><ul>{{SOURCE_NAVIGATION}}</ul></nav><div class="specification">{{SPECIFICATION}}</div></div></details></section>
-    <footer class="page-footer"><p>Statische documentatie · werkt lokaal zonder externe diensten</p><details><summary>Bronversie en onderhoud</summary><p>SHA-256 van de canonieke opdracht: <code class="source-hash">{{HASH}}</code></p><p>Genereren: <code>python3 docs/evals/build.py</code><br>Controleren: <code>python3 docs/evals/build.py --check</code></p><p>Deze controle bewaakt de documentweergave. Ze voert geen juridische evaluatie uit.</p></details></footer>
+    <header class="page-header"><div><h1>Evaluaties <span class="status-pill">Gepland</span></h1><p>{{TARGET}} basisscenario’s gepland. Klik op een onderdeel voor de details.</p></div><details class="availability"><summary>Uitvoeren</summary><p>De testgevallen, gecontroleerde labels en lokale runner zijn nog niet gebouwd. Uitvoeren komt later.</p></details></header>
+    <div class="overview-label"><span>Geplande onderdelen</span><span>Minimum</span></div>
+    <section class="eval-group" aria-labelledby="invoer-titel"><h2 id="invoer-titel">Invoervormen</h2>{{MODE_ITEMS}}</section>
+    <section class="eval-group" aria-labelledby="juridisch-titel"><h2 id="juridisch-titel">Juridische uitdagingen</h2>{{CHALLENGE_ITEMS}}</section>
+    <section class="eval-group" aria-labelledby="varianten-titel"><h2 id="varianten-titel">Extra controles</h2>{{VARIANT_ITEMS}}</section>
+    <p class="overview-note">Dit zijn onderdelen van het plan, nog geen uitgewerkte testgevallen. Moeilijkheden mogen overlappen; varianten tellen apart.</p>
+    <details id="afspraken" class="full-spec"><summary>Afspraken en volledige opdracht <span aria-hidden="true">↗</span></summary><div class="spec-layout"><nav aria-label="Hoofdstukken van de opdracht"><ul>{{SOURCE_NAVIGATION}}</ul></nav><div class="specification">{{SPECIFICATION}}</div></div></details>
+    <footer class="page-footer"><a href="../EVALUATIEOPDRACHT.md">Canonieke bronopdracht <span aria-hidden="true">↗</span></a><details><summary>Bron en onderhoud</summary><p>De weergave wordt opgebouwd uit de bronopdracht. Genereren: <code>python3 docs/evals/build.py</code>. Controleren: <code>python3 docs/evals/build.py --check</code>.</p><p>SHA-256 <code class="source-hash">{{HASH}}</code></p></details></footer>
   </main>
   <script>{{SCRIPT}}</script>
 </body>

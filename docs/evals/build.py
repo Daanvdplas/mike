@@ -49,7 +49,7 @@ def sections(source):
     for item in re.split(r"(?m)^## ", source)[1:]:
         title, _, body = item.partition("\n")
         result[title] = body.strip()
-    for required in ["Status en leeswijzer", "Doel en afbakening", "Scenarioselectie en relevantie", "Diagnostiek voor moeilijke gevallen"]:
+    for required in ["Status en leeswijzer", "Doel en afbakening", "Scenarioselectie en relevantie", "Diagnostiek voor moeilijke gevallen", "Voorkomen van datalekken"]:
         if required not in result:
             raise ValueError(f"Vereiste bronsectie ontbreekt: {required}")
     return result
@@ -135,40 +135,57 @@ def render(source):
     if not variants or not masking:
         raise ValueError("Bronafspraken voor parafrases, issuewissels of naam-/citatiemaskering ontbreken.")
 
-    mode_controls = []
-    panels = []
-    for i, (label, mode_code, offered, expectation) in enumerate(modes):
+    def count(pattern, text):
+        match = re.search(pattern, text)
+        if not match:
+            raise ValueError("Een minimumaantal ontbreekt in de canonieke bron.")
+        value = match.group(1)
+        numbers = {"een": "1", "twee": "2", "drie": "3", "vier": "4", "vijf": "5", "zes": "6", "zeven": "7", "acht": "8", "negen": "9", "tien": "10"}
+        return numbers.get(value, value)
+
+    def item(identifier, title, minimum, body, source_section):
+        return f'''<details class="eval-item" id="{identifier}"><summary><span class="eval-title">{inline(title)}</span><span class="eval-minimum">{inline(minimum)}</span><span class="chevron" aria-hidden="true"></span></summary><div class="eval-detail">{body}<div class="detail-footer"><span>Testgeval en verwachte matches nog te maken.</span><a href="#bron-{slug(source_section)}">Bijbehorende afspraken <span aria-hidden="true">↗</span></a></div></div></details>'''
+
+    def description(label, text):
+        return f'<div><dt>{label}</dt><dd>{inline(text)}</dd></div>'
+
+    mode_minimum = count(r"Neem minstens (\w+) basisscenario", content["Doel en afbakening"])
+    mode_items = []
+    for label, mode_code, offered, expectation in modes:
         mode = mode_code.strip("`")
         if mode not in {"document", "query", "combined"}:
             raise ValueError("Onbekende invoermodus in de bron.")
-        checked = " checked" if i == 2 else ""
-        mode_controls.append(f'<label><input type="radio" name="input-mode" value="{mode}"{checked}><span>{inline(label)}</span></label>')
-        document = '<dt>Document</dt><dd>Nog te kiezen<br><small>Volledige majority opinion</small></dd>' if mode != "query" else '<dt>Document</dt><dd>Wordt niet meegestuurd</dd>'
-        query = '<dt>Juridische vraag</dt><dd>Nog op te stellen<br><small>Concrete Engelse zoekvraag</small></dd>' if mode != "document" else '<dt>Juridische vraag</dt><dd>Wordt niet meegestuurd</dd>'
-        panels.append(f'''<section class="mode-panel" data-mode="{mode}" aria-label="{html.escape(label)}">
-          <h3 class="mode-heading">{inline(label)}</h3>
-          <div class="anatomy">
-            <article><span class="step">01 · Invoer</span><h4>Wat geef je mee?</h4><p>{inline(offered)}</p><dl>{document}{query}</dl></article>
-            <article><span class="step">02 · Verwachting</span><h4>Wat zou relevant zijn?</h4><p>{inline(expectation)}</p><p class="empty-label">Nog niet beoordeeld</p><p class="small">Hier komen de kandidaatmatches, hun label van 0–3 en exacte bronpassages. Dit is geen vaste lijst van drie zaken.</p></article>
-            <article><span class="step">03 · Werkelijk resultaat</span><h4>Wat vindt de zoekfunctie?</h4><p class="empty-label">Nog niet uitgevoerd</p><p class="small">Na een run komen hier de drie gevonden zaken en hun passages, vergeleken met de beoordeelde verwachtingen.</p><button type="button" class="button unavailable" aria-disabled="true" aria-describedby="run-unavailable">Run test <span aria-hidden="true">↗</span></button><p class="button-help"><a href="#run-unavailable">Waarom nog niet?</a></p></article>
-          </div>
-        </section>''')
+        body = '<dl class="test-fields">' + description("Input", offered) + description("Verwachte matches", expectation) + description("Resultaat", "Nog niet uitgevoerd. Later zie je hier de drie gevonden zaken en hun bronpassages.") + '</dl>'
+        mode_items.append(item(f"eval-{mode}", label, f"Min. {mode_minimum}", body, "Status en leeswijzer"))
 
-    challenge_html = []
+    challenge_items = []
     for title, question, expected, minimum in challenges:
-        challenge_html.append(f'''<details class="challenge"><summary><span>{inline(title)}</span><span class="minimum">{inline(minimum)}</span></summary><div class="detail-body"><h4>Wat wordt er moeilijk gemaakt?</h4><p>{inline(question)}</p><h4>Verwachte beoordeling</h4><p>{inline(expected)}</p><p class="small">Een testgeval en bijbehorende passages zijn nog niet samengesteld. De relevantielabels liggen nog niet vast.</p><a class="text-link" href="#testopbouw">Bekijk de opbouw van een test <span aria-hidden="true">↑</span></a></div></details>''')
+        body = '<dl class="test-fields">' + description("Testopzet", question) + description("Verwachte beoordeling", expected) + description("Input", "Een passend document, een vraag of beide; de concrete bron en vraag zijn nog niet gekozen.") + '</dl>'
+        challenge_items.append(item(f"eval-{slug(title)}", title, minimum.replace(" basisscenario’s", ""), body, "Scenarioselectie en relevantie"))
+
+    para_minimum = count(r"minstens \*\*(\w+) parafrases", variants)
+    switch_minimum = count(r"minstens \*\*(\w+) combined", variants)
+    mask_minimum = count(r"minstens (\w+) geschikte", masking)
+    leakage = content["Voorkomen van datalekken"]
+    hidden = next((p for p in leakage.split("\n\n") if p.startswith("Splits ontwikkel-")), None)
+    if not hidden:
+        raise ValueError("De afspraak voor verborgen testfamilies ontbreekt.")
+    hidden_minimum = count(r"minstens (\w+) onafhankelijke", hidden)
+    paraphrase, _, switches = variants.partition(" Voeg bij minstens")
+    variant_items = [
+        item("eval-parafrase", "Dezelfde vraag, anders verwoord", f"Min. {para_minimum} varianten", '<dl class="test-fields">' + description("Input", "Een andere formulering van dezelfde juridische vraag, met hetzelfde document als dat bij de oorspronkelijke test hoort.") + description("Verwachting", "Dezelfde juridische betekenis en onafhankelijk gecontroleerde gelijkblijvende relevantielabels.") + '</dl><p class="source-note">' + inline(paraphrase) + '</p>', "Scenarioselectie en relevantie"),
+        item("eval-issuewissel", "Andere vraag bij hetzelfde document", f"Min. {switch_minimum} varianten", '<dl class="test-fields">' + description("Input", "Hetzelfde document met een tweede echte rechtsvraag.") + description("Verwachting", "De resultaten sluiten aan op de gewijzigde vraag. De kandidaatmatches worden hiervoor opnieuw beoordeeld.") + '</dl><p class="source-note">' + inline("Voeg bij minstens" + switches) + '</p>', "Scenarioselectie en relevantie"),
+        item("eval-maskering", "Zonder zaaknamen en citaties", f"Min. {mask_minimum} varianten", '<dl class="test-fields">' + description("Input", "De aanwezige invoer en index met gemaskeerde namen en verwijzingen; geen document toevoegen bij een vraag zonder document.") + description("Verwachting", "De zoekfunctie blijft juridisch bruikbare zaken vinden zonder makkelijke herkenningspunten.") + '</dl><p class="source-note">' + inline(masking) + '</p>', "Diagnostiek voor moeilijke gevallen"),
+        item("eval-verborgen", "Vooraf apart gehouden tests", f"Min. {hidden_minimum} bronfamilies", '<dl class="test-fields">' + description("Input", "Onafhankelijke testfamilies die niet beschikbaar zijn tijdens het afstellen van de zoekmethode.") + description("Verwachting", "De kwaliteit wordt gemeten op vooraf afgeschermde vragen en labels; die worden niet in deze viewer meegeleverd.") + '</dl><p class="source-note">' + inline(hidden) + '</p>', "Voorkomen van datalekken"),
+    ]
     source_navigation = "".join(f'<li><a href="#bron-{slug(title)}">{html.escape(title)}</a></li>' for title in content)
-    status_intro = status.split("\n\n")[0]
     replacements = {
         "STYLE": (HERE / "viewer.css").read_text(),
         "SCRIPT": (HERE / "viewer.js").read_text(),
         "TARGET": target,
-        "STATUS": inline(status_intro),
-        "MODE_CONTROLS": "\n".join(mode_controls),
-        "MODE_PANELS": "\n".join(panels),
-        "CHALLENGES": "\n".join(challenge_html),
-        "VARIANTS": inline(variants),
-        "MASKING": inline(masking),
+        "MODE_ITEMS": "\n".join(mode_items),
+        "CHALLENGE_ITEMS": "\n".join(challenge_items),
+        "VARIANT_ITEMS": "\n".join(variant_items),
         "SOURCE_NAVIGATION": source_navigation,
         "SPECIFICATION": markdown(source),
         "HASH": hashlib.sha256(source.encode()).hexdigest(),

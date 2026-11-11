@@ -24,6 +24,15 @@ pub(super) fn rank_cases(
     query: Option<&[f32]>,
     document: Option<&[f32]>,
 ) -> Result<Vec<(usize, f64)>, EngineError> {
+    rank_cases_excluding(passages, query, document, &[])
+}
+
+pub(super) fn rank_cases_excluding(
+    passages: &[IndexedPassage],
+    query: Option<&[f32]>,
+    document: Option<&[f32]>,
+    excluded_case_ids: &[String],
+) -> Result<Vec<(usize, f64)>, EngineError> {
     if query.is_none() && document.is_none() {
         return Err(EngineError::new(
             ErrorKind::InvalidInput,
@@ -32,6 +41,9 @@ pub(super) fn rank_cases(
     }
     let mut cases: BTreeMap<&str, (usize, f64)> = BTreeMap::new();
     for (index, item) in passages.iter().enumerate() {
+        if excluded_case_ids.contains(&item.case_id) {
+            continue;
+        }
         let compare = |vector: &[f32]| {
             cosine(vector, &item.vector)
                 .map(f64::from)

@@ -24,6 +24,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await??;
             println!("{}", serde_json::to_string(&response)?);
         }
+        Command::SearchExcluding { query, case_id } => {
+            let response = tokio::task::spawn_blocking(move || {
+                let mut engine = Engine::load(&settings.database, &settings.cache)?;
+                let response =
+                    engine.search_excluding(Some(&query), None, std::slice::from_ref(&case_id))?;
+                Ok::<_, engine::EngineError>(serde_json::json!({
+                    "response": response,
+                    "excluded_case_ids": [case_id],
+                    "eligible_case_count": engine.health().indexed_case_count - 1,
+                }))
+            })
+            .await??;
+            println!("{}", serde_json::to_string(&response)?);
+        }
         Command::Serve => {
             let database = settings.database.clone();
             let cache = settings.cache.clone();

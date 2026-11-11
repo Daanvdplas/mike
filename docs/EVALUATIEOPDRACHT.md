@@ -2,17 +2,26 @@
 
 ## Status en leeswijzer
 
-**Status: ontwerp.** Er zijn **25 concrete ontwerpscenario’s** beschikbaar in [evals/scenarios.json](evals/scenarios.json). De lokale [evalviewer](evals/index.html) toont per scenario de invoer, het verwachte juridische gedrag en de brononderbouwing. Dit zijn nog geen beoordeelde kandidaatmatches, vaste relevantielabels of uitgevoerde evaluaties; de benchmarkset en runner moeten nog worden gebouwd. Deze zichtbare ontwerpen zijn ontwikkelmateriaal, geen verborgen testset.
+**Status: ontwerp.** Er zijn **25 concrete ontwerpscenario’s** beschikbaar in [evals/scenarios.json](evals/scenarios.json). De lokale [evalviewer](evals/index.html) toont per scenario de invoer, het verwachte juridische gedrag en de brononderbouwing. Daarnaast kan de lokale evalserver uitsluitend scenario **E06** uit deze lijst uitvoeren. De overige 24 ontwerpen zijn niet uitvoerbaar. Vaste kandidaatlabels, een volledige benchmarkrunner en benchmarkmetingen ontbreken. Deze zichtbare ontwerpen zijn ontwikkelmateriaal, geen verborgen testset.
 
 Een testgeval bestaat uit drie afzonderlijke onderdelen: de aangeboden invoer, onafhankelijk beoordeelde verwachte matches en de werkelijk gevonden resultaten na een run. Een juridisch bevestigd label is geen geslaagde run. Een afgeronde run is niet automatisch geslaagd. Beoordeelde relevante matches kunnen minder of meer dan drie zaken omvatten; onbekende kandidaten zijn niet automatisch irrelevant.
 
-De handelingen ‘Run test’ en ‘Run set’ zijn pas beschikbaar na aansluiting van concrete testgevallen, de vereiste onafhankelijke labelcontrole en een lokale runner. De viewer start nu geen zoekopdracht en verstuurt geen documenten. Verborgen testvragen en labels horen later niet in een voor ontwikkelaars toegankelijke viewer of gegenereerd bestand.
+De E06-knop **Start eval** voert één echte zoekopdracht en één Orq-beoordeling uit; openen van de pagina start geen modelaanroep. E06 gebruikt uitsluitend de exacte Engelse vraag uit de scenariocatalogus en sluit Nixon (`156133`) vóór selectie van de top drie uit. Herkomsttekst uit Nixon wordt niet als zoekdocument meegestuurd. Verwacht gedrag en reden uit de catalogus dienen als beoordelingscriteria; Kelley is geen verplicht verwacht resultaat. De server bewaart de werkelijke invoer, zoekresultaten, grades, letterlijke citaten en versies per run buiten Git.
+
+E06 gebruikt uitsluitend **AI-beoordelingen, zonder menselijke controle**. De pagina toont per gevonden zaak grade 0–3, reden en een letterlijke bronpassage. De uitvoerbare kaart toont Input en Verwachte output, met uitleg achter een i-knop; de juridische criteria blijven ongewijzigd. Na uitvoering telt de AI-samenvatting grades 2 en 3 als bruikbare matches. Die telling is geen benchmarkmeting of geslaagd/gefaald-oordeel. **Uitgevoerd** betekent technisch afgerond, ook bij grade 0; het bewijst geen juridische juistheid of geslaagde zoekkwaliteit. Er is geen vaste goldset en er worden geen Recall/nDCG/MRR- of accuracyclaims berekend. De overige afspraken hieronder beschrijven het ontwerp van een toekomstige, onafhankelijk gelabelde benchmark. Een volledige ‘Run set’ is niet beschikbaar. Zonder lokale evalserver blijft de pagina een leesbaar scenario-overzicht. Verborgen testvragen en labels horen later niet in een voor ontwikkelaars toegankelijke viewer of gegenereerd bestand.
 
 | Invoervorm | Modus | Wat krijgt de zoekfunctie? | Waarop beoordelen we matches? |
 |---|---|---|---|
 | Alleen een document | `document` | De volledige majority opinion van de gekozen bronzaak. Geen vraag. | De centrale juridische onderwerpen, redenering en relevante feiten van het document. |
 | Alleen een vraag | `query` | Alleen de juridische zoekvraag. Geen document of verborgen bronfeiten. | De zichtbare juridische vraag; de herkomstzaak is uitsluitend beoordelingscontext. |
 | Document en vraag | `combined` | Het volledige brondocument én een specifieke juridische vraag. | Het document in het licht van de expliciete vraag, niet alleen algemene tekstovereenkomst. |
+
+
+### Vooraf vaste referentiecontrole
+
+Naast de 25 ontwerpscenario’s is één bestaande vraag uit de eerdere B1-queryset uitvoerbaar als vaste ID-controle: **Beroepsborgstelling met een opgeheven rechtbank**. De invoer is exact `Find decisions about an appeal bond that names a court which no longer exists after a judicial reorganization.`, zonder upload of uitsluiting. De versioned fixture [deterministic_b1.json](evals/deterministic_b1.json) legt vóór de eerste run de ongeordende referenties **156040 (Cummings)** en **156042 (Neubauer)** vast, met bronbewijs en corpus-/rankingcontext. De afzonderlijke preregistratiecommit is `f3d80b6`.
+
+De gewone lokale Rustzoekactie moet precies drie geldige unieke corpuszaken leveren. De uitkomst is **Geslaagd** bij 2 van 2 vaste verwachte IDs, anders **Niet geslaagd** met het werkelijke aantal en rangen. Verkeerde corpusversies, onbekende IDs of duplicaten zijn technische fouten. Andere gevonden zaken zijn onbeoordeeld. Deze controle gebruikt geen Orq- of AI-beoordelaar en werkt zonder key. De referenties zijn door agents voorgesteld en onafhankelijk aan de aangeleverde brontekst gecontroleerd; zij zijn geen menselijke juridische goldset, volledige relevantielabels of precisie-/algemene kwaliteitsmeting. Query en targets worden niet achteraf aangepast om een run te laten slagen.
 
 ## Doel en afbakening
 

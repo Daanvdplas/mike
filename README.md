@@ -182,7 +182,7 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Onafhankelijk beoordeelde kandidaatmatches, vaste relevantielabels, evaluatierunner en meetresultaten ontbreken nog; de viewer voert geen evals uit.
+Open het [klikbare evaluatieoverzicht](docs/evals/index.html) in een browser. De startpagina toont alle 25 concrete ontwerpbeschrijvingen. Klik op een eval voor document en/of vraag, verwacht juridisch gedrag, reden en bronfragmenten uit het Texas-corpus. Dit zijn zichtbare ontwikkelontwerpen, geen verborgen testset. Vaste benchmarklabels en algemene meetresultaten ontbreken nog. De lokale evalserver hieronder maakt de vaste B1-referentiecontrole en E06 uitvoerbaar; de overige 24 ontwerpen blijven gepland.
 
 Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
@@ -193,3 +193,27 @@ python3 -m unittest discover -s docs/evals -p 'test_*.py'
 ```
 
 De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronisatiecheck en generatortests automatisch uit bij wijzigingen aan deze evaldocumentatie. Een verouderde HTML-weergave laat de check falen. Dit valideert de documentatie, niet de kwaliteit of uitvoering van de toekomstige evals. Zie de [onderhoudsafspraken](AGENTS.md#evaluatiedocumentatie-onderhouden).
+
+## Evals uitvoeren op de webpagina
+
+De lokale evalpagina biedt twee afzonderlijke controles. **Beroepsborgstelling met een opgeheven rechtbank** gebruikt een bestaande vraag uit de eerdere B1-queryset, zonder document of uitsluiting. Vóór de eerste run zijn **Cummings v. State (156040)** en **Neubauer v. State (156042)** als ongeordende verwachte resultaten vastgelegd in `docs/evals/deterministic_b1.json` (preregistratiecommit `f3d80b6`). De controle slaagt als beide tussen precies drie geldige unieke corpusresultaten staan. Een andere match blijft onbeoordeeld; er is geen AI-beoordelaar, precisiescore of claim over volledige juridische relevantie. Ongeldige resultaten geven een technische fout.
+
+Daarnaast blijft **E06: bewijs van andere delicten** de aparte AI-eval uit de scenariolijst. Een klik haalt drie echte zoekresultaten op en doet één Orq-beoordeling met scores 0–3, korte redenen en letterlijke bronfragmenten. Het model kiest bronfragment-IDs; de code kopieert de tekst zelf. Dit blijft een AI-indicatie, geen menselijke juridische referentie of Recall/nDCG-benchmark.
+
+Bouw eerst de backend met de gewone commando’s. Start daarna vanuit de reporoot met de bestaande index en modelcache:
+
+```sh
+python3 backend/scripts/evals_web.py --port 8798 \
+  --binary "$PWD/backend/target/debug/texas-case-finder" \
+  --database "$HOME/Library/Caches/adami-case/bge-static-q-safe/cases.sqlite" \
+  --model-cache "$HOME/Library/Caches/adami-case/fastembed" \
+  --corpus "$HOME/Downloads/texas-criminal-reports"
+```
+
+Gebruik bij een andere `CARGO_TARGET_DIR` de bijbehorende binary. Open **http://127.0.0.1:8798/**. B1 werkt zonder Orq-key en gebruikt alleen de gewone Rustzoekserver op 8000, onder de bestaande resourceguard. Voor de E06 AI-eval kun je `--ask-key` toevoegen (invoer zonder echo), of `ORQ_API_KEY` instellen; de key gaat niet naar de browser. Het vaste standaardmodel is `openai/gpt-4.1-mini-2025-04-14`; `ORQ_MODEL` en `ORQ_BASE_URL` zijn instelbaar. De Orq-uitlegadapter op 18000 wordt niet gebruikt.
+
+E06 gebruikt uitsluitend de exacte Engelse vraag uit `docs/evals/scenarios.json`. De bronzaak 156133 wordt **vóór** de top drie uitgesloten via `search --exclude-case-id ID QUESTION`; er wordt geen verborgen brondocument aan de vraag toegevoegd. Deze afzonderlijke Rustzoekactie draait maximaal 600 seconden onder de bestaande resourceguard, zonder herindexering. De demo-server mag hierbij in rust blijven draaien; start geen andere modeljob of zoekactie tegelijk. De evalserver staat zelf slechts één run tegelijk toe.
+
+Resultaten, bron-/modelversies en eventuele foutdiagnose blijven lokaal buiten Git onder `~/Library/Caches/adami-case/web-evals/`. De pagina onderscheidt een technisch voltooide run van de AI-scores: een afgeronde run kan zwakke of niet-relevante matches bevatten. Fouten worden getoond en niet als geslaagd ingevuld. Stop de evalserver met Ctrl+C in de eigen terminal. De bestaande docsservers blijven ongemoeid.
+
+De losse commandlinetool `backend/scripts/retrieval_relevance.py` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.

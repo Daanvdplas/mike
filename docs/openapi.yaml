@@ -121,6 +121,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ready
+                corpus_version: fixture-corpus-v1
+                indexed_case_count: 135
         '503':
           $ref: '#/components/responses/IndexUnavailable'
   /openapi.json:

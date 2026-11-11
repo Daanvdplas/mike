@@ -82,3 +82,38 @@ fn unknown_cli_commands_exit_unsuccessfully() {
         .unwrap();
     assert!(!output.status.success());
 }
+
+#[test]
+fn eval_rejects_existing_outputs_and_invalid_catalogs_without_initializing_model() {
+    let directory = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_texas-case-finder"))
+        .args(["eval", "missing-scenarios.json", "missing-corpus"])
+        .arg(directory.path())
+        .env("ADAMI_DB_PATH", directory.path().join("missing.sqlite3"))
+        .env(
+            "ADAMI_CACHE_DIR",
+            directory.path().join("no-model-download"),
+        )
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("already exists"));
+    let catalog = directory.path().join("invalid.json");
+    std::fs::write(&catalog, "{}").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_texas-case-finder"))
+        .arg("eval")
+        .arg(catalog)
+        .arg(directory.path())
+        .arg(directory.path().join("new-run"))
+        .env("ADAMI_DB_PATH", directory.path().join("missing.sqlite3"))
+        .env(
+            "ADAMI_CACHE_DIR",
+            directory.path().join("no-model-download"),
+        )
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("missing field"));
+    assert!(!directory.path().join("no-model-download").exists());
+    assert!(!directory.path().join("new-run").exists());
+}

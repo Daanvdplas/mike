@@ -1,3 +1,4 @@
+pub mod evaluation;
 pub mod types;
 use corpus::CaseRecord;
 use embedding::{Embedder, LocalEmbeddings};
@@ -111,7 +112,6 @@ impl Engine {
                 excluded_case_ids,
             )?
         };
-
         let results = ranking
             .into_iter()
             .map(|(index, score)| {
@@ -294,7 +294,7 @@ mod tests {
         }
     }
 
-    fn fixture() -> Engine {
+    pub(super) fn fixture() -> Engine {
         let mut embedder = KnownEmbeddings(EmbeddingConfig {
             model: "known".into(),
             dimensions: 2,

@@ -10,17 +10,31 @@ De twee knoppen **Start eval** voeren ieder één echte zoekopdracht en één Or
 
 Deze twee evaluaties gebruiken uitsluitend **AI-beoordelingen, zonder menselijke controle**. De pagina toont per gevonden zaak grade 0–3, reden en een letterlijke bronpassage. **Uitgevoerd** betekent technisch afgerond, ook bij grade 0; het bewijst geen juridische juistheid of geslaagde zoekkwaliteit. Er is geen vaste goldset en er worden geen Recall/nDCG/MRR- of accuracyclaims berekend. De overige afspraken hieronder beschrijven het ontwerp van een toekomstige, onafhankelijk gelabelde benchmark. Een volledige ‘Run set’ is niet beschikbaar. Zonder lokale evalserver blijft de pagina een leesbaar scenario-overzicht. Verborgen testvragen en labels horen later niet in een voor ontwikkelaars toegankelijke viewer of gegenereerd bestand.
 
+De Rust-CLI biedt daarnaast de technische runner voor alle 25 ontwerpen en een modelvrije metriekberekening. Zonder labels zijn de kwaliteitsmetrics null en is de status not_scored.
+
 | Invoervorm | Modus | Wat krijgt de zoekfunctie? | Waarop beoordelen we matches? |
 |---|---|---|---|
 | Alleen een document | `document` | De volledige majority opinion van de gekozen bronzaak. Geen vraag. | De centrale juridische onderwerpen, redenering en relevante feiten van het document. |
 | Alleen een vraag | `query` | Alleen de juridische zoekvraag. Geen document of verborgen bronfeiten. | De zichtbare juridische vraag; de herkomstzaak is uitsluitend beoordelingscontext. |
 | Document en vraag | `combined` | Het volledige brondocument én een specifieke juridische vraag. | Het document in het licht van de expliciete vraag, niet alleen algemene tekstovereenkomst. |
 
+## Technische eerste versie
+
+De eerste implementatie voert uitsluitend de bestaande Rust-zoekmethode uit. Zij sluit de bron-/ankerzaak vóór selectie van de top3 uit, legt invoer en corpus-/modelversies vast en schrijft ruwe resultaten plus JSON- en Markdownrapporten. Zoeklatency wordt apart van modelinitialisatie gemeten. Er worden geen nieuwe zoekstrategieën, AI-labels of externe modelaanroepen toegevoegd. De ruimere benchmarkopdracht hieronder blijft een toekomstig ontwerp; die is niet volledig opgeleverd door een werkende technische runner.
+
+De huidige dataset bevat geen kandidaatbeoordelingen. Een werkelijke run met deze ontwerpen is daarom `not_scored`: Recall@3, nDCG@3 en RR@3 zijn `null`, dekking is nul en alle onbeoordeelde kandidaat-ID’s blijven zichtbaar. De metriekvoorbeelden in de Rust-tests zijn expliciet synthetisch en bewijzen alleen de rekenregels. Er is geen menselijke juridische controle uitgevoerd of ingepland voor deze eerste versie.
+
+Optionele labels worden gelezen als één JSON-object met `manifest` en `judgments`. Het manifest bevat `method` (`ai` of `synthetic`), `model` (verplicht bij AI), `created_at` en `description`. `judgments` bevat de onderstaande paarrecords, met exact dezelfde invoer, documenthash en herkomst als het scenario. Bewijs gebruikt in deze eerste versie `section: majority`; andere secties worden geweigerd. `judgment_status: verified` is een technische acceptatiestatus binnen het aangeleverde labelbestand en bewijst geen menselijke of juridische verificatie. Het manifest maakt AI- en synthetische herkomst zichtbaar; conceptlabels worden niet stilzwijgend meegenomen.
+
+De evaluator controleert schema, invoerbinding, uitsluitingen en UTF-16-spanlengtes. De runner controleert daarnaast citaten en tekstversies exact tegen de canonieke brontekst voordat labels worden gebruikt. Onbekende kandidaten worden nooit grade 0. Met een volledig beoordeelde top3 en onvolledige corpuslabels toont het rapport uitsluitend **pooled/voorlopige** metrics met de bekende positieve noemer en het poolideaal. Zodra een top3-kandidaat onbeoordeeld is, blijven alle kwaliteitsmetrics voor dat scenario `null`. Complete en pooled gemiddelden staan apart.
+
+De hoofdgemiddelden bevatten alleen scenario’s met minstens één bekende positieve kandidaat. Elk gemiddelde vermeldt zijn eigen noemer; ongedefinieerde waarden worden niet als nul meegenomen. Scenario’s zonder positieve labels blijven zichtbaar: RR is nul, Recall is ongedefinieerd en nDCG kan bij uitsluitend grade 1 wel bestaan. Een werkelijk corpus-Recallplafond wordt alleen bij volledige beoordelingen getoond. Latencypercentielen gebruiken nearest rank, met aantal waarnemingen en een waarschuwing bij minder dan twintig samples. De kleine zichtbare ontwikkelset rechtvaardigt geen algemene juridische nauwkeurigheidsclaim.
+
 ## Doel en afbakening
 
 Bouw een reproduceerbare benchmark waarmee het ontwikkelteam kan beoordelen of de zoekfunctie juridisch relevante uitspraken vindt. Streef naar **25 basisscenario’s**, met 20–30 als toegestane bandbreedte, plus onderstaande stressvarianten. Ondersteun **een document en/of een vraag**: document-only (`document`), query-only (`query`) en beide (`combined`). Neem minstens vijf basisscenario’s per modus op binnen dit totaal. Beoordeel de eerste drie gevonden zaken op hun bruikbaarheid voor de daadwerkelijk aangeboden invoer.
 
-Deze opdracht betreft nog te bouwen dataset, beoordelingen en evaluatiescript. De bestaande [Hit@3-proef](https://github.com/Daanvdplas/adami-case/issues/15) en [onafhankelijke rankingtests](https://github.com/Daanvdplas/adami-case/pull/21) vervangen deze benchmark niet. **Gebruik dezelfde top3 als het [productcontract](openapi.yaml).** Het systeem retourneert precies drie unieke zaken; de benchmark beoordeelt of deze ook relevant zijn. Er is geen aparte ingang voor meer resultaten nodig.
+Deze ruimere opdracht betreft nog te bouwen beoordelingen, verborgen scenariofamilies en diagnostische uitbreidingen boven op de technische eerste versie. De bestaande [Hit@3-proef](https://github.com/Daanvdplas/adami-case/issues/15) en [onafhankelijke rankingtests](https://github.com/Daanvdplas/adami-case/pull/21) vervangen deze benchmark niet. **Gebruik dezelfde top3 als het [productcontract](openapi.yaml).** Het systeem retourneert precies drie unieke zaken; de benchmark beoordeelt of deze ook relevant zijn. Er is geen aparte ingang voor meer resultaten nodig.
 
 Dit test retrieval: vinden de juiste zaken en passages de weg naar de gebruiker? Het test geen volledige AI-agent met antwoordgeneratie of toolplanning. Daarvoor is later een aparte eind-tot-eindsuite nodig, onder meer voor brongetrouwheid, correcte toolresultaten en het negeren van instructies in documenten. Houd eventuele aanvalsteksten buiten de juridische brondata en labels. Die uitbreiding valt buiten deze opdracht.
 
@@ -110,7 +124,7 @@ Beoordeel bij gevonden top3-zaken ook afzonderlijk of de aangeboden passage de b
 
 ## Evaluatiescript en meetafspraken
 
-Lever later een script dat dataset en runbestand leest. Het runbestand is een array van `{scenario_id, input_mode, ranked_case_ids}`, met per scenario **nul tot drie** geordende, unieke zaak-ID’s. De runner biedt exact de vastgelegde invoervelden aan en controleert de gerapporteerde modus. Succes levert drie zaken na uitsluitingen; kortere lijsten blijven zichtbaar als tekortkoming. Weiger modusconflicten, langere lijsten, onbekende ID’s, duplicaten, uitgesloten zaken en ontbrekende of dubbele scenario’s. Sorteer ties op `case_id` lexicografisch oplopend, na score aflopend.
+De technische eerste versie leest scenario’s en optionele labels en legt een runbestand vast; de onderstaande afspraken blijven ook gelden voor verdere benchmarkuitbreidingen. Het runbestand is een array van `{scenario_id, input_mode, ranked_case_ids}`, met per scenario **nul tot drie** geordende, unieke zaak-ID’s. De runner biedt exact de vastgelegde invoervelden aan en controleert de gerapporteerde modus. Succes levert drie zaken na uitsluitingen; kortere lijsten blijven zichtbaar als tekortkoming. Weiger modusconflicten, langere lijsten, onbekende ID’s, duplicaten, uitgesloten zaken en ontbrekende of dubbele scenario’s. Sorteer ties op `case_id` lexicografisch oplopend, na score aflopend.
 
 Bewaar daarnaast de volledige zoekuitvoer, gekoppeld aan run en scenario: per zaak de aangeboden passage, tekstversie en offsets, plus corpus-, model- en rankingconfiguratie. Deze uitvoer maakt passagebeoordeling en herhaling mogelijk; alleen zaak-ID’s volstaan daarvoor niet.
 

@@ -15,7 +15,8 @@ button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .55; }
 button:focus-visible, textarea:focus-visible { outline: 2px solid #465443; outline-offset: 4px; }
 [hidden] { display: none !important; }
-.workspace { max-width: 780px; margin: 0 auto; padding: 90px 24px 28px; }
+.app-header { height: 90px; padding: 0 40px; display: flex; align-items: center; font-size: 22px; font-weight: 550; letter-spacing: -.5px; }
+.workspace { max-width: 780px; margin: 0 auto; padding: 0 24px 28px; }
 .intro { padding: min(16vh, 140px) 0 24px; }
 h1 { font-size: 32px; font-weight: 500; letter-spacing: -1.1px; line-height: 1.2; margin: 0; }
 .conversation { display: grid; gap: 40px; }
@@ -60,7 +61,8 @@ textarea:focus-visible { outline: none; }
 .error { color: #a0372e; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 600px) {
-  .workspace { padding: 76px 20px 24px; }
+  .app-header { height: 76px; padding: 0 20px; }
+  .workspace { padding: 0 20px 24px; }
   .intro { padding-top: 11vh; }
   h1 { font-size: 27px; }
   .composer { padding: 14px; }

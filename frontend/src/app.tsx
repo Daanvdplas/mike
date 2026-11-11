@@ -51,6 +51,7 @@ export function App({ client, isMock }: { client: SearchClient; isMock: boolean 
   }
 
   return <>
+    <header className="app-header">Mike</header>
     <main className="workspace">
       <section className="intro" aria-labelledby="intro-title" hidden={turns.length > 0}>
         <h1 id="intro-title">Welke uitspraken zoek je?</h1>

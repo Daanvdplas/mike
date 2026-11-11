@@ -12,6 +12,10 @@ function revealAnchor() {
   catch { return; }
   const target = document.getElementById(id);
   if (!target) return;
+  if (target.closest('.runnable-eval')) {
+    requestAnimationFrame(() => target.closest('.runnable-eval').scrollIntoView({block: 'start'}));
+    return;
+  }
   let parent = target.parentElement;
   while (parent) {
     if (parent.tagName === 'DETAILS') parent.open = true;
@@ -24,7 +28,7 @@ function revealAnchor() {
 window.addEventListener('hashchange', revealAnchor);
 revealAnchor();
 
-// Runs are explicit: loading this page only fetches the E06 input description.
+// Runs are explicit: loading this page only fetches the input descriptions.
 const runnableList = document.getElementById('runnable-list');
 const catalogStatus = document.getElementById('catalog-status');
 const catalogRetry = document.getElementById('catalog-retry');
@@ -157,12 +161,17 @@ async function runEval(evalRecord, button, status, results) {
 }
 
 function renderRunnable(evalRecord) {
-  const section = element('article', null, 'runnable-eval');
+  const section = element('details', null, 'runnable-eval');
   section.id = `run-${evalRecord.id}`;
-  const heading = element('div', null, 'run-heading');
+  const heading = element('summary', null, 'run-heading');
   const title = element('h3', evalRecord.title);
   title.id = `${section.id}-title`;
   section.setAttribute('aria-labelledby', title.id);
+  const chevron = element('span', null, 'chevron');
+  chevron.setAttribute('aria-hidden', 'true');
+  heading.append(title, chevron);
+  section.append(heading);
+  const content = element('div', null, 'runnable-content');
   const info = element('details', null, 'eval-info');
   const infoToggle = element('summary', 'i');
   infoToggle.setAttribute('aria-label', 'Uitleg en beoordeling van deze eval');
@@ -180,16 +189,15 @@ function renderRunnable(evalRecord) {
   );
   }
   info.append(infoToggle, explanation);
-  heading.append(title, info);
-  section.append(heading);
+  content.append(info);
   const input = element('div', null, 'run-input');
   field(input, 'Input', evalRecord.query, 'run-query');
   input.querySelector('.run-query p').lang = 'en';
-  section.append(input);
+  content.append(input);
   if (evalRecord.id === 'B1') {
-    field(section, 'Verwachte output', evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.', 'run-expectation');
+    field(content, 'Verwachte output', evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.', 'run-expectation');
   } else {
-    field(section, 'Verwachte output', evalRecord.expected_behavior, 'run-expectation');
+    field(content, 'Verwachte output', evalRecord.expected_behavior, 'run-expectation');
   }
   const action = element('div', null, 'run-action');
   const button = element('button', 'Start eval', 'run-button');
@@ -206,7 +214,8 @@ function renderRunnable(evalRecord) {
   results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
   button.addEventListener('click', () => runEval(evalRecord, button, status, results));
   action.append(button, status);
-  section.append(action, results);
+  content.append(action, results);
+  section.append(content);
   return section;
 }
 

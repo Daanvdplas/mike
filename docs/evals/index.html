@@ -21,6 +21,8 @@ button{font:inherit;font-size:12px;line-height:1.4;min-height:42px;padding:10px 
 
 .runnable-eval .run-heading{align-items:flex-start}.run-heading h3{flex:1}.runnable-eval .run-expectation{margin-bottom:24px}.runnable-eval .judgment-heading{margin-bottom:12px}.eval-info{position:relative;flex:0 0 24px}.eval-info summary{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--line);border-radius:50%;font-family:Georgia,serif;font-size:13px;font-style:italic;color:var(--muted)}.eval-info-content{position:absolute;right:0;top:30px;z-index:1;width:min(340px,calc(100vw - 64px));padding:16px;background:var(--paper);border:1px solid var(--line)}.eval-info-content p{font-size:12px!important;line-height:1.6;margin:0 0 12px!important}.eval-info-content p:last-child{margin-bottom:0!important}.eval-info[open] summary{border-color:var(--ink);color:var(--ink)}.runnable-eval .result-summary h4{font-size:18px;color:var(--ink);font-weight:550;margin-bottom:6px}.runnable-eval .result-summary p{font-size:12px;color:var(--muted);margin-bottom:20px}
 @media(max-width:650px){.runnable-eval .run-heading{display:flex}.judgment-heading{flex-wrap:wrap;gap:6px}.grade{font-size:12px}}
+
+.runnable-eval:not([open])>.run-heading{margin-bottom:0}.runnable-eval[open]>.run-heading .chevron{transform:rotate(45deg)}.runnable-content{position:relative}.runnable-content>.eval-info{position:absolute;right:0;top:0}.runnable-content>.run-input{padding-right:40px}
 </style>
 </head>
 <body>
@@ -180,6 +182,10 @@ function revealAnchor() {
   catch { return; }
   const target = document.getElementById(id);
   if (!target) return;
+  if (target.closest('.runnable-eval')) {
+    requestAnimationFrame(() => target.closest('.runnable-eval').scrollIntoView({block: 'start'}));
+    return;
+  }
   let parent = target.parentElement;
   while (parent) {
     if (parent.tagName === 'DETAILS') parent.open = true;
@@ -192,7 +198,7 @@ function revealAnchor() {
 window.addEventListener('hashchange', revealAnchor);
 revealAnchor();
 
-// Runs are explicit: loading this page only fetches the E06 input description.
+// Runs are explicit: loading this page only fetches the input descriptions.
 const runnableList = document.getElementById('runnable-list');
 const catalogStatus = document.getElementById('catalog-status');
 const catalogRetry = document.getElementById('catalog-retry');
@@ -325,12 +331,17 @@ async function runEval(evalRecord, button, status, results) {
 }
 
 function renderRunnable(evalRecord) {
-  const section = element('article', null, 'runnable-eval');
+  const section = element('details', null, 'runnable-eval');
   section.id = `run-${evalRecord.id}`;
-  const heading = element('div', null, 'run-heading');
+  const heading = element('summary', null, 'run-heading');
   const title = element('h3', evalRecord.title);
   title.id = `${section.id}-title`;
   section.setAttribute('aria-labelledby', title.id);
+  const chevron = element('span', null, 'chevron');
+  chevron.setAttribute('aria-hidden', 'true');
+  heading.append(title, chevron);
+  section.append(heading);
+  const content = element('div', null, 'runnable-content');
   const info = element('details', null, 'eval-info');
   const infoToggle = element('summary', 'i');
   infoToggle.setAttribute('aria-label', 'Uitleg en beoordeling van deze eval');
@@ -348,16 +359,15 @@ function renderRunnable(evalRecord) {
   );
   }
   info.append(infoToggle, explanation);
-  heading.append(title, info);
-  section.append(heading);
+  content.append(info);
   const input = element('div', null, 'run-input');
   field(input, 'Input', evalRecord.query, 'run-query');
   input.querySelector('.run-query p').lang = 'en';
-  section.append(input);
+  content.append(input);
   if (evalRecord.id === 'B1') {
-    field(section, 'Verwachte output', evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.', 'run-expectation');
+    field(content, 'Verwachte output', evalRecord.expected_cases.map(row => `${row.title} (${row.case_id})`).join(' en ') + ' binnen de drie resultaten, ongeacht volgorde.', 'run-expectation');
   } else {
-    field(section, 'Verwachte output', evalRecord.expected_behavior, 'run-expectation');
+    field(content, 'Verwachte output', evalRecord.expected_behavior, 'run-expectation');
   }
   const action = element('div', null, 'run-action');
   const button = element('button', 'Start eval', 'run-button');
@@ -374,7 +384,8 @@ function renderRunnable(evalRecord) {
   results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
   button.addEventListener('click', () => runEval(evalRecord, button, status, results));
   action.append(button, status);
-  section.append(action, results);
+  content.append(action, results);
+  section.append(content);
   return section;
 }
 

@@ -1,0 +1,35 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Runtime data, uploads and local model downloads
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
+data/
+uploads/
+models/
+.cache/
+.fastembed_cache/
+
+# Rust and frontend build output
+target/
+node_modules/
+dist/
+build/
+coverage/
+.next/
+
+# Local OS/editor files
+.DS_Store
+*.log
+.idea/

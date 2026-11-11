@@ -1,0 +1,55 @@
+{
+  "mode": "query",
+  "corpus_version": "fixture-corpus-v1",
+  "ranking_version": "cosine-max-v1",
+  "results": [
+    {
+      "case_id": "fixture-case-001",
+      "title": "Synthetic case 1",
+      "court": "Synthetic fixture court",
+      "decision_date": "1892-01-01",
+      "citation": "SYNTHETIC FIXTURE 001",
+      "text_version": "sha256:990c2e5359701c1815133573e2ca20850f80773f5a695c4caad83852c78caf7a",
+      "score": 0.82,
+      "passage": {
+        "passage_id": "fixture-case-001-passage-001",
+        "text": "Witness testimony is the topic of this synthetic passage.",
+        "start_utf16": 67,
+        "end_utf16": 124
+      },
+      "case_url": "/api/cases/fixture-case-001"
+    },
+    {
+      "case_id": "fixture-case-002",
+      "title": "Synthetic case 2",
+      "court": "Synthetic fixture court",
+      "decision_date": "1892-01-02",
+      "citation": "SYNTHETIC FIXTURE 002",
+      "text_version": "sha256:808ac5fbc8ffefd3e523556f8b2621f2c1600236d26882cca29526c41d14f950",
+      "score": 0.76,
+      "passage": {
+        "passage_id": "fixture-case-002-passage-001",
+        "text": "The reliability of a witness is discussed in this synthetic passage.",
+        "start_utf16": 67,
+        "end_utf16": 135
+      },
+      "case_url": "/api/cases/fixture-case-002"
+    },
+    {
+      "case_id": "fixture-case-003",
+      "title": "Synthetic case 3",
+      "court": "Synthetic fixture court",
+      "decision_date": "1892-01-03",
+      "citation": "SYNTHETIC FIXTURE 003",
+      "text_version": "sha256:f0a328342e545663ef710e3f22e4860305a82d09ac35345bc6cb7b4866dfc7ee",
+      "score": 0.69,
+      "passage": {
+        "passage_id": "fixture-case-003-passage-001",
+        "text": "This synthetic passage describes a question about evidence.",
+        "start_utf16": 67,
+        "end_utf16": 126
+      },
+      "case_url": "/api/cases/fixture-case-003"
+    }
+  ]
+}

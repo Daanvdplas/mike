@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Texas Legal Document Similarity Finder
+  version: 1.0.0
+  description: |
+    Agreed API design; no runtime implementation exists yet.
+    Accept a document and/or query and return exactly three unique cases.
+    Scores identify the highest-ranked cases under the documented method
+    within the complete indexed corpus, not guaranteed legal relevance.
+    Example fixtures are synthetic and do not describe actual court opinions.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Planned local backend
+paths:
+  /api/search:
+    post:
+      operationId: searchCases
+      summary: Find the three highest-scoring unique cases
+      description: |
+        Supports document-only, query-only and combined input. At least one
+        usable input is required. Trim query whitespace; a blank query counts
+        as absent. An explicitly supplied invalid document always fails,
+        including when a usable query is supplied. Never silently ignore it.
+        All corpus passages are scored; each case uses its maximum passage
+        score. Sort by score descending, then case_id lexicographically ascending.
+        For equal passage scores choose passage_id lexicographically ascending.
+        The complete 135-case index must be ready; partial results are forbidden.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: |
+                    Optional PDF with extractable text or UTF-8 TXT.
+                    Maximum file size 10 MiB (10485760 bytes).
+                    File type must be validated by the server.
+                query:
+                  type: string
+                  description: Optional query; whitespace-only counts as absent.
+              anyOf:
+                - required: [document]
+                - required: [query]
+            encoding:
+              document:
+                contentType: application/pdf, text/plain
+      responses:
+        '200':
+          description: Exactly three unique cases, ordered by the fixed ranking method.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+              examples:
+                syntheticQuery:
+                  summary: Synthetic frontend fixture; scores are invented
+                  externalValue: ./examples/search-response.json
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '413':
+          $ref: '#/components/responses/DocumentTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedDocument'
+        '422':
+          $ref: '#/components/responses/UnreadableDocument'
+        '503':
+          $ref: '#/components/responses/IndexUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/cases/{case_id}:
+    get:
+      operationId: getCase
+      summary: Retrieve the full canonical text of a case
+      description: |
+        Returns the exact canonical text used by passage offsets. Compare
+        text_version and corpus_version with the search result before marking.
+        If versions differ, rerun the search instead of applying stale offsets.
+        Local mock fixtures are in examples/cases.json, an array from which
+        a mock selects one object by case_id. This endpoint returns one object.
+      parameters:
+        - name: case_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Full canonical majority-opinion text and metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDetail'
+        '404':
+          $ref: '#/components/responses/CaseNotFound'
+        '503':
+          $ref: '#/components/responses/IndexUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Check complete search-index readiness
+      description: |
+        Return 200 only when the entire agreed corpus and its index are usable.
+        A partial, corrupt or unavailable index returns 503.
+      responses:
+        '200':
+          description: Complete corpus and index are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          $ref: '#/components/responses/IndexUnavailable'
+  /openapi.json:
+    get:
+      operationId: getOpenApi
+      summary: Retrieve the runtime OpenAPI contract
+      description: Planned runtime representation of this canonical contract.
+      responses:
+        '200':
+          description: OpenAPI 3 document.
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  schemas:
+    CaseMetadata:
+      type: object
+      required: [case_id, title, court, decision_date, citation, text_version]
+      properties:
+        case_id:
+          type: string
+          minLength: 1
+          description: Stable opaque source case identifier, serialized as a string.
+        title:
+          type: string
+        court:
+          type: string
+        decision_date:
+          type: string
+          format: date
+        citation:
+          type: string
+          description: Citation as supplied by the corpus; never invented.
+        text_version:
+          type: string
+          pattern: '^sha256:[a-f0-9]{64}$'
+          description: SHA-256 of the UTF-8 encoding of the exact canonical case text.
+    Passage:
+      type: object
+      additionalProperties: false
+      required: [passage_id, text, start_utf16, end_utf16]
+      properties:
+        passage_id:
+          type: string
+          minLength: 1
+        text:
+          type: string
+          minLength: 1
+          description: Exact original substring of the canonical detail text.
+        start_utf16:
+          type: integer
+          minimum: 0
+          description: Zero-based UTF-16 code-unit position, inclusive.
+        end_utf16:
+          type: integer
+          minimum: 1
+          description: |
+            UTF-16 code-unit position, exclusive and greater than start_utf16.
+            detail.text.slice(start_utf16, end_utf16) in JavaScript equals text.
+            Offsets must not split a surrogate pair. Do not normalize detail text.
+    SearchResult:
+      allOf:
+        - $ref: '#/components/schemas/CaseMetadata'
+        - type: object
+          required: [score, passage, case_url]
+          properties:
+            score:
+              type: number
+              format: double
+              minimum: -1
+              maximum: 1
+              description: |
+                Cosine similarity for query/document mode; combined mode uses
+                0.7 * query_score + 0.3 * document_score. Not a probability.
+                Return the actual unrounded ranking score; display may round it.
+            passage:
+              $ref: '#/components/schemas/Passage'
+            case_url:
+              type: string
+              description: Relative API path /api/cases/{case_id}, using URL encoding.
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [mode, corpus_version, ranking_version, results]
+      properties:
+        mode:
+          type: string
+          enum: [document, query, combined]
+        corpus_version:
+          type: string
+          minLength: 1
+          description: Identifies the complete corpus and its indexing configuration.
+        ranking_version:
+          type: string
+          enum: [cosine-max-v1]
+        results:
+          type: array
+          minItems: 3
+          maxItems: 3
+          description: Unique by case_id; ordered by score, then case_id for ties.
+          items:
+            $ref: '#/components/schemas/SearchResult'
+    CaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/CaseMetadata'
+        - type: object
+          required: [corpus_version, text]
+          properties:
+            corpus_version:
+              type: string
+              minLength: 1
+            text:
+              type: string
+              minLength: 1
+              description: |
+                Complete canonical majority-opinion text, as plain text.
+                Search-passage offsets refer to this exact string and text_version.
+                No original PDF layout or HTML rendering is implied.
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, corpus_version, indexed_case_count]
+      properties:
+        status:
+          type: string
+          enum: [ready]
+        corpus_version:
+          type: string
+          minLength: 1
+        indexed_case_count:
+          type: integer
+          enum: [135]
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_input
+                - document_too_large
+                - unsupported_document
+                - unreadable_document
+                - case_not_found
+                - index_unavailable
+                - internal_error
+            message:
+              type: string
+              minLength: 1
+              description: Human-readable explanation, without secrets or internal traces.
+  responses:
+    InvalidInput:
+      description: No usable document or query was supplied, or multipart input is malformed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: invalid_input
+              message: Supply a PDF/TXT document, a query, or both.
+    DocumentTooLarge:
+      description: The uploaded file exceeds 10 MiB (10485760 bytes).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: document_too_large
+              message: The document must not exceed 10 MiB.
+    UnsupportedDocument:
+      description: Unsupported file type; only PDF and UTF-8 TXT are accepted.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: unsupported_document
+              message: Upload a PDF or TXT document.
+    UnreadableDocument:
+      description: The supplied document cannot yield usable text, including empty files or scans.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: unreadable_document
+              message: The document contains no readable text. Scans require OCR, which is not supported.
+    CaseNotFound:
+      description: The requested case does not exist in this corpus.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: case_not_found
+              message: Case not found.
+    IndexUnavailable:
+      description: The complete agreed corpus and index are not available.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: index_unavailable
+              message: The complete search index is not ready. Try again later.
+    InternalError:
+      description: Unexpected internal failure; do not expose stack traces or sensitive details.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: internal_error
+              message: The request could not be completed.

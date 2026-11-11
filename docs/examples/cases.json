@@ -1,0 +1,32 @@
+[
+  {
+    "case_id": "fixture-case-001",
+    "title": "Synthetic case 1",
+    "court": "Synthetic fixture court",
+    "decision_date": "1892-01-01",
+    "citation": "SYNTHETIC FIXTURE 001",
+    "text_version": "sha256:990c2e5359701c1815133573e2ca20850f80773f5a695c4caad83852c78caf7a",
+    "corpus_version": "fixture-corpus-v1",
+    "text": "Synthetic interface fixture 🧪. This text is not a court opinion.\n\nWitness testimony is the topic of this synthetic passage.\n\nThis invented ending exists only to demonstrate a complete document view."
+  },
+  {
+    "case_id": "fixture-case-002",
+    "title": "Synthetic case 2",
+    "court": "Synthetic fixture court",
+    "decision_date": "1892-01-02",
+    "citation": "SYNTHETIC FIXTURE 002",
+    "text_version": "sha256:808ac5fbc8ffefd3e523556f8b2621f2c1600236d26882cca29526c41d14f950",
+    "corpus_version": "fixture-corpus-v1",
+    "text": "Synthetic interface fixture 🧪. This text is not a court opinion.\n\nThe reliability of a witness is discussed in this synthetic passage.\n\nThis invented ending exists only to demonstrate a complete document view."
+  },
+  {
+    "case_id": "fixture-case-003",
+    "title": "Synthetic case 3",
+    "court": "Synthetic fixture court",
+    "decision_date": "1892-01-03",
+    "citation": "SYNTHETIC FIXTURE 003",
+    "text_version": "sha256:f0a328342e545663ef710e3f22e4860305a82d09ac35345bc6cb7b4866dfc7ee",
+    "corpus_version": "fixture-corpus-v1",
+    "text": "Synthetic interface fixture 🧪. This text is not a court opinion.\n\nThis synthetic passage describes a question about evidence.\n\nThis invented ending exists only to demonstrate a complete document view."
+  }
+]

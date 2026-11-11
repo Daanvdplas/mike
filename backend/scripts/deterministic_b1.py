@@ -20,7 +20,9 @@ def verified_index(fixture, database_path, corpus):
     with sqlite3.connect(f"{database_path.as_uri()}?mode=ro", uri=True) as database:
         manifest = json.loads(database.execute("SELECT manifest FROM metadata WHERE id=1").fetchone()[0])
         cases = {case_id: json.loads(record) for case_id, record in database.execute("SELECT case_id, record FROM cases")}
-    if manifest["corpus_version"] != fixture["context"]["corpus_version"] or len(cases) != 135:
+    if (manifest["corpus_version"] != fixture["context"]["corpus_version"] or len(cases) != 135
+            or manifest["pipeline"] != fixture["context"]["index_pipeline"]
+            or manifest["embedding"] != fixture["context"]["embedding"]):
         raise ValueError("De index wijkt af van de vooraf vastgelegde corpusversie.")
     for expected in fixture["expected_cases"]:
         raw = (corpus / expected["source_file"]).read_bytes()

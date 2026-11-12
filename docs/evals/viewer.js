@@ -199,9 +199,12 @@ async function runEval(evalRecord, button, status, results, selector, judge, mod
         JSON.stringify(result.runs.map(run => run.retrieval_method)) !== JSON.stringify(methods))) {
       throw new Error('De ontvangen run hoort niet bij deze eval of zoekmethode.');
     }
+    if (judgeEnabled && result.runs.some(run => run.judge_status !== 'completed')) {
+      throw new Error('De aangevraagde AI-beoordeling is niet voltooid. Er is geen AI-score beschikbaar.');
+    }
     renderResults(results, result);
     status.hidden = false;
-  status.textContent = judgeEnabled ? 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.' : 'Uitgevoerd · lokale zoekresultaten, geen juridische kwaliteitsmeting.';
+    status.textContent = judgeEnabled ? 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.' : 'Uitgevoerd · lokale zoekresultaten, geen juridische kwaliteitsmeting.';
     status.className = 'run-status completed';
     button.textContent = 'Opnieuw uitvoeren';
   } catch (error) {

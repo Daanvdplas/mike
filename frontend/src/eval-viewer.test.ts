@@ -72,6 +72,8 @@ it.each([false, true])('houdt zoekmethode en optioneel beoordelingsmodel geschei
   const fixed = {id: 'B1', title: fixture.title, input_mode: 'query', query: fixture.query, expected_cases: fixture.expected_cases, runnable: true,
     comparison_variant: {id: 'B1-compare', input_mode: 'query', query: fixture.query, runnable: true}};
   let payload: any;
+  let returnedJudgeStatus: string | undefined;
+  let incompleteJudgments = false;
   const alternate = 'openai/gpt-4.1-2025-04-14';
   const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
     if (url === '/api/evals') return new Response(JSON.stringify({evals: [fixed, record], diagnostic_evals: [record], judge_available: true}));
@@ -79,10 +81,10 @@ it.each([false, true])('houdt zoekmethode en optioneel beoordelingsmodel geschei
     payload = JSON.parse(String(options!.body));
     return new Response(JSON.stringify({eval_id: 'E06', status: 'completed', runs: payload.retrieval_methods.map((method: string) => ({
       run_id: method, eval_id: 'E06', status: 'completed', retrieval_method: method,
-      structural_checks: {three_unique_results: true, source_excluded: true}, judge_status: payload.judge ? 'completed' : 'not_requested',
+      structural_checks: {three_unique_results: true, source_excluded: true}, judge_status: returnedJudgeStatus ?? (payload.judge ? 'completed' : 'not_requested'),
       requested_model: payload.model, model: payload.judge ? 'gpt-4.1-2025-04-14' : null, duration_seconds: 1,
       search_response: {results: ['a', 'b', 'c'].map(case_id => ({case_id, title: case_id, score: .8, passage: {text: `Exact source ${case_id}.`, source_section: method === 'head_matter' ? 'head_matter' : 'majority'}}))},
-      judgments: payload.judge ? ['a', 'b', 'c'].map(case_id => ({case_id, grade: 2, reasoning: 'Synthetic judgment.', quote: `Exact source ${case_id}.`})) : [],
+      judgments: payload.judge ? (incompleteJudgments ? [] : ['a', 'b', 'c'].map(case_id => ({case_id, grade: 2, reasoning: 'Synthetic judgment.', quote: `Exact source ${case_id}.`}))) : [],
     })), comparison: {overlap_count: 3}}));
   });
   vi.stubGlobal('fetch', fetcher);
@@ -111,7 +113,23 @@ it.each([false, true])('houdt zoekmethode en optioneel beoordelingsmodel geschei
     expect(payload.retrieval_methods).toEqual(['opinion_chunks', 'head_matter']);
     expect(payload.judge).toBe(!catalogFailed);
     expect(payload.model).toBe(catalogFailed ? undefined : alternate);
-    if (!catalogFailed) expect(card.querySelector('.run-results')!.textContent).toContain('gpt-4.1-2025-04-14');
+    if (!catalogFailed) {
+      expect(card.querySelector('.run-results')!.textContent).toContain('gpt-4.1-2025-04-14');
+      expect(card.querySelectorAll('.grade')).toHaveLength(6);
+      expect(card.querySelector('.judgment-reason')!.textContent).toBe('Synthetic judgment.');
+      expect(card.querySelector('blockquote')!.textContent).toBe('Exact source a.');
+      for (const status of ['not_requested', 'failed', 'completed']) {
+        returnedJudgeStatus = status; incompleteJudgments = status === 'completed';
+        button.click();
+        await vi.waitFor(() => expect(card.querySelector('.run-status')!.textContent).toContain('Niet uitgevoerd:'));
+        expect(card.querySelectorAll('.method-result')).toHaveLength(0);
+        expect(card.querySelectorAll('.grade')).toHaveLength(0);
+        expect(card.querySelector('.run-status')!.textContent).not.toContain('Uitgevoerd · AI-beoordeling');
+      }
+    } else {
+      expect(card.querySelector('.run-status')!.textContent).toContain('lokale zoekresultaten');
+      expect(card.querySelectorAll('.grade')).toHaveLength(0);
+    }
     expect(document.querySelector('#run-B1-compare .eval-model-select')).toBeNull();
   } finally { vi.unstubAllGlobals(); }
 });

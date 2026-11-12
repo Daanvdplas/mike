@@ -15,6 +15,37 @@ import evals_web
 
 
 class EvalsWebTest(unittest.TestCase):
+    def test_e06_ai_grades_keep_private_raw_responses_and_method_lineage(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config = {'repo': evals_web.REPO, 'outputs': Path(temporary), 'backend': 'http://unused', 'retrieval_methods': ['opinion_chunks', 'head_matter'], 'judge_enabled': True, 'model': 'mock/model', 'key': 'synthetic-private-key', 'orq_base': 'http://unused'}
+            manifest = {'corpus_version': 'synthetic-corpus', 'embedding': {'model': 'same-local-model'}}
+            def search(_url, query, document, method, excluded):
+                rows = [{'case_id': str(i), 'title': f'Case {i}', 'score': .8, 'passage': {'text': f'Literal evidence for case {i}.', 'source_section': 'head_matter' if method == 'head_matter' else 'majority'}} for i in range(3)]
+                return {'response': {'mode': 'query', 'retrieval_method': method, 'corpus_version': 'synthetic-corpus', 'ranking_version': 'cosine-max-v1', 'results': rows}, 'excluded_case_ids': ['156133'], 'eligible_case_count': 134, 'index_manifest': manifest}
+            provider_responses = []
+            def provider(req):
+                supplied = json.loads(json.loads(req.data)['messages'][1]['content'])['cases']
+                judgments = {row['case_id']: {'grade': i, 'reasoning': 'Synthetic relevance reason.', 'quote_id': next(iter(row['source_options']))} for i, row in enumerate(supplied)}
+                response = {'id': f'synthetic-{len(provider_responses)}', 'model': 'mock/model', 'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps({'judgments': judgments})}}], 'usage': {'total_tokens': 150}}
+                provider_responses.append(response); return response
+            with patch.object(evals_web, 'indexed_source', return_value=(manifest, {'case_id': '156133', 'file': 'source.json'}, 'Not sent as query context')), patch.object(evals_web.relevance, 'search', side_effect=search), patch.object(evals_web.relevance, 'fetch_json', side_effect=provider):
+                result = evals_web.run_eval(config, 'E06')
+            self.assertEqual(len(provider_responses), 2)
+            self.assertEqual(result['runs'][0]['input_sha256'], result['runs'][1]['input_sha256'])
+            for run, provider_response in zip(result['runs'], provider_responses):
+                self.assertEqual(run['judge_status'], 'completed')
+                self.assertEqual([row['grade'] for row in run['judgments']], [0, 1, 2])
+                self.assertEqual((run['requested_model'], run['model']), ('mock/model', 'mock/model'))
+                trace = Path(temporary) / run['judge_response_artifact']
+                self.assertEqual(json.loads(trace.read_text()), provider_response)
+                self.assertEqual(trace.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(hashlib.sha256(trace.read_bytes()).hexdigest(), run['judge_response_sha256'])
+                self.assertNotIn('synthetic-private-key', trace.read_text())
+            trace = Path(temporary) / result['runs'][0]['judge_response_artifact']
+            before = trace.read_bytes()
+            with self.assertRaises(FileExistsError): evals_web.private_json(trace, {'overwrite': True})
+            self.assertEqual(trace.read_bytes(), before)
+
     def test_primary_b1_accepts_each_method_and_both_without_a_judge(self):
         calls = []
         def run(config, eval_id):

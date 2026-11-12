@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Voer B1 of E06 uit met oordeelpassages, head matter of beide zoekmethodes.">
-  <meta name="eval-assignment-sha256" content="6da8094d1200fa9374cd95732e2372de9507905c90f605bbb229dcba321b7daa">
+  <meta name="eval-assignment-sha256" content="39e05a82e04b24ce6b5bd7462063ee08057f76af446d73c845c3ca4c2034e7df">
   <meta name="eval-catalog-sha256" content="11a6b4b539339aa6b6f5a02fb8a68c1229c759953739f2515bfed396c6e886bd">
   <link rel="icon" href="data:,">
   <title>Mike / Evaluaties</title>
@@ -249,9 +249,12 @@ async function runEval(evalRecord, button, status, results, selector, judge, mod
         JSON.stringify(result.runs.map(run => run.retrieval_method)) !== JSON.stringify(methods))) {
       throw new Error('De ontvangen run hoort niet bij deze eval of zoekmethode.');
     }
+    if (judgeEnabled && result.runs.some(run => run.judge_status !== 'completed')) {
+      throw new Error('De aangevraagde AI-beoordeling is niet voltooid. Er is geen AI-score beschikbaar.');
+    }
     renderResults(results, result);
     status.hidden = false;
-  status.textContent = judgeEnabled ? 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.' : 'Uitgevoerd · lokale zoekresultaten, geen juridische kwaliteitsmeting.';
+    status.textContent = judgeEnabled ? 'Uitgevoerd · AI-beoordeling, geen juridisch keurmerk.' : 'Uitgevoerd · lokale zoekresultaten, geen juridische kwaliteitsmeting.';
     status.className = 'run-status completed';
     button.textContent = 'Opnieuw uitvoeren';
   } catch (error) {

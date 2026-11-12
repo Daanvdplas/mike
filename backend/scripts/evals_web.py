@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import sqlite3
 import threading
+import tempfile
 import time
 from urllib.parse import urlsplit
 import uuid
@@ -18,6 +19,7 @@ import uuid
 import retrieval_relevance as relevance
 import deterministic_b1 as b1
 from orq_models import ModelCatalog, UnsupportedModel
+from orq_credentials import load_api_key
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
@@ -31,6 +33,20 @@ class RunError(Exception):
 
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def private_json(path, value):
+    """Publish a complete provider response atomically, mode0600, without overwriting."""
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as output:
+            temporary = Path(output.name)
+            json.dump(value, output, ensure_ascii=False, indent=2)
+            output.write("\n"); output.flush(); os.fsync(output.fileno())
+        os.link(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def scenario_catalog(repo):
@@ -205,11 +221,15 @@ def run_eval(config, eval_id):
             raise RunError("De index, het model of de ranking veranderde tussen methodes; vergelijking gestopt.")
         (run_dir / f"search-{method}.json").write_text(json.dumps(response, ensure_ascii=False, indent=2))
         judgments, returned_model, usage = [], None, None
+        judge_response_artifact = judge_response_sha256 = None
         if judge_enabled:
             try:
                 judgments, returned_model, usage = relevance.judge(
                     query, document, passages, config["model"], config["key"], config["orq_base"], rubric=rubric,
-                    source_sections={hit["case_id"]: hit["passage"].get("source_section", "majority") for hit in response["results"]})
+                    source_sections={hit["case_id"]: hit["passage"].get("source_section", "majority") for hit in response["results"]},
+                    response_sink=lambda provider_response: private_json(run_dir / f"judge-response-{method}.json", provider_response))
+                judge_response_artifact = f"{run_id}/judge-response-{method}.json"
+                judge_response_sha256 = sha256((run_dir / f"judge-response-{method}.json").read_bytes())
             except relevance.EvaluationError as failure:
                 if failure.diagnostic is not None:
                     (run_dir / f"judge-failed-{method}.json").write_text(json.dumps(failure.diagnostic, ensure_ascii=False, indent=2))
@@ -224,6 +244,7 @@ def run_eval(config, eval_id):
                      "judge_status": "completed" if judge_enabled else "not_requested",
                      "model": returned_model, "requested_model": config["model"] if judge_enabled else None,
                      "usage": usage, "judgments": judgments,
+                     "judge_response_artifact": judge_response_artifact, "judge_response_sha256": judge_response_sha256,
                      "corpus_version": response["corpus_version"], "ranking_version": response["ranking_version"],
                      "retrieval_manifest": manifest, "source": source, "scenarios_sha256": scenario_hash,
                      "excluded_case_ids": excluded, "eligible_case_count": 135 - len(excluded),
@@ -360,7 +381,10 @@ def main():
     parser.add_argument("--outputs", type=Path, default=Path.home() / "Library/Caches/adami-case/web-evals")
     parser.add_argument("--ask-key", action="store_true", help="Ask for an optional key to enable an explicitly selected AI judgment")
     args = parser.parse_args()
-    key = os.environ.get("ORQ_API_KEY", "")
+    try:
+        key = load_api_key()
+    except ValueError as failure:
+        parser.error(str(failure))
     if args.ask_key and not key:
         key = getpass.getpass("Orq API key (not echoed): ") or ""
     config = {"repo": REPO, "backend": args.backend.rstrip('/'), "model": args.model, "key": key,

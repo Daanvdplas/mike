@@ -2,7 +2,7 @@
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.
 
-**Status:** selecteerbare head-matterzoekmethode naast de bestaande opinion-chunks, met een gecontroleerde dual-index en API-/browserdoorloop. Het lokale main-startprofiel hieronder gebruikt Mike op 5176, één bewaakte Rustbackend op 8000 en evaluaties op 8798. Bestaande databases en binaries blijven behouden; zie de verificatie onderaan.
+**Status:** selecteerbare head-matterzoekmethode naast de bestaande opinion-chunks, met een gecontroleerde dual-index en API-/browserdoorloop. Het lokale startprofiel hieronder gebruikt Mike op 5176, één bewaakte Rustbackend op 8000 en evaluaties op 8798. Bestaande databases en binaries blijven behouden; zie de verificatie onderaan.
 
 ## Begin hier
 
@@ -10,7 +10,7 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 - [Backendafspraak voor de frontend](docs/FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](docs/openapi.yaml): het canonieke API-contract, ook beschikbaar via `/openapi.json`.
 - [Architectuurgids](docs/CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
-- [Evaluatieoverzicht](docs/evals/index.html): compacte referentiecontroles en lokale methodevergelijking voor 25 scenario’s; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
+- [Evaluatieoverzicht](docs/evals/index.html): B1 en E06, met lokale methodekeuze en optionele AI-beoordeling voor E06; [de opdracht](docs/EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -212,7 +212,7 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [evaluatieoverzicht](docs/evals/index.html) via de lokale evalserver hieronder. De compacte pagina behoudt de vaste B1-referentiecontrole en E06; kaarten beginnen ingeklapt en bewaren een bestaande uitslag wanneer je ze sluit. Een aparte compacte kiezer voert elk van de 25 scenario’s lokaal uit met A, B of beide. De volledige ontwerpbeschrijvingen en onderhoudsinstructies blijven in de canonieke bronnen, buiten de zichtbare kaarten. Zonder kandidaatlabels leveren de scenario’s geen juridische kwaliteitsmetrics.
+Open het [evaluatieoverzicht](docs/evals/index.html) via de lokale evalserver hieronder. De compacte pagina behoudt de vaste B1-referentiecontrole en E06; kaarten beginnen ingeklapt en bewaren een bestaande uitslag wanneer je ze sluit. Iedere zichtbare kaart heeft één methodekeuze en één startknop. De overige25 scenario’s zijn uitsluitend bronmateriaal voor de CLI en verdere benchmarkontwikkeling. De volledige ontwerpbeschrijvingen en onderhoudsinstructies blijven in de canonieke bronnen, buiten de zichtbare kaarten. Zonder kandidaatlabels leveren de scenario’s geen juridische kwaliteitsmetrics.
 
 Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](docs/EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](docs/evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
@@ -226,7 +226,7 @@ De [documentatie-CI](.github/workflows/eval-docs-checks.yml) voert de synchronis
 
 ## Zoekmethoden vergelijken op de evaluatiepagina
 
-De lokale vergelijkingskiezer biedt alle 25 canonieke scenario’s afzonderlijk. Kies een scenario en voer opinion-chunks, head matter of beide uit. De standaardvergelijking voert uitsluitend lokale retrieval uit, zonder Orq-key of modelgeneratie. Beide methoden krijgen exact dezelfde invoer en uitsluitingen; de manifesten moeten gelijk zijn. Elk scenario sluit zijn bronzaak vóór de top drie uit. De exacte Engelse vraag en/of volledige meerderheidstekst met gecontroleerde hash vormen de invoer; er wordt geen verborgen vraaganker meegestuurd.
+De pagina biedt uitsluitend **B1 en E06**. Kies per kaart opinion-chunks(B), head matter(A) of beide. Beide methoden krijgen dezelfde invoer en indexcontext. E06 sluit Nixon156133 vóór de top drie uit en gebruikt uitsluitend de vastgelegde Engelse vraag; B1 heeft geen bronuitsluiting. De standaardrun gebruikt alleen lokale retrieval, zonder Orq-key of generatiemodel.
 
 De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Een eventuele AI-beoordeling staat uit totdat je die expliciet aanvinkt.
 
@@ -243,7 +243,11 @@ python3 backend/scripts/evals_web.py \
 
 Open **http://127.0.0.1:8798/**. De webserver gebruikt `POST /api/evals/search` op de bestaande geladen engine en start geen tweede Rustproces of model. Hij bewaart invoer, bron-/scenariohashes, volledige zoekresponses, manifest, gekozen methode, uitsluitingen en timings buiten Git. De vergelijking toont echte zaak-ID’s, scores en overlap, zonder daar juridische kwaliteit of Recall/nDCG uit af te leiden. Onvolledige/mislukte runs blijven zichtbaar en worden niet met fictieve resultaten aangevuld.
 
-Een AI-beoordeling is afzonderlijk opt-in, vereist bestaande servercredentials en verbruikt providerbudget. Zij geeft hoogstens een voorlopige AI-indicatie, geen menselijke juridische goldstandaard. Nieuwe live providercalls horen uitsluitend bij een expliciete taakautorisatie. De commandlinetool `retrieval_relevance.py` blijft beschikbaar met `--help`.
+De optionele **AI-beoordeling van gevonden passages** bij E06 gebruikt dezelfde serverzijdige credentialloader als Mike: `ORQ_API_KEY`, of `ORQ_API_KEY_FILE` naar een privébestand buiten Git. De environmentwaarde gaat vóór het bestand. Een expliciet onleesbaar of leeg bestand geeft een veilige startfout; zonder beide blijft lokaal zoeken werken. `--ask-key` is alleen een expliciete interactieve optie. De sleutel gaat nooit naar de browser of runartefacten.
+
+Voor AI-beoordeling voeg je bij het startcommando bijvoorbeeld `ORQ_API_KEY_FILE=/pad/buiten/de/repo/private-orq-key` vóór `python3` toe. Het gekozen beoordelingsmodel en de werkelijk gerapporteerde provider-ID worden afzonderlijk bewaard. Per methode worden drie grades0–3 en exacte citaten gecontroleerd; A-passages blijven expliciet redactionele context. Een ontbrekende of mislukte judge kan niet als uitgevoerde AI-beoordeling worden getoond. Dit beoordeelt uitsluitend de opgehaalde passages, geen volledige opinions of juridische juistheid.
+
+Succesvolle providerresponses worden per methode atomair en met mode0600 als `judge-response-METHOD.json` buiten Git bewaard; het runresultaat bevat de artefactverwijzing en SHA256. De responsefile bevat geen requestheaders of credential. Een nieuwe AI-smoke verbruikt providerbudget en wordt afzonderlijk geautoriseerd. De commandlinetool `retrieval_relevance.py` blijft beschikbaar met `--help`.
 
 ## Technische evals uitvoeren
 
@@ -284,7 +288,7 @@ De versie-1-catalogus verlangt dat de exacte majority-invoer al gelijk is aan de
 
 ## Verificatie van de selecteerbare zoekmethoden
 
-Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **35 Pythonchecks**, **32 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
+Onafhankelijk modelvrij gecontroleerd: **82 librarytests + 3 extractortests + 3 CLItests**, fmt, clippy met waarschuwingen als fouten en build; **40 Pythonchecks**, **32 frontendtests**, frontendbuild, **4 viewergeneratortests** en bron-/HTML-synchronisatie. Zes bestaande modelchecks blijven afzonderlijke, expliciet bewaakte jobs.
 
 De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties en tekstversies, alle drie invoermodi, uitsluiting vóór top drie, identieke A/B-invoer en manifestlineage, corrupte secties, oude schema’s en falende/gewijzigde importbatches zonder databasepublicatie. De bronarchivering bewaart exacte UTF-8-JSONbytes, inclusief getalrepresentatie en witruimte.
 
@@ -305,3 +309,9 @@ De serverallowlist bevat `openai/gpt-4.1-mini-2025-04-14` (bestaande standaard) 
 Mike stuurt de keuze alleen via `X-Orq-Model`; de oorspronkelijke query-/documentmultipart gaat ongewijzigd naar Rust. `explanation_requested_model` registreert de keuze en `explanation_model` de werkelijk door de provider gemelde model-ID. Ontbrekende provideridentiteit blijft `null` en wordt als onbekend getoond. E06 gebruikt JSON `{"model":"..."}` en bewaart `requested_model` en de werkelijk gemelde `model` in het runartefact. De key blijft uitsluitend op de server en komt niet in deze browserverzoeken of resultaten.
 
 De afzonderlijke modelkeuzevalidatie gebruikte previews op 5177/18002 en 8800 met opgeslagen echte retrieval. Dat controleerde modeldoorgifte en brongebonden uitvoer, zonder een nieuwe embeddingindex te claimen. Het main-profiel op5176 gebruikt de bestaande echte Orq-uitlegverbinding op18000, die de actuele Rustbackend8000 hergebruikt. Een server zonder `/api/models` toont volgens het capabilitycontract geen modelkiezer. Sleutels worden niet verplaatst.
+
+## Laatste opleveringscorrecties
+
+B1-v2 is op11november2026 onafhankelijk echt uitgevoerd met B, A en beide: beide methoden vonden0 van de2 verwachte zaken. De runs zijn technisch voltooid; de referentiecontrole is eerlijk niet geslaagd. E06 is toen lokaal met beide methoden uitgevoerd, zonder AI-judge. De vereenvoudigde Mike-interface en één echte Orq-uitlegresponse met drie gecontroleerde readers zijn eveneens getest. Dit zijn bestaande bewijzen, geen nieuwe AI-benchmarkresultaten.
+
+De E06-credentialfilefix, controle op foutieve AI-success en private providerresponse-archivering zijn modelvrij getest. Een nieuwe echte E06-AI-smoke vereist een bestaande privécredential; de huidige status en herkomst staan in PR56. De PR blijft open tot de oplevering is beoordeeld; deze correcties zijn niet automatisch naar main gemergd.

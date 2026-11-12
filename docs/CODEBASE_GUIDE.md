@@ -2,7 +2,7 @@
 
 ## Huidige stand
 
-De Rust-backend en React-frontend zijn beschikbaar. Deze versie voegt `head_matter` toe naast de bestaande standaard `opinion_chunks`, met afzonderlijke bronsecties en reproduceerbare A/B-uitvoer. De onafhankelijk gecontroleerde dual-index bevat 135 zaken, 578 majoritypassages en 790 head-matterpassages. De tijdelijke featurepreview is na haar controles gestopt en de oorspronkelijke demo is toen hersteld. Het lokale startprofiel gebruikt Mike5176, Rust8000 en evaluaties8798 met dezelfde schema-3-index. Slechts één native modeljob mag tegelijk draaien; herstartcommando’s en verificatiebewijs staan in README. Hybrid search en een top-vijfcontract zijn niet ingevoerd.
+De Rust-backend en React-frontend zijn beschikbaar. Deze versie voegt `head_matter` toe naast de bestaande standaard `opinion_chunks`, met afzonderlijke bronsecties en reproduceerbare A/B-uitvoer. De onafhankelijk gecontroleerde dual-index bevat 135 zaken, 578 majoritypassages en 790 head-matterpassages. De tijdelijke featurepreview is na haar controles gestopt en de oorspronkelijke demo is toen hersteld. Het lokale startprofiel gebruikt Mike5176, Rust8000 en evaluaties8798 met dezelfde schema-3-index. Slechts één native modeljob mag tegelijk draaien; herstartcommando’s en verificatiebewijs staan in de [lokale setup](LOCAL_SETUP.md). Hybrid search en een top-vijfcontract zijn niet ingevoerd.
 
 De [evaluatieviewer](../evals/web/index.html) toont uitsluitend de compacte B1/E06-kaarten, ieder met één methodekeuze en startknop. De25 canonieke scenario’s blijven beschikbaar in de bronnen en CLI. De ontwerpbeschrijvingen blijven in de broncatalogus, buiten de zichtbare kaarten. De technische Rustrunner en metricsscorer zijn beschikbaar; kandidaatlabels en gemeten juridische kwaliteit ontbreken nog.
 
@@ -44,7 +44,7 @@ Healthchecks wachten op de juiste index en beschikbare services voordat beide br
 - [backend/src/lib.rs](../backend/src/lib.rs) exporteert de HTTP-router, extractie, configuratie en de echte engine. [main.rs](../backend/src/main.rs) biedt `import`, `search` en `serve`.
 - SQLite gebruikt de gebundelde SQLite-build via rusqlite. De HTTP-router gebruikt CORS en YAML-naar-JSON voor het canonieke OpenAPI-contract. PDF-extractie gebruikt pdf-extract; scans vereisen OCR en worden geweigerd.
 - [.github/workflows/backend-checks.yml](../.github/workflows/backend-checks.yml) volgt de COA-checkvolgorde: expliciete Rust-toolchain, fmt, clippy, deterministische tests en build. De standaardchecks laden geen embeddingmodel.
-- De gecontroleerde commando's staan in de [README](../README.md). Routertests gebruiken het COA-patroon met `tower::ServiceExt::oneshot` en echte responsebytes. Alleen de enginegrens wordt vervangen door de contractfixtures; deze tests bewijzen nog geen echte retrieval of TCP-doorloop.
+- De gecontroleerde commando's staan in de [lokale setup](LOCAL_SETUP.md). Routertests gebruiken het COA-patroon met `tower::ServiceExt::oneshot` en echte responsebytes. Alleen de enginegrens wordt vervangen door de contractfixtures; deze tests bewijzen nog geen echte retrieval of TCP-doorloop.
 
 ## HTTP-invoer en tekstextractie
 
@@ -181,7 +181,7 @@ De sleutel wordt uitsluitend serverzijdig uit `ORQ_API_KEY` of een privé `ORQ_A
 
 De modelvergelijking heeft een eigen standaardgrens van 48 KiB canonical UTF-8-uploadtekst, configureerbaar met `--max-upload-text-bytes`, plus 100 KiB eerste geserialiseerde context en 128 KiB per providerrequest. Te grote invoer wordt expliciet afgewezen; er is geen stille selectie of afkapping. Alle uploadpassages gaan in beide providerrequests mee. Het model kiest uitsluitend input-ID’s uit een strikt schema; de server maakt exacte quotes/UTF-16-posities. De response bevat `input_context` (teksthash en lengte) en optionele `input_citations`, geen apart veld met het volledige document. De frontend toont aangehaalde uploadstukken onder een compacte ingeklapte bron; het volledige corpusdocument met markering blijft ongewijzigd. Voor vraag-only zijn inputcitaten afwezig, document-only gebruikt nu de inhoud als vergelijkingsbasis. Dit voegt geen reranking of indexmodel toe.
 
-De exacte modelroute `openai/gpt-4.1-mini-2025-04-14` is via de live catalogus en een kleine tool-/structured-outputpreflight gecontroleerd; `ORQ_MODEL` of `--model` kan haar wijzigen. Andere modelroutes zijn niet automatisch gevalideerd. [`test_orq_proxy.py`](../backend/scripts/test_orq_proxy.py) controleert toolvolgorde, ongewijzigde invoer/resultaten, bron-ID’s/citaten, foutdoorgifte, uploadcontext, bestandstatussen en runtimecontract zonder providerrequests. Startinstructies staan in README. Dit is geen juridische kwaliteitsevaluatie.
+De exacte modelroute `openai/gpt-4.1-mini-2025-04-14` is via de live catalogus en een kleine tool-/structured-outputpreflight gecontroleerd; `ORQ_MODEL` of `--model` kan haar wijzigen. Andere modelroutes zijn niet automatisch gevalideerd. [`test_orq_proxy.py`](../backend/scripts/test_orq_proxy.py) controleert toolvolgorde, ongewijzigde invoer/resultaten, bron-ID’s/citaten, foutdoorgifte, uploadcontext, bestandstatussen en runtimecontract zonder providerrequests. Startinstructies staan in de [lokale setup](LOCAL_SETUP.md). Dit is geen juridische kwaliteitsevaluatie.
 
 ## Evaluaties: regels, code en webpagina
 
@@ -317,7 +317,7 @@ De echte einddoorloop omvatte 26 HTTP-controles en één Playwright-browserconte
 
 De nieuwe vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor vraag, 4/5 voor document en 4/5 voor beide. De oude MiniLM-set met 0/15 is bewaard. De verschillende sets en onvolledige AI-relevantielabels leveren geen causale A/B-vergelijking, accuracy, recall of menselijke juridische validatie. [De evaluatie en beperkingen staan op issue 15](https://github.com/Daanvdplas/adami-case/issues/15#issuecomment-6795249012).
 
-De volledige import piekte op 1105,86 MiB; de afgeronde HTTP-guardmeting op 705,64 MiB. Tijdens de gecontroleerde UI-preview bleef de gemelde RSS onder ongeveer 422 MiB, met normale geheugendruk en geen swapgroei. Dit zijn waarnemingen van deze runs, geen algemene geheugen- of kwaliteitsgarantie. De demo blijft maximaal twee uur onder dezelfde watchdog draaien. Start-/stopcommando’s, bestaande index en modelcache staan in README; de frontend gebruikt API-modus op 5174 met backend op 8000 en expliciete CORS-origins.
+De volledige import piekte op 1105,86 MiB; de afgeronde HTTP-guardmeting op 705,64 MiB. Tijdens de gecontroleerde UI-preview bleef de gemelde RSS onder ongeveer 422 MiB, met normale geheugendruk en geen swapgroei. Dit zijn waarnemingen van deze runs, geen algemene geheugen- of kwaliteitsgarantie. De demo blijft maximaal twee uur onder dezelfde watchdog draaien. Start-/stopcommando’s, bestaande index en modelcache staan in de [lokale setup](LOCAL_SETUP.md); de frontend gebruikt API-modus op 5174 met backend op 8000 en expliciete CORS-origins.
 
 De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige documentatieclaims zijn handmatig en onafhankelijk gecheckt; zij vormen nog geen volledige mechanische documentatie-mergegate.
 
@@ -325,7 +325,7 @@ De canonieke documenten zijn in dezelfde backend-PR bijgewerkt. De huidige docum
 
 Evaluatiecode, webassets, generator, data en tests staan samen in `evals/`; de canonieke evaluatieregels staan in `evals/README.md`. De gedeelde API-fixtures zijn verplaatst naar `fixtures/api/`. Het frontendcontract is in deze gids opgenomen. Deze herindeling verandert geen zoek-, API-, UI- of scoringsgedrag; de Rust-evaluatiemodules blijven binnen de crate.
 
-- 2026-11-11: op een geïsoleerde featurebranch een selecteerbare head-matterindex naast de bestaande opinion-chunks toegevoegd; afzonderlijke sectieversies/markeringen, gedeelde evalHTTP-engine en methodegebonden CLI-/webruns. De daadwerkelijke verificatiestatus staat in README; geen juridische kwaliteitswinst geclaimd.
+- 2026-11-11: op een geïsoleerde featurebranch een selecteerbare head-matterindex naast de bestaande opinion-chunks toegevoegd; afzonderlijke sectieversies/markeringen, gedeelde evalHTTP-engine en methodegebonden CLI-/webruns. De daadwerkelijke verificatiestatus staat in de [lokale setup](LOCAL_SETUP.md); geen juridische kwaliteitswinst geclaimd.
 
 - 2026-11-11: uploadbewuste Orq-preview toegevoegd met exact hergebruik van de Rust-extractor, volledige begrensde modelcontext en servergeverifieerde inputcitaten/hash/UTF-16-posities. Bestaande corpusselectie en versies blijven behouden.
 

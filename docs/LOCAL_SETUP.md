@@ -247,9 +247,9 @@ De [documentatie-CI](../.github/workflows/eval-docs-checks.yml) voert de synchro
 
 ## Zoekmethoden vergelijken op de evaluatiepagina
 
-De pagina biedt uitsluitend **B1 en E06**. Kies per kaart opinion-chunks(B), head matter(A) of beide. Beide methoden krijgen dezelfde invoer en indexcontext. E06 sluit Nixon156133 vóór de top drie uit en gebruikt uitsluitend de vastgelegde Engelse vraag; B1 heeft geen bronuitsluiting. De standaardrun gebruikt alleen lokale retrieval, zonder Orq-key of generatiemodel.
+De pagina biedt uitsluitend **B1 en E06**. Kies per kaart opinion-chunks(B), head matter(A) of beide. Beide methoden krijgen dezelfde invoer en indexcontext. E06 sluit Nixon156133 vóór de top drie uit en gebruikt uitsluitend de vastgelegde Engelse vraag; B1 heeft geen bronuitsluiting. B1 gebruikt uitsluitend lokale retrieval. E06 kan dezelfde retrieval met een afzonderlijke AI-beoordeling aanvullen.
 
-De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Een eventuele AI-beoordeling staat uit totdat je die expliciet aanvinkt.
+De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Bij een geconfigureerde sleutel staat de uitschakelbare AI-beoordeling standaard aan; de startknop wacht op de modelcatalogus. Alleen laden start geen beoordelingsaanroep. Zonder sleutel of met uitgevinkte AI-beoordeling blijft een losse evalserver lokaal werken.
 
 **B1** gebruikt één normale startknop met keuze A, B of beide. De exacte oorspronkelijke vraag en twee verwachte zaken (Cummings156040 en Neubauer156042) zijn behouden. Per methode wordt werkelijk 0–2 geteld: `passed` is uitsluitend waar als beide in de echte top drie staan. De huidige v2-fixture bindt expliciet alle135 bronrecords, secties/passages/vectoren, model en indexmanifest. Oudev1 staat alleen in `evals/data/archive/deterministic_b1_v1.json`. V2 is een gemigreerde referentie na eerdere diagnostische runs, geen nieuwe preregistratie of juridische goldset. B1 heeft geen AI-beoordelaar; verwachte IDs worden nooit zoekinvoer.
 

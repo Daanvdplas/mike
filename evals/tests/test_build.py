@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[1]
 
 
 class DocumentationBuildTests(unittest.TestCase):
@@ -18,9 +18,8 @@ class DocumentationBuildTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         shutil.copytree(HERE, self.root / "evals", ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copy(HERE.parent / "EVALUATIEOPDRACHT.md", self.root)
-        self.source = self.root / "EVALUATIEOPDRACHT.md"
-        self.output = self.root / "evals" / "index.html"
+        self.source = self.root / "evals" / "README.md"
+        self.output = self.root / "evals" / "web" / "index.html"
 
     def run_build(self, *args):
         return subprocess.run(
@@ -47,7 +46,7 @@ class DocumentationBuildTests(unittest.TestCase):
     def test_archived_catalog_change_is_tracked_without_exposing_planned_items(self):
         self.assertEqual(self.run_build().returncode, 0)
         original = self.output.read_bytes()
-        catalog_path = self.root / "evals" / "scenarios.json"
+        catalog_path = self.root / "evals" / "data" / "scenarios.json"
         catalog = json.loads(catalog_path.read_text())
         catalog["scenarios"][0]["title"] = '<script>untrusted catalog title</script>'
         catalog_path.write_text(json.dumps(catalog))

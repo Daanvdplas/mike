@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { createSearchRuntime } from './runtime';
-import fixtureResponse from '../../docs/examples/search-response.json';
+import fixtureResponse from '../../fixtures/api/search-response.json';
 
 it('kiest zonder modus de echte API en verstuurt de eigen vraag naar die backend', async () => {
   let requestedUrl = '';

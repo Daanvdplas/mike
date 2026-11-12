@@ -2,11 +2,11 @@
 /// <reference types="node" />
 import { expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-const viewerScript = readFileSync('../docs/evals/viewer.js', 'utf8');
+const viewerScript = readFileSync('../evals/web/viewer.js', 'utf8');
 
 it('toont alleen B1 en E06 met één methodekeuze en één startknop per eval', async () => {
   document.body.innerHTML = '<p id="catalog-status"></p><button id="catalog-retry"></button><div id="runnable-list"></div>';
-  const fixture = JSON.parse(readFileSync('../docs/evals/deterministic_b1.json', 'utf8'));
+  const fixture = JSON.parse(readFileSync('../evals/data/deterministic_b1.json', 'utf8'));
   const expected = fixture.expected_cases;
   const evals = [{id: 'B1', title: fixture.title, input_mode: 'query', query: fixture.query, expected_cases: expected, runnable: true},
     {id: 'E06', title: 'E06', input_mode: 'query', query: 'Exact English question', source_excluded: true, expected_behavior: 'Expected legal issue', runnable: true}];
@@ -69,7 +69,7 @@ it('toont alleen B1 en E06 met één methodekeuze en één startknop per eval', 
 
 it.each([false, true])('houdt zoekmethode en optioneel beoordelingsmodel gescheiden (catalogusfout: %s)', async (catalogFailed) => {
   document.body.innerHTML = '<p id="catalog-status"></p><button id="catalog-retry"></button><div id="runnable-list"></div><div id="diagnostic-list"></div>';
-  const fixture = JSON.parse(readFileSync('../docs/evals/deterministic_b1.json', 'utf8'));
+  const fixture = JSON.parse(readFileSync('../evals/data/deterministic_b1.json', 'utf8'));
   const record = {id: 'E06', title: 'Synthetic E06', input_mode: 'query', query: 'Exact question', source_excluded: true,
     source_case: {id: '156133', name: 'Source case'}, expected_behavior: 'Synthetic expectation', runnable: true};
   const fixed = {id: 'B1', title: fixture.title, input_mode: 'query', query: fixture.query, expected_cases: fixture.expected_cases, runnable: true,

@@ -598,7 +598,7 @@ mod tests {
 
     #[test]
     fn shipped_catalog_has_twenty_five_unique_designs_in_fixed_order() {
-        let raw = include_bytes!("../../../docs/evals/scenarios.json");
+        let raw = include_bytes!("../../../evals/data/scenarios.json");
         let catalog = Catalog::parse(raw).unwrap();
         assert_eq!(catalog.scenarios.len(), 25);
         assert_eq!(catalog.scenarios[0].id, "E01");

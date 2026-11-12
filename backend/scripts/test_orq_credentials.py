@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-import evals_web
+from evals import evals_web
 
 
 class OrqCredentialTest(unittest.TestCase):

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { getPassageParts, validateInput } from './search';
 import { createMockClient, createApiClient } from './client';
-import cases from '../../docs/examples/cases.json';
-import response from '../../docs/examples/search-response.json';
+import cases from '../../fixtures/api/cases.json';
+import response from '../../fixtures/api/search-response.json';
 
 const txt = new File(['eigen inhoud'], 'mijn zaak.txt', { type: 'text/plain' });
 

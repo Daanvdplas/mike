@@ -9,7 +9,7 @@ import struct
 import tempfile
 import unittest
 
-import deterministic_b1 as b1
+from evals import deterministic_b1 as b1
 
 
 def canonical(value):
@@ -22,7 +22,7 @@ def digest(value):
 
 class B1SnapshotTest(unittest.TestCase):
     def make_index(self, root):
-        fixture = copy.deepcopy(json.loads((Path(__file__).parents[2] / 'docs/evals/deterministic_b1.json').read_text()))
+        fixture = copy.deepcopy(json.loads((Path(__file__).parents[2] / 'evals/data/deterministic_b1.json').read_text()))
         fixture.update(schema_version=2, fixture_version='appeal-bond-b1-v2')
         cases, records = {}, []
         expected = []

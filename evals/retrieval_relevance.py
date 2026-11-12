@@ -11,7 +11,7 @@ import sys
 from urllib import error, request
 import uuid
 
-from orq_models import ModelIdentityError, provider_model
+from backend.scripts.orq_models import ModelIdentityError, provider_model
 
 ORQ_BASE_URL = "https://my.orq.ai/v3/router"
 MAX_DOCUMENT_CHARS = 20_000

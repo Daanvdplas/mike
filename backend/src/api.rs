@@ -338,7 +338,7 @@ mod tests {
                 .unwrap()
                 .push((query.map(str::to_owned), document.map(str::to_owned)));
             let mut response: SearchResponse =
-                serde_json::from_str(include_str!("../../docs/examples/search-response.json"))
+                serde_json::from_str(include_str!("../../fixtures/api/search-response.json"))
                     .unwrap();
             response.mode = match (query, document) {
                 (Some(_), Some(_)) => "combined",
@@ -363,7 +363,7 @@ mod tests {
         }
         fn get_case(&self, id: &str) -> Result<CaseDetail, EngineError> {
             let cases: Vec<CaseDetail> =
-                serde_json::from_str(include_str!("../../docs/examples/cases.json")).unwrap();
+                serde_json::from_str(include_str!("../../fixtures/api/cases.json")).unwrap();
             cases
                 .into_iter()
                 .find(|c| c.metadata.case_id == id)

@@ -11,7 +11,7 @@ import unittest
 from urllib import error, request
 from unittest.mock import patch
 
-import evals_web
+from evals import evals_web
 
 
 class EvalsWebTest(unittest.TestCase):
@@ -166,7 +166,7 @@ class EvalsWebTest(unittest.TestCase):
     def test_scenario_input_modes_preserve_full_majority_hashes_and_source_exclusion(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / 'docs/evals').mkdir(parents=True)
+            (root / 'evals/data').mkdir(parents=True)
             (root / 'corpus/json').mkdir(parents=True)
             database = root / 'cases.sqlite'
             manifest = {'corpus_version': 'synthetic-corpus', 'embedding': {'model': 'synthetic-model'}}
@@ -190,7 +190,7 @@ class EvalsWebTest(unittest.TestCase):
                     rows.append(row)
                     expected[eval_id] = (row['query']['en'] if row['query'] else None, text if row['document'] else None, mode, case_id)
                 db.commit()
-            catalog_path = root / 'docs/evals/scenarios.json'
+            catalog_path = root / 'evals/data/scenarios.json'
             catalog_path.write_text(json.dumps({'schema_version': 1, 'status': 'ontwerp', 'scenarios': rows}))
             config = {'repo': root, 'corpus': root / 'corpus', 'database': database, 'outputs': root / 'runs', 'backend': 'http://local',
                       'model': 'not-requested', 'key': '', 'retrieval_methods': ['opinion_chunks', 'head_matter'], 'judge_enabled': False}

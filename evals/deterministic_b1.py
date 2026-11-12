@@ -19,9 +19,9 @@ def digest(raw):
 
 
 def load_fixture(repo):
-    raw = (repo / 'docs/evals/deterministic_b1.json').read_bytes()
+    raw = (repo / 'evals/data/deterministic_b1.json').read_bytes()
     fixture = json.loads(raw)
-    archived = (repo / 'docs/evals/archive/deterministic_b1_v1.json').read_bytes()
+    archived = (repo / 'evals/data/archive/deterministic_b1_v1.json').read_bytes()
     original = json.loads(archived)
     unchanged = ('id', 'input_mode', 'query', 'document', 'excluded_case_ids', 'expected_cases', 'expected_order', 'success_rule')
     if (fixture.get('schema_version') != 2 or fixture.get('fixture_version') != 'appeal-bond-b1-v2'

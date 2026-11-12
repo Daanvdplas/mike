@@ -27,4 +27,4 @@ De launcher controleert de benodigdheden, bouwt ontbrekende onderdelen en opent:
 
 Houd de terminal open; Ctrl+C stopt de eigen services. Er wordt geen index stil geïmporteerd en geen ingevoerde sleutel blijvend opgeslagen.
 
-Configuratie, handmatige setup, grenzen en controles staan in de [uitgebreide lokale setup](docs/LOCAL_SETUP.md).
+Configuratie, handmatige setup, grenzen en controles staan in de [uitgebreide lokale setup](docs/LOCAL_SETUP.md). Evaluatiecode, data en afspraken staan in [evals/](evals/README.md).

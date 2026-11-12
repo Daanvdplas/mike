@@ -16,12 +16,12 @@ import time
 from urllib.parse import urlsplit
 import uuid
 
-import retrieval_relevance as relevance
-import deterministic_b1 as b1
-from orq_models import ModelCatalog, UnsupportedModel
-from orq_credentials import load_api_key
+from . import retrieval_relevance as relevance
+from . import deterministic_b1 as b1
+from backend.scripts.orq_models import ModelCatalog, UnsupportedModel
+from backend.scripts.orq_credentials import load_api_key
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "openai/gpt-4.1-mini-2025-04-14"
 
 
@@ -50,7 +50,7 @@ def private_json(path, value):
 
 
 def scenario_catalog(repo):
-    raw = (repo / "docs/evals/scenarios.json").read_bytes()
+    raw = (repo / "evals/data/scenarios.json").read_bytes()
     value = json.loads(raw)
     rows = value.get("scenarios")
     if value.get("schema_version") != 1 or value.get("status") != "ontwerp" or not isinstance(rows, list) or not rows:
@@ -263,7 +263,7 @@ def run_eval(config, eval_id):
 def handler_class(config, runner=run_eval):
     models = config.get("models") or ModelCatalog(config.get("model", DEFAULT_MODEL))
     lock = threading.Lock()
-    static = config["repo"] / "docs/evals"
+    static = config["repo"] / "evals/web"
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -297,7 +297,7 @@ def handler_class(config, runner=run_eval):
                 self.send_error(404)
                 return
             try:
-                data = (static / name).read_bytes()
+                data = ((config["repo"] / "evals/data/scenarios.json") if name == "scenarios.json" else (static / name)).read_bytes()
             except OSError:
                 self.send_error(404)
                 return

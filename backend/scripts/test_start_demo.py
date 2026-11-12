@@ -20,6 +20,33 @@ class StartDemoTest(unittest.TestCase):
         except ModuleNotFoundError:
             self.fail('The one-command launcher is not implemented.')
 
+    def test_evaluation_service_runs_as_a_package_from_the_repository(self):
+        app = self.launcher()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            commands = {}
+
+            class Owned:
+                def __init__(self, session, cwd):
+                    self.cwd = cwd
+                def __enter__(self): return self
+                def __exit__(self, *args): pass
+                def run_checked(self, *args, **kwargs): pass
+                def start(self, label, command, *args):
+                    commands[label] = command
+                    if label == 'evals': raise KeyboardInterrupt()
+
+            with patch.dict(app.os.environ, {}, clear=True), \
+                    patch.object(app, 'ROOT', root), patch.object(app, 'check_tools'), \
+                    patch.object(app, 'check_ports'), patch.object(app, 'check_no_native_jobs'), \
+                    patch.object(app, 'NativeSlot'), patch.object(app, 'prepare_builds'), \
+                    patch.object(app, 'credential', return_value=(root / 'provided.key', False)), \
+                    patch.object(app, 'validate_index', return_value={'corpus_version': 'synthetic'}), \
+                    patch.object(app, 'wait_json', return_value={'status': 'ready', 'corpus_version': 'synthetic'}), \
+                    patch.object(app, 'OwnedProcesses', Owned):
+                self.assertEqual(app.run(app.parse_args(['--no-open'])), 0)
+            self.assertEqual(commands['evals'][:3], [sys.executable, '-m', 'evals.evals_web'])
+
     def test_backend_build_prepares_the_document_extractor_too(self):
         app = self.launcher()
         with tempfile.TemporaryDirectory() as temporary:

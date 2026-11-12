@@ -1,5 +1,5 @@
-import fixtureResponse from '../../docs/examples/search-response.json';
-import fixtureCases from '../../docs/examples/cases.json';
+import fixtureResponse from '../../fixtures/api/search-response.json';
+import fixtureCases from '../../fixtures/api/cases.json';
 import { validateInput, type CaseDetail, type ModelCatalog, type SearchInput, type SearchResponse } from './search';
 
 export interface SearchClient {

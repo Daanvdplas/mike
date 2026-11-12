@@ -19,8 +19,8 @@ import time
 from urllib import error, request
 import webbrowser
 
-import deterministic_b1 as b1
-import evals_web
+from evals import deterministic_b1 as b1
+from evals import evals_web
 from orq_credentials import load_api_key
 from orq_proxy import provider_endpoint
 
@@ -317,7 +317,7 @@ def run(args):
             owned.start('orq', [sys.executable, str(ROOT / 'backend/scripts/orq_proxy.py'), '--backend', backend, '--port', str(args.orq_port)], {**server_env, 'ADAMI_DOCUMENT_EXTRACTOR': str(settings['extractor'])})
             wait_json(gateway + '/api/models', owned)
             wait_json(gateway + '/api/health', owned)
-            owned.start('evals', [sys.executable, str(ROOT / 'backend/scripts/evals_web.py'), '--port', str(args.eval_port), '--backend', backend, '--database', str(settings['database']), '--model-cache', str(settings['cache']), '--corpus', str(settings['corpus']), '--outputs', str(ROOT / '.cache/eval-runs')], server_env)
+            owned.start('evals', [sys.executable, '-m', 'evals.evals_web', '--port', str(args.eval_port), '--backend', backend, '--database', str(settings['database']), '--model-cache', str(settings['cache']), '--corpus', str(settings['corpus']), '--outputs', str(ROOT / '.cache/eval-runs')], server_env)
             if not wait_json(evals + 'api/evals', owned).get('judge_available'):
                 raise StartError('De evaluatieserver heeft de Orq-configuratie niet geladen.')
             frontend_env = {**common, 'VITE_API_MODE': 'api', 'VITE_API_BASE_URL': gateway}

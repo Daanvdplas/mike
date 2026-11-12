@@ -3,14 +3,14 @@ name: Evaluation documentation checks
 on:
   pull_request:
     paths:
-      - "docs/EVALUATIEOPDRACHT.md"
-      - "docs/evals/**"
+      - "evals/**"
+      - "backend/scripts/orq_*.py"
       - ".github/workflows/eval-docs-checks.yml"
   push:
     branches: [main]
     paths:
-      - "docs/EVALUATIEOPDRACHT.md"
-      - "docs/evals/**"
+      - "evals/**"
+      - "backend/scripts/orq_*.py"
       - ".github/workflows/eval-docs-checks.yml"
 
 permissions:
@@ -25,6 +25,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Check generated documentation is current
-        run: python3 docs/evals/build.py --check
-      - name: Test documentation generator
-        run: python3 -m unittest discover -s docs/evals -p 'test_*.py'
+        run: python3 -m evals.build --check
+      - name: Test evaluation contracts and documentation generator
+        run: python3 -m unittest discover -s evals -t . -p 'test_*.py'

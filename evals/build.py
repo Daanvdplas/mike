@@ -12,8 +12,10 @@ import unicodedata
 
 
 HERE = Path(__file__).resolve().parent
-SOURCE = HERE.parent / "EVALUATIEOPDRACHT.md"
-OUTPUT = HERE / "index.html"
+SOURCE = HERE / "README.md"
+WEB = HERE / "web"
+DATA = HERE / "data"
+OUTPUT = WEB / "index.html"
 
 
 def inline(text):
@@ -116,7 +118,7 @@ def markdown(source):
 
 
 def scenario_catalog():
-    catalog = json.loads((HERE / "scenarios.json").read_text())
+    catalog = json.loads((DATA / "scenarios.json").read_text())
     if catalog.get("schema_version") != 1 or catalog.get("status") != "ontwerp":
         raise ValueError("De scenariocatalogus moet schema 1 en status ontwerp gebruiken.")
     scenarios = catalog.get("scenarios")
@@ -192,16 +194,16 @@ def render(source):
         raise ValueError("Het scenarioaantal wijkt af van de canonieke statusbeschrijving.")
     source_navigation = "".join(f'<li><a href="#bron-{slug(title)}">{html.escape(title)}</a></li>' for title in content)
     replacements = {
-        "STYLE": (HERE / "viewer.css").read_text(),
-        "SCRIPT": (HERE / "viewer.js").read_text(),
+        "STYLE": (WEB / "viewer.css").read_text(),
+        "SCRIPT": (WEB / "viewer.js").read_text(),
         "SCENARIO_COUNT": str(len(scenarios)),
         "SCENARIO_ITEMS": "\n".join(render_scenario(scenario) for scenario in scenarios),
         "SOURCE_NAVIGATION": source_navigation,
         "SPECIFICATION": markdown(source),
         "HASH": hashlib.sha256(source.encode()).hexdigest(),
-        "CATALOG_HASH": hashlib.sha256((HERE / "scenarios.json").read_bytes()).hexdigest(),
+        "CATALOG_HASH": hashlib.sha256((DATA / "scenarios.json").read_bytes()).hexdigest(),
     }
-    result = (HERE / "template.html").read_text()
+    result = (WEB / "template.html").read_text()
     for name, value in replacements.items():
         result = result.replace("{{" + name + "}}", value)
     if re.search(r"\{\{[A-Z_]+\}\}", result):
@@ -217,12 +219,12 @@ def main():
         result = render(SOURCE.read_text())
         if args.check:
             if not OUTPUT.exists() or OUTPUT.read_text() != result:
-                print("Evalviewer is verouderd. Voer python3 docs/evals/build.py uit.", file=sys.stderr)
+                print("Evalviewer is verouderd. Voer python3 -m evals.build uit.", file=sys.stderr)
                 return 1
             print("Evalviewer komt overeen met de canonieke bron en presentatiefiles.")
         else:
             OUTPUT.write_text(result)
-            print("Gegenereerd: docs/evals/index.html (documentatie; geen evaluaties uitgevoerd).")
+            print("Gegenereerd: evals/web/index.html (documentatie; geen evaluaties uitgevoerd).")
         return 0
     except (OSError, ValueError) as exc:
         print(f"Documentatiegeneratie mislukt: {exc}", file=sys.stderr)

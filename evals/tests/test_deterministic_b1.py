@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import deterministic_b1 as b1
+from evals import deterministic_b1 as b1
 
 
 class DeterministicB1Test(unittest.TestCase):

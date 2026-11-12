@@ -5,12 +5,16 @@ on:
     paths:
       - "backend/**"
       - "docs/**"
+      - "evals/**"
+      - "fixtures/**"
       - ".github/workflows/backend-checks.yml"
   push:
     branches: [main]
     paths:
       - "backend/**"
       - "docs/**"
+      - "evals/**"
+      - "fixtures/**"
       - ".github/workflows/backend-checks.yml"
 
 permissions:
@@ -35,7 +39,8 @@ jobs:
         run: cargo +1.94.1 clippy --locked --all-targets -- -D warnings
       - name: Deterministic tests (no embedding model download)
         run: cargo +1.94.1 test --locked
-      - name: Resource guard policy (no model or system probes)
-        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Shared Python runtime tests (no model or system probes)
+        working-directory: .
+        run: python3 -m unittest discover -s backend/scripts -p 'test_*.py'
       - name: Build
         run: cargo +1.94.1 build --locked

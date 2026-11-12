@@ -10,7 +10,7 @@ import unittest
 spec = importlib.util.spec_from_file_location('orq_proxy', Path(__file__).with_name('orq_proxy.py'))
 proxy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(proxy)
-FIXTURE = json.loads((Path(__file__).parents[2] / 'docs/examples/search-response.json').read_text())
+FIXTURE = json.loads((Path(__file__).parents[2] / 'fixtures/api/search-response.json').read_text())
 BODY = b'--bound\r\nContent-Disposition: form-data; name="query"\r\n\r\nWitness evidence?\r\n--bound--\r\n'
 CONTENT_TYPE = 'multipart/form-data; boundary=bound'
 

@@ -27,10 +27,10 @@ Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraa
 ## Begin hier
 
 - [AGENTS.md](../AGENTS.md): werkafspraken, eigenaarschap en onderhoud van documentatie.
-- [Backendafspraak voor de frontend](FRONTEND_BACKEND.md): korte overdracht om parallel te kunnen bouwen.
+- [Frontendcontract](CODEBASE_GUIDE.md#frontendcontract): korte overdracht om parallel te kunnen bouwen.
 - [OpenAPI](openapi.yaml): het canonieke API-contract, ook beschikbaar via `/openapi.json`.
 - [Architectuurgids](CODEBASE_GUIDE.md): ontwerp, zoekmethode, grenzen en actuele implementatiestatus.
-- [Evaluatieoverzicht](evals/index.html): B1 en E06, met lokale methodekeuze en optionele AI-beoordeling voor E06; [de opdracht](EVALUATIEOPDRACHT.md) bevat de beoordelingsafspraken.
+- [Evaluatieoverzicht](../evals/web/index.html): B1 en E06, met lokale methodekeuze en optionele AI-beoordeling voor E06; [de opdracht](../evals/README.md) bevat de beoordelingsafspraken.
 - [Hoofdissues en subissues](https://github.com/Daanvdplas/adami-case/issues): uitvoering en voortgang.
 
 ## Afgesproken scope
@@ -62,6 +62,7 @@ cargo +1.94.1 fmt --manifest-path backend/Cargo.toml --all --check
 cargo +1.94.1 clippy --manifest-path backend/Cargo.toml --locked --all-targets -- -D warnings
 cargo +1.94.1 test --manifest-path backend/Cargo.toml --locked -- --test-threads=2
 python3 -m unittest discover -s backend/scripts -p 'test_*.py'
+python3 -m unittest discover -s evals -t . -p 'test_*.py'
 cargo +1.94.1 build --manifest-path backend/Cargo.toml --locked
 ```
 
@@ -69,7 +70,7 @@ Op de gereviewde codehead `9ef3bf9` slaagden 45 Rust-tests, vijf Python-beleidst
 
 ## Nu parallel beginnen
 
-De frontend gebruikt [de korte backendafspraak](FRONTEND_BACKEND.md); fixtures zijn alleen voor expliciete mockmodus. De bestaande frontend is via de gewone main-integratie overgenomen; de backend-PR voegt geen nieuwe frontendfunctionaliteit toe.
+De frontend gebruikt [het frontendcontract](CODEBASE_GUIDE.md#frontendcontract); fixtures zijn alleen voor expliciete mockmodus. De bestaande frontend is via de gewone main-integratie overgenomen; de backend-PR voegt geen nieuwe frontendfunctionaliteit toe.
 
 ## Backend gebruiken
 
@@ -179,7 +180,7 @@ cd frontend
 VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18000 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174 --strictPort
 ```
 
-Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](FRONTEND_BACKEND.md).
+Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [het frontendcontract](CODEBASE_GUIDE.md#frontendcontract).
 
 ## Mike lokaal met Orq-uitleg
 
@@ -232,14 +233,14 @@ De nieuwe, vooraf vastgelegde AI-doelmatchindicatie was 3/5 voor alleen een vraa
 
 ## Evals bekijken en bijhouden
 
-Open het [evaluatieoverzicht](evals/index.html) via de lokale evalserver hieronder. De compacte pagina behoudt de vaste B1-referentiecontrole en E06; kaarten beginnen ingeklapt en bewaren een bestaande uitslag wanneer je ze sluit. Iedere zichtbare kaart heeft één methodekeuze en één startknop. De overige25 scenario’s zijn uitsluitend bronmateriaal voor de CLI en verdere benchmarkontwikkeling. De volledige ontwerpbeschrijvingen en onderhoudsinstructies blijven in de canonieke bronnen, buiten de zichtbare kaarten. Zonder kandidaatlabels leveren de scenario’s geen juridische kwaliteitsmetrics.
+Open het [evaluatieoverzicht](../evals/web/index.html) via de lokale evalserver hieronder. De compacte pagina behoudt de vaste B1-referentiecontrole en E06; kaarten beginnen ingeklapt en bewaren een bestaande uitslag wanneer je ze sluit. Iedere zichtbare kaart heeft één methodekeuze en één startknop. De overige25 scenario’s zijn uitsluitend bronmateriaal voor de CLI en verdere benchmarkontwikkeling. De volledige ontwerpbeschrijvingen en onderhoudsinstructies blijven in de canonieke bronnen, buiten de zichtbare kaarten. Zonder kandidaatlabels leveren de scenario’s geen juridische kwaliteitsmetrics.
 
-Onderhoud de beoordelingsafspraken in [docs/EVALUATIEOPDRACHT.md](EVALUATIEOPDRACHT.md) en de concrete ontwerpbeschrijvingen in [docs/evals/scenarios.json](evals/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
+Onderhoud de beoordelingsafspraken in [evals/README.md](../evals/README.md) en de concrete ontwerpbeschrijvingen in [evals/data/scenarios.json](../evals/data/scenarios.json). Genereer daarna de leesweergave opnieuw en controleer dat bron en HTML overeenkomen:
 
 ```sh
-python3 docs/evals/build.py
-python3 docs/evals/build.py --check
-python3 -m unittest discover -s docs/evals -p 'test_*.py'
+python3 -m evals.build
+python3 -m evals.build --check
+python3 -m unittest discover -s evals -t . -p 'test_*.py'
 ```
 
 De [documentatie-CI](../.github/workflows/eval-docs-checks.yml) voert de synchronisatiecheck en generatortests automatisch uit bij wijzigingen aan deze evaldocumentatie. Een verouderde HTML-weergave laat de check falen. Dit valideert de documentatie, niet de kwaliteit of uitvoering van de toekomstige evals. Zie de [onderhoudsafspraken](../AGENTS.md#evaluatiedocumentatie-onderhouden).
@@ -250,10 +251,10 @@ De pagina biedt uitsluitend **B1 en E06**. Kies per kaart opinion-chunks(B), hea
 
 De zichtbare E06-kaart biedt dezelfde keuze A, B of beide. Een eventuele AI-beoordeling staat uit totdat je die expliciet aanvinkt.
 
-**B1** gebruikt één normale startknop met keuze A, B of beide. De exacte oorspronkelijke vraag en twee verwachte zaken (Cummings156040 en Neubauer156042) zijn behouden. Per methode wordt werkelijk 0–2 geteld: `passed` is uitsluitend waar als beide in de echte top drie staan. De huidige v2-fixture bindt expliciet alle135 bronrecords, secties/passages/vectoren, model en indexmanifest. Oudev1 staat alleen in `docs/evals/archive/deterministic_b1_v1.json`. V2 is een gemigreerde referentie na eerdere diagnostische runs, geen nieuwe preregistratie of juridische goldset. B1 heeft geen AI-beoordelaar; verwachte IDs worden nooit zoekinvoer.
+**B1** gebruikt één normale startknop met keuze A, B of beide. De exacte oorspronkelijke vraag en twee verwachte zaken (Cummings156040 en Neubauer156042) zijn behouden. Per methode wordt werkelijk 0–2 geteld: `passed` is uitsluitend waar als beide in de echte top drie staan. De huidige v2-fixture bindt expliciet alle135 bronrecords, secties/passages/vectoren, model en indexmanifest. Oudev1 staat alleen in `evals/data/archive/deterministic_b1_v1.json`. V2 is een gemigreerde referentie na eerdere diagnostische runs, geen nieuwe preregistratie of juridische goldset. B1 heeft geen AI-beoordelaar; verwachte IDs worden nooit zoekinvoer.
 
 ```sh
-python3 backend/scripts/evals_web.py \
+python3 -m evals.evals_web \
   --port 8798 --backend http://127.0.0.1:8000 \
   --database "$HOME/Library/Caches/adami-case/head-matter-search/cases.sqlite" \
   --model-cache "$HOME/Library/Caches/adami-case/fastembed" \
@@ -283,7 +284,7 @@ python3 backend/scripts/resource_guard.py \
   --label adami-eval --timeout-seconds 600 \
   --report "$HOME/Library/Caches/adami-case/eval-guard.json" \
   --log "$HOME/Library/Caches/adami-case/eval.log" \
-  -- "$ADAMI_EVAL_BINARY" eval docs/evals/scenarios.json \
+  -- "$ADAMI_EVAL_BINARY" eval evals/data/scenarios.json \
   /Users/R0GUE/Downloads/texas-criminal-reports \
   "$HOME/Library/Caches/adami-case/eval-run-01" --retrieval-method opinion_chunks
 ```
@@ -300,7 +301,7 @@ Optionele labels kunnen mee met `--labels /pad/labels.json`. De scorer controlee
 
 ```sh
 "$ADAMI_EVAL_BINARY" score /pad/run.json /pad/labels.json \
-  docs/evals/scenarios.json /Users/R0GUE/Downloads/texas-criminal-reports \
+  evals/data/scenarios.json /Users/R0GUE/Downloads/texas-criminal-reports \
   "$HOME/Library/Caches/adami-case/eval-rescore-01"
 ```
 
@@ -318,7 +319,7 @@ De onafhankelijke echte API-/browsercontrole doorliep A en B met vraag, TXT-docu
 
 De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; de latere integratie verandert de Rust-engine niet. De nieuwe productfrontend-modelkeuze is afzonderlijk modelvrij gecontroleerd, inclusief combinatie met de retrievalmethode. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. Het lokale startprofiel hierboven hergebruikt dezelfde gecontroleerde dual-index; stop eerst een eventuele oude modelguard.
 
-De losse commandlinetool `backend/scripts/retrieval_relevance.py` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.
+De losse commandlinetool `python3 -m evals.retrieval_relevance` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.
 
 ## Orq-model kiezen
 

@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-import retrieval_relevance as evaluation
+from evals import retrieval_relevance as evaluation
 
 
 class RelevanceTest(unittest.TestCase):

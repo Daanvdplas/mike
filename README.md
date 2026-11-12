@@ -53,7 +53,7 @@ De frontend gebruikt [de korte backendafspraak](docs/FRONTEND_BACKEND.md); fixtu
 
 ## Backend gebruiken
 
-Deze featurebranch vereist indexformaat 3 met zowel majority opinions als afzonderlijke head matter. Gebruik een nieuw databasepad; overschrijf de bestaande majority-only demo-index niet. Een oude of onvolledige index geeft 503 vóór modelladen en wordt nooit stil herbouwd.
+Deze versie vereist indexformaat3 met zowel majority opinions als afzonderlijke head matter. Gebruik een nieuw databasepad; overschrijf de bestaande majority-only demo-index niet. Een oude of onvolledige index geeft 503 vóór modelladen en wordt nooit stil herbouwd.
 
 Bouw eerst buiten het modelbudget met de backendchecks hierboven. Gebruik voor deze Mac vervolgens:
 
@@ -296,7 +296,7 @@ De tests controleren expliciete methodekeuze/default B, gescheiden bronsecties e
 
 De onafhankelijke echte API-/browsercontrole doorliep A en B met vraag, TXT-document en PDF plus vraag; zes volledige readers met exacte sectiehashes en UTF-16-markeringen; fout/herstel en mobiele weergave. E01 (document), E06 (vraag) en E11 (beide) zijn via de webinterface gepaard uitgevoerd met dezelfde invoer, manifesten en bronuitsluiting vóór top drie. Een afzonderlijke bewaakte CLI-run van E06 met A bevestigde artefactversie 2, 134 kandidaten na bronuitsluiting en `not_scored`/lege kwaliteitsmetrics. Er zijn geen Orq-/providercalls uitgevoerd en geen nieuwe juridische kwaliteitswinst geclaimd.
 
-De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; de latere integratie verandert de Rust-engine niet. De nieuwe productfrontend-modelkeuze is afzonderlijk modelvrij gecontroleerd, inclusief combinatie met de retrievalmethode. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. Het main-startprofiel hierboven hergebruikt dezelfde gecontroleerde dual-index; stop eerst een eventuele oude modelguard.
+De tijdelijke featurebackend en beide bijbehorende webservers zijn na de controles gestopt. De oorspronkelijke demo op 8000 is met de behouden binary, database en CORS-instellingen hersteld. De echte zoekkern-/API-/browserbewijzen horen bij codehead `2fa5b1a`; de latere integratie verandert de Rust-engine niet. De nieuwe productfrontend-modelkeuze is afzonderlijk modelvrij gecontroleerd, inclusief combinatie met de retrievalmethode. De gewijzigde evaluatieweergave wordt afzonderlijk modelvrij met opgeslagen responses gecontroleerd; dit geldt niet als een nieuwe modelrun. Runtimeverslagen, de nieuwe database en vergelijkingsruns blijven buiten Git in `$HOME/Library/Caches/adami-case/head-matter-search/`; de onafhankelijke API-/browserartefacten staan daar onder `independent-review/`. Het lokale startprofiel hierboven hergebruikt dezelfde gecontroleerde dual-index; stop eerst een eventuele oude modelguard.
 
 De losse commandlinetool `backend/scripts/retrieval_relevance.py` uit PR36 blijft beschikbaar voor één eigen vraag en/of UTF-8-tekstbestand; gebruik `--help`. Zij gebruikt dezelfde judge- en bronfragmentcontrole als de webpagina.
 

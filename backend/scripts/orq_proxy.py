@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from orq_models import ModelCatalog, ModelIdentityError, UnsupportedModel, provider_model
+from orq_credentials import load_api_key
 
 ENDPOINT = 'https://my.orq.ai/v3/router/responses'
 DEFAULT_MODEL = 'openai/gpt-4.1-mini-2025-04-14'
@@ -396,9 +397,10 @@ def main():
     endpoint = urlsplit(args.backend)
     if endpoint.scheme != 'http' or endpoint.hostname not in ('127.0.0.1', 'localhost') or endpoint.path or endpoint.username:
         parser.error('Backend must be a loopback HTTP origin')
-    key = os.environ.get('ORQ_API_KEY', '').strip()
-    if not key and os.environ.get('ORQ_API_KEY_FILE'):
-        key = Path(os.environ['ORQ_API_KEY_FILE']).read_text().strip()
+    try:
+        key = load_api_key()
+    except ValueError as failure:
+        parser.error(str(failure))
     if not key:
         parser.error('Set ORQ_API_KEY or a private ORQ_API_KEY_FILE outside the repository')
     models = ModelCatalog(args.model, os.environ.get('ORQ_MODELS'))

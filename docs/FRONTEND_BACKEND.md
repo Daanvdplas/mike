@@ -78,7 +78,7 @@ De officiële Orq-frontend op 5175 wijst naar 18000; een afzonderlijke QA-fronte
 
 De response is `{response, excluded_case_ids, eligible_case_count, index_manifest}`. `response` is de gewone zoekresponse met expliciete methode; het manifest bindt corpus, modelbestanden en verwerking. Voer A en B na elkaar uit op dezelfde invoer en uitsluitingen en vergelijk de volledige manifesten. De evalserver start geen extra embeddingproces en een lokale vergelijking heeft geen Orq-key nodig. Bewaar daadwerkelijke resultaten en timings; een rangverschil of overlap is geen juridische kwaliteitsmetric.
 
-Het main-startprofiel gebruikt backend `127.0.0.1:8000`, app `127.0.0.1:5176` en evaluatiepagina `127.0.0.1:8798`. De bestaande database en binary blijven behouden; slechts één native modeljob draait tegelijk.
+Het lokale startprofiel gebruikt backend `127.0.0.1:8000`, app `127.0.0.1:5176` en evaluatiepagina `127.0.0.1:8798`. De bestaande database en binary blijven behouden; slechts één native modeljob draait tegelijk.
 
 ## Modelkeuze op de optionele servers
 
@@ -86,4 +86,4 @@ Het main-startprofiel gebruikt backend `127.0.0.1:8000`, app `127.0.0.1:5176` en
 
 Bij `POST /api/search` naar de sidecar staat de keuze in de optionele header `X-Orq-Model`; voeg geen nieuw multipartveld toe. Zonder header geldt de serverdefault. CORS staat de header voor de expliciete lokale frontendorigins toe. `SearchResponse.explanation_requested_model` bevat de keuze, `explanation_model` de werkelijk gemelde provider-ID of `null` wanneer onbekend. Toon een eerdere uitslag met zijn eigen response-ID, ook als de gebruiker daarna een andere optie kiest. Model-/toegangsfouten geven een duidelijke fout zonder ander model te kiezen. Het core-Rust-OpenAPI-contract en de bronranking veranderen niet; alleen de sidecar `/openapi.json` documenteert de extra route/header/velden.
 
-E06 accepteert `{"model":"server-model-id"}` op zijn runroute; `{}` gebruikt de serverdefault. B1 accepteert uitsluitend `{}` en toont geen picker. E06-artifactvelden `requested_model` en `model` onderscheiden de keuze van de werkelijk gemelde provider-ID. Onbekende keuzes worden vóór retrieval of modelaanroepen afgewezen met 400 `unsupported_model`.
+E06 accepteert `retrieval_methods`, `judge` (standaard false) en bij AI-beoordeling optioneel `model`. Zonder model bij `judge: true` geldt de serverdefault; `{}` voert uitsluitend lokale standaardB-retrieval uit. B1 accepteert `{}` voor standaardB of `retrieval_methods` voor A/B/beide; judge/modelvelden zijn niet toegestaan. B1 toont geen AI-modelpicker. E06-artifactvelden `requested_model` en `model` onderscheiden de keuze van de werkelijk gemelde provider-ID. Onbekende keuzes worden vóór retrieval of modelaanroepen afgewezen met 400 `unsupported_model`.

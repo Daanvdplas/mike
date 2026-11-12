@@ -140,7 +140,7 @@ def validate_judgments(value, passages):
     return checked
 
 
-def judge(query, document, passages, model, key, base_url, rubric=None, source_sections=None):
+def judge(query, document, passages, model, key, base_url, rubric=None, source_sections=None, response_sink=None):
     options = source_options(passages)
     payload = {
         "model": model, "temperature": 0, "max_tokens": 1000,
@@ -182,6 +182,8 @@ def judge(query, document, passages, model, key, base_url, rubric=None, source_s
         data=json.dumps(payload).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     ))
+    if response_sink is not None:
+        response_sink(response)
     # Persist only model content on invalid output, never request headers or credentials.
     diagnostic = {"model": response.get("model"), "choices": []}
     for choice in response.get("choices", [])[:1]:

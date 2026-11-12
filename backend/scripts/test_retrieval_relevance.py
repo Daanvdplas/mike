@@ -7,6 +7,25 @@ import retrieval_relevance as evaluation
 
 
 class RelevanceTest(unittest.TestCase):
+    def test_successful_response_trace_and_editorial_source_labels_are_preserved(self):
+        passages = {str(i): f'Exact source passage for case {i}.' for i in range(3)}
+        rows = {key: {'grade': i, 'reasoning': 'Synthetic reason.', 'quote_id': f'{key}:q1'} for i, key in enumerate(passages)}
+        completion = {'id': 'synthetic-response', 'model': 'mock/model', 'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps({'judgments': rows})}}], 'usage': {'prompt_tokens': 100}}
+        traces = []
+        with patch.object(evaluation, 'fetch_json', return_value=completion) as call:
+            try:
+                checked, model, _ = evaluation.judge('Fixed question', None, passages, 'mock/model', 'synthetic-private-key', evaluation.ORQ_BASE_URL, source_sections={'0': 'head_matter'}, response_sink=traces.append)
+            except TypeError:
+                self.fail('Successful provider responses must be available for private run evidence.')
+            self.assertEqual(traces, [completion])
+            self.assertNotIn('synthetic-private-key', json.dumps(traces))
+            payload = json.loads(call.call_args.args[0].data)
+            supplied = json.loads(payload['messages'][1]['content'])['cases']
+            self.assertEqual(supplied[0]['source_section'], 'head_matter')
+            self.assertIn('editorial context', payload['messages'][0]['content'])
+            self.assertTrue(all(row['quote'] in passages[row['case_id']] for row in checked))
+            self.assertEqual(model, 'mock/model')
+
     def test_one_call_preserves_ids_grades_and_verbatim_quotes(self):
         response = {"mode": "query", "results": [
             {"case_id": str(i), "score": 0.9 - i / 10,

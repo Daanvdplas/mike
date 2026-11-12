@@ -58,15 +58,18 @@ describe('lokale simulatie en API-grens', () => {
     expect(await client.getModels!()).toBeNull();
   });
 
-  it('geeft een gekozen toelichtingsmodel alleen in de aparte header door', async () => {
+  it('gebruikt de optionele B-default op de bestaande proxy en behoudt upload en modelheader', async () => {
     let request: RequestInit | undefined;
     const client = createApiClient('http://127.0.0.1:18000', async (_url, init) => {
       request = init;
+      if ((init?.body as FormData).has('retrieval_method')) return new Response(JSON.stringify({error: {message: 'Onbekend veld'}}), {status: 400});
       return new Response(JSON.stringify(response), { status: 200 });
     });
     await client.search({ query: 'vraag', document: txt, model: 'catalog/test-model' });
     expect(request?.headers).toEqual({ 'X-Orq-Model': 'catalog/test-model' });
-    expect([...(request?.body as FormData).keys()]).toEqual(['query', 'document', 'retrieval_method']);
+    expect([...(request?.body as FormData).keys()]).toEqual(['query', 'document']);
+    expect((request?.body as FormData).get('document')).toBeInstanceOf(File);
+    await expect(client.search({query: 'vraag', retrieval_method: 'opinion_chunks'})).resolves.toMatchObject({results: response.results});
   });
 
   it('stuurt de gekozen zoekmethode mee en weigert een stille terugval naar oordeelpassages', async () => {

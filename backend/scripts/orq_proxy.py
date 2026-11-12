@@ -257,8 +257,17 @@ def explain_search(body, content_type, provider, retrieve, model, extractor=None
     return result
 
 
+def provider_endpoint(base):
+    parsed = urlsplit(base)
+    if (parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password
+            or parsed.query or parsed.fragment or (parsed.scheme == 'http' and parsed.hostname not in {'127.0.0.1', 'localhost'})):
+        raise ValueError('ORQ_BASE_URL moet HTTPS gebruiken, of expliciet localhost-HTTP voor een lokale contracttest.')
+    return base.rstrip('/') + '/responses'
+
+
 class OrqProvider:
-    def __init__(self, key, budget=20):
+    def __init__(self, key, budget=20, base_url=None):
+        self._endpoint = provider_endpoint(base_url or os.environ.get("ORQ_BASE_URL", ENDPOINT.rsplit("/", 1)[0]))
         self._key = key
         self._remaining = budget
         self._lock = threading.Lock()
@@ -270,7 +279,7 @@ class OrqProvider:
         data = json.dumps(body, ensure_ascii=False).encode()
         if len(data) > 128 * 1024:
             raise UpstreamError(413, {'error': {'code': 'document_too_large', 'message': 'De volledige vergelijkcontext is te groot voor deze modelstap; er is geen tekst afgekapt.'}})
-        request = Request(ENDPOINT, data=data, headers={'Authorization': 'Bearer ' + self._key, 'Content-Type': 'application/json'})
+        request = Request(self._endpoint, data=data, headers={'Authorization': 'Bearer ' + self._key, 'Content-Type': 'application/json'})
         try:
             with urlopen(request, timeout=30) as response:
                 raw = response.read(MAX_RESPONSE + 1)
@@ -305,6 +314,11 @@ def handler_class(backend, provider, model, models=None):
     models = models or ModelCatalog(model)
     active = threading.BoundedSemaphore(1)
     origins = {'http://127.0.0.1:' + str(port) for port in (5173, 5174, 5175, 5176, 5177, 5178)} | {'http://localhost:' + str(port) for port in (5173, 5174, 5175, 5176, 5177, 5178)}
+    for origin in filter(None, os.environ.get('ADAMI_CORS_ORIGINS', '').split(',')):
+        parsed = urlsplit(origin)
+        if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
+            raise ValueError('ADAMI_CORS_ORIGINS bevat een ongeldige origin.')
+        origins.add(origin)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass

@@ -1,4 +1,4 @@
-"""Run one owned model job with conservative macOS memory budgets."""
+"""Run one owned model job with conservative macOS/Linux memory budgets."""
 
 import argparse
 import json
@@ -39,7 +39,36 @@ def violation(sample, baseline_swap_mib, elapsed, timeout):
     return None
 
 
+def parse_linux_meminfo(text):
+    required = {"MemTotal", "MemAvailable", "SwapTotal", "SwapFree"}
+    values = {}
+    for line in text.splitlines():
+        key, _, raw = line.partition(":")
+        key = key.strip()
+        if key not in required:
+            continue
+        match = re.fullmatch(r"\s*([0-9]+)\s+kB\s*", raw)
+        if key in values or not match:
+            raise ValueError("Invalid Linux memory metrics")
+        values[key] = int(match[1])
+    if (set(values) != required or values["MemTotal"] <= 0
+            or values["MemAvailable"] > values["MemTotal"]
+            or values["SwapFree"] > values["SwapTotal"]):
+        raise ValueError("Missing or contradictory Linux memory metrics")
+    # Our Linux guard rule; MemAvailable is not macOS's kernel pressure signal.
+    return {"pressure_level": 1 if values["MemAvailable"] * 10 >= values["MemTotal"] else 2,
+            "swap_used_mib": (values["SwapTotal"] - values["SwapFree"]) / 1024}
+
+
+def peak_rss_mib(peak):
+    return peak / (1024 * 1024 if sys.platform == "darwin" else 1024)
+
+
 def system_metrics():
+    if sys.platform == "linux":
+        return parse_linux_meminfo(Path("/proc/meminfo").read_text(encoding="utf-8"))
+    if sys.platform != "darwin":
+        raise ValueError("Resource guard supports macOS and Linux only")
     pressure = int(subprocess.check_output(
         ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"], text=True, timeout=3
     ).strip())
@@ -148,7 +177,7 @@ def main():
             report["exit_code"] = child.returncode
             # ru_maxrss captures short-lived peaks between one-second samples too.
             peak = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-            report["child_peak_rss_mib"] = peak / (1024 * 1024 if sys.platform == "darwin" else 1024)
+            report["child_peak_rss_mib"] = peak_rss_mib(peak)
             if report["child_peak_rss_mib"] >= MAX_RSS_KIB / 1024:
                 reason = reason or "rss_limit"
     except (OSError, ValueError, subprocess.SubprocessError) as error:

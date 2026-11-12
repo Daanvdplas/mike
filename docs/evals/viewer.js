@@ -235,7 +235,7 @@ function addRunControls(content, evalRecord, judgeAvailable, scopeId) {
     label.append(selector); choices.append(label);
     if (evalRecord.id !== 'B1') {
       const judgeLabel = element('label', null, 'judge-choice');
-      judge = element('input'); judge.type = 'checkbox'; judge.checked = false;
+      judge = element('input'); judge.type = 'checkbox'; judge.checked = judgeAvailable;
       judge.disabled = !judgeAvailable; judge.dataset.available = String(judgeAvailable);
       judgeLabel.append(judge, document.createTextNode(' AI-beoordeling via Orq (extra kosten)' + (judgeAvailable ? '' : ' · niet beschikbaar')));
       choices.append(judgeLabel);
@@ -260,11 +260,13 @@ function addRunControls(content, evalRecord, judgeAvailable, scopeId) {
   const results = element('div', null, 'run-results'); results.id = `${scopeId}-results`; results.setAttribute('aria-label', `Resultaten ${evalRecord.id}`);
   if (judge) {
     button.dataset.judgeEnabled = 'false'; button.dataset.modelReady = 'false';
-    judge.addEventListener('change', () => {
+    const updateJudge = () => {
       button.dataset.judgeEnabled = String(judge.checked); modelSelect.dataset.enabled = String(judge.checked); modelPicker.hidden = !judge.checked;
       if (judge.checked && !modelSelect.options.length) void loadModels(modelSelect, modelStatus, button);
       else updateRunControls();
-    });
+    };
+    judge.addEventListener('change', updateJudge);
+    updateJudge();
   }
   button.addEventListener('click', () => runEval(evalRecord, button, status, results, selector, judge, modelSelect));
   action.append(button, status); content.append(action, results);
@@ -314,6 +316,7 @@ async function loadCatalog() {
     const records = ['B1', 'E06'].map(id => catalog.evals.find(row => row.id === id && row.runnable));
     if (records.some(row => !row)) throw new Error('De twee evals zijn niet beschikbaar');
     runnableList.replaceChildren(...records.map(row => renderRunnable(row, catalog.judge_available === true)));
+    updateRunControls();
     catalogStatus.hidden = true;
     revealAnchor();
   } catch {

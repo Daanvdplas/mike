@@ -34,6 +34,9 @@ it('toont alleen B1 en E06 met één methodekeuze en één startknop per eval', 
     expect(document.querySelectorAll('.run-button')).toHaveLength(2);
     expect(document.querySelector('select[aria-label="Evaluatie kiezen"]')).toBeNull();
     expect(document.querySelector('#run-B1-compare')).toBeNull();
+    const localJudge = document.querySelector<HTMLInputElement>('#run-E06 input[type="checkbox"]')!;
+    expect(localJudge.checked).toBe(false);
+    expect(localJudge.disabled).toBe(true);
     expect(document.body.textContent).not.toContain('Andere scenario’s vergelijken');
     for (const evalId of ['B1', 'E06']) {
       const card = document.querySelector<HTMLDetailsElement>(`#run-${evalId}`)!;
@@ -94,10 +97,10 @@ it.each([false, true])('houdt zoekmethode en optioneel beoordelingsmodel geschei
     const card = document.querySelector<HTMLDetailsElement>('#run-E06')!; card.open = true;
     const button = card.querySelector<HTMLButtonElement>('[data-eval-id="E06"]')!;
     const method = card.querySelector<HTMLSelectElement>('select[aria-label="Zoekmethode voor E06"]')!; method.value = 'both';
-    expect(button.disabled).toBe(false);
-    expect(fetcher.mock.calls.some(([url]) => url === '/api/models')).toBe(false);
     const judge = card.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
-    judge.checked = true; judge.dispatchEvent(new Event('change', {bubbles: true}));
+    expect(judge.checked).toBe(true);
+    expect(fetcher.mock.calls.some(([url]) => url === '/api/models')).toBe(true);
+    expect(fetcher.mock.calls.some(([url]) => url.endsWith('/run'))).toBe(false);
     if (catalogFailed) {
       await vi.waitFor(() => expect(card.querySelector('.model-status')!.textContent).toContain('mislukt'));
       expect(button.disabled).toBe(true);

@@ -36,3 +36,6 @@ coverage/
 
 # Local Python resource-check artifacts
 __pycache__/
+
+# Machine-specific path configuration (no credentials)
+/start.local.json

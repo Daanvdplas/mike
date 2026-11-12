@@ -11,6 +11,18 @@ from test_orq_proxy import BODY, CONTENT_TYPE, FIXTURE, tool_call, final_answer
 
 
 class OrqModelsTest(unittest.TestCase):
+    def test_sidecar_uses_the_configured_provider_base_without_exposing_the_key(self):
+        try:
+            provider = proxy.OrqProvider('synthetic-private-key', base_url='http://127.0.0.1:12345/v3/router')
+        except TypeError:
+            self.fail('The complete launcher needs the same explicit provider base for Mike and E06.')
+        from unittest.mock import MagicMock
+        response = MagicMock(); response.__enter__.return_value.read.return_value = b'{"status":"completed"}'
+        with patch.object(proxy, 'urlopen', return_value=response) as call:
+            self.assertEqual(provider({'model': models.DEFAULT_MODEL})['status'], 'completed')
+            self.assertEqual(call.call_args.args[0].full_url, 'http://127.0.0.1:12345/v3/router/responses')
+            self.assertNotIn('synthetic-private-key', call.call_args.args[0].full_url)
+
     def test_allowed_selection_and_actual_model_are_distinct(self):
         catalog = models.ModelCatalog()
         selected = 'openai/gpt-4.1-2025-04-14'
@@ -28,11 +40,12 @@ class OrqModelsTest(unittest.TestCase):
             calls.append(body['model'])
             result = tool_call() if len(calls) == 1 else final_answer()
             return {**result, 'model': selected.removeprefix('openai/')}
-        server = proxy.ThreadingHTTPServer(('127.0.0.1', 0), proxy.handler_class('http://unused', provider, models.DEFAULT_MODEL))
+        with patch.dict('os.environ', {'ADAMI_CORS_ORIGINS': 'http://127.0.0.1:54111'}):
+            server = proxy.ThreadingHTTPServer(('127.0.0.1', 0), proxy.handler_class('http://unused', provider, models.DEFAULT_MODEL))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         base = f'http://127.0.0.1:{server.server_port}'
-        headers = {'Origin': 'http://127.0.0.1:5177', 'Content-Type': CONTENT_TYPE, 'X-Orq-Model': 'unknown'}
+        headers = {'Origin': 'http://127.0.0.1:54111', 'Content-Type': CONTENT_TYPE, 'X-Orq-Model': 'unknown'}
         try:
             with patch.object(proxy, 'backend_request', return_value=FIXTURE) as retrieve:
                 invalid = request.Request(base + '/api/search', data=BODY, headers=headers)

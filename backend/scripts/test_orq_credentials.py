@@ -11,6 +11,13 @@ import evals_web
 
 
 class OrqCredentialTest(unittest.TestCase):
+    def test_embedded_header_newlines_are_rejected_without_echoing_the_key(self):
+        from orq_credentials import load_api_key
+        for key in ('synthetic\ninjection', 'synthetic\rinjection'):
+            with self.assertRaises(ValueError) as rejected:
+                load_api_key({'ORQ_API_KEY': key})
+            self.assertNotIn('synthetic', str(rejected.exception))
+
     def start_eval(self, environment, extra=()):
         server = MagicMock(); server.server_port = 12345
         with patch.dict(os.environ, environment, clear=True), \

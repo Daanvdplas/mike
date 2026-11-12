@@ -25,6 +25,6 @@ De launcher controleert de benodigdheden, bouwt ontbrekende onderdelen en opent:
 - [Mike](http://127.0.0.1:5176/)
 - [Evaluaties](http://127.0.0.1:8798/)
 
-Houd de terminal open; Ctrl+C stopt de eigen services. Er wordt geen index stil geïmporteerd en geen ingevoerde sleutel stil opgeslagen.
+Houd de terminal open; Ctrl+C stopt de eigen services. Er wordt geen index stil geïmporteerd en geen ingevoerde sleutel blijvend opgeslagen.
 
 Configuratie, handmatige setup, grenzen en controles staan in de [uitgebreide lokale setup](docs/LOCAL_SETUP.md).

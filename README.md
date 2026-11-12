@@ -161,9 +161,9 @@ VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18000 node node_modules/vit
 
 Deze modus verstuurt uploads naar de lokale backend en toont echte corpusresultaten. Stop alleen deze Vite-preview met Ctrl+C in zijn eigen terminal. De standaardmodus is de echte API; uitsluitend `VITE_API_MODE=mock` kiest fixtures. Zie [de backendafspraak](docs/FRONTEND_BACKEND.md).
 
-## Mike op main met methodekeuze
+## Mike lokaal met Orq-uitleg
 
-Start na de bewaakte backend op 8000 de frontend vanuit de schone main-checkout. Gebruik de vrije poort 5176; laat andere previews ongemoeid.
+Start na de bewaakte backend op 8000 de frontend vanuit deze checkout. Gebruik de vrije poort 5176; laat andere previews ongemoeid.
 
 ```sh
 cd frontend

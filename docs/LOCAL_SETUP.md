@@ -18,6 +18,12 @@ De resourceguard behoudt op macOS de bestaande systeemmetingen. Op Linux leest h
 
 De uitgebreide handmatige inrichting, resourcegrenzen en historische verificatie hieronder blijven van toepassing. Commandoblokken worden vanuit de reporoot uitgevoerd tenzij het blok zelf een andere map kiest.
 
+## Verificatiestatus
+
+De laatste volledige eindcontrole op 12 november 2026 gebruikte de echte lokale Rust-zoekengine met de bestaande 135-zaken/1368-passages-index en een expliciete lokale dynamische providercontractserver. Die testprovider maakte nieuwe antwoorden op de daadwerkelijke requests; dit was geen replay van opgeslagen provideruitvoer. Mike, B1, E06 en de eigen procescleanup zijn zo gecontroleerd op codecommit `30e555c`.
+
+Tijdens deze controle is geen Orq-cloudmodel aangeroepen: een geldige Orq-sleutel was niet beschikbaar. De echte Orq/cloudkoppeling en actuele modeltoegang zijn daarom niet opnieuw gevalideerd. Dit bewijst het lokale integratiecontract, geen actuele cloudautorisatie of juridische kwaliteit. `./start` blijft standaard de echte Orq-gateway gebruiken; de testprovider is geen productfallback. Eerdere cloudcontroles hieronder zijn historische resultaten en bewijzen geen huidige toegang.
+
 ## Technische achtergrond en handmatige bediening
 
 Prototypecase voor een AI-consultancy: voer een juridisch document, een zoekvraag of beide in en bekijk de drie hoogst scorende uitspraken uit het aangeleverde Texas-corpus. De frontend toont per zaak de volledige tekst van het meerderheidsoordeel (majority opinion) en markeert de gevonden passages.

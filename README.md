@@ -9,6 +9,8 @@ De Rustbackend zoekt lokaal met BGE-embeddings in SQLite. Orq kan de gevonden pa
 Mike gebruikt oordeelpassages (B). In de evals kies je B, head matter (A) of beide.
 B1 telt twee vaste referentiezaken; E06 kan de gevonden passages met AI beoordelen. Een overeenkomstscore of AI-oordeel bewijst geen juridische juistheid.
 
+**Verificatie:** de laatste eindcontrole gebruikte een lokale testprovider met de echte zoekengine. Zonder geldige sleutel is Orq/cloud niet opnieuw gevalideerd.
+
 ## Starten
 
 Vereist: macOS of Linux, Python 3, Rust 1.94.1 via rustup, Node.js 22.12+ met npm, het aangeleverde corpus en de bestaande index met bijbehorende modelcache.
